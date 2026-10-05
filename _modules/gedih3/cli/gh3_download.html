@@ -811,7 +811,7 @@ window.runMermaid = runMermaid;</script>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_gedi_args</span><span class="p">,</span> <span class="n">parse_dask_args</span><span class="p">,</span> <span class="n">parse_region</span><span class="p">,</span> <span class="n">setup_logging</span><span class="p">,</span> <span class="n">print_banner</span><span class="p">,</span> <span class="n">print_success</span><span class="p">,</span> <span class="n">resolve_path_args</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">download_soc</span><span class="p">,</span> <span class="n">s3_etl_subset</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">SOCDownloadLogger</span><span class="p">,</span> <span class="n">resolve_soc_version</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">dask_client</span>
 
     <span class="c1"># Setup logging and print banner</span>
     <span class="n">logger</span> <span class="o">=</span> <span class="n">setup_logging</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="vm">__name__</span><span class="p">)</span>
@@ -875,7 +875,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">dask_client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard available at: </span><span class="si">{</span><span class="n">client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span><span class="p">:</span>

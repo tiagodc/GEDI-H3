@@ -1870,6 +1870,13 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># the (granule × beam) is fully on disk — eliminating the legacy</span>
 <span class="c1"># "any-beam-fragment-equals-complete-granule" data-loss path (Agent 3</span>
 <span class="c1"># adversarial review #E.1).</span>
+<span class="c1">#</span>
+<span class="c1"># Two sentinel kinds, both zero-byte, both meaning "read successfully and</span>
+<span class="c1"># every leaf is committed": ``&lt;frag&gt;.done`` = at least one leaf committed;</span>
+<span class="c1"># ``&lt;frag&gt;.empty`` = zero rows (outside the ROI, empty beam, already-covered</span>
+<span class="c1"># cells). Resume skips both; reconcile Pass C only counts a granule as</span>
+<span class="c1"># on-disk when at least one of its beams is ``.done``, because an all-empty</span>
+<span class="c1"># granule proves nothing about rows under a different scope.</span>
 <span class="n">_COMPLETE_SENTINEL_DIRNAME</span> <span class="o">=</span> <span class="s1">'_complete'</span>
 
 
@@ -1895,8 +1902,8 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="kc">None</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Path of the per-(granule × beam) completion sentinel.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">empty</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Path of the per-(granule × beam) completion sentinel (``.empty`` for a zero-row task).</span>
 
 <span class="sd">    Lives under ``tmp_dir/_complete/`` (one directory, all sentinels) so</span>
 <span class="sd">    the reconcile can enumerate completions via a single ``os.scandir``</span>
@@ -1904,11 +1911,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    tree. ``frag_name`` matches ``_FRAGMENT_BASENAME_RE`` (no ``.parquet``</span>
 <span class="sd">    suffix) so the sentinel basename uniquely identifies the task.</span>
 <span class="sd">    """</span>
-    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">frag_name</span><span class="si">}</span><span class="s1">.done'</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">,</span>
+                        <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">frag_name</span><span class="si">}</span><span class="s1">.empty'</span> <span class="k">if</span> <span class="n">empty</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">frag_name</span><span class="si">}</span><span class="s1">.done'</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">empty</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Touch the completion sentinel for one (granule × beam). Idempotent.</span>
+
+<span class="sd">    ``empty=True`` writes the ``.empty`` kind (task read OK, zero rows);</span>
+<span class="sd">    otherwise the ``.done`` kind (at least one leaf committed).</span>
 
 <span class="sd">    Atomic via ``open(... 'x')`` semantics — concurrent emitters on shared</span>
 <span class="sd">    GPFS race-create the same file; only one wins, the others observe</span>
@@ -1916,7 +1927,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    AtomicFileWriter here: the file is zero-byte (its existence is the</span>
 <span class="sd">    signal); a partial write cannot leave a half-emitted sentinel.</span>
 <span class="sd">    """</span>
-    <span class="n">path</span> <span class="o">=</span> <span class="n">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">)</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="n">empty</span><span class="p">)</span>
     <span class="n">parent</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
@@ -2212,7 +2223,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">)]))</span>
             <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-                <span class="k">pass</span>
+                <span class="k">pass</span>  <span class="c1"># (a fragment's task is a data task: never an ``.empty`` sentinel)</span>
     <span class="c1"># Drop the sentinel — the cleanup acted; next merge will re-emit if</span>
     <span class="c1"># it fails again. Keeping it would loop the pre-clean forever.</span>
     <span class="k">try</span><span class="p">:</span>
@@ -2444,25 +2455,34 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">out</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_scan_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_scan_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">with_empty</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Return the set of frag_names with an emitted completion sentinel.</span>
 
 <span class="sd">    One ``os.scandir`` over ``tmp_dir/_complete/``; O(n_completed_tasks)</span>
-<span class="sd">    rather than O(n_fragments). Empty set if the sentinel dir doesn't</span>
-<span class="sd">    exist yet (fresh build or pre-migration legacy tmp tree).</span>
+<span class="sd">    rather than O(n_fragments). Counts both kinds (``.done`` and ``.empty``).</span>
+<span class="sd">    Empty set if the sentinel dir doesn't exist yet (fresh build or</span>
+<span class="sd">    pre-migration legacy tmp tree).</span>
+
+<span class="sd">    With ``with_empty=True`` returns ``(all_complete, empty_only)`` where</span>
+<span class="sd">    ``empty_only`` is the subset whose only sentinel is ``.empty`` (zero rows).</span>
 <span class="sd">    """</span>
     <span class="n">sentinel_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)</span>
-    <span class="n">out</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">done</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">empty</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">sentinel_dir</span><span class="p">)</span> <span class="k">as</span> <span class="n">it</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">it</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_file</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.done'</span><span class="p">):</span>
-                    <span class="n">out</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.done'</span><span class="p">)])</span>
-    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-        <span class="k">pass</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_file</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.done'</span><span class="p">):</span>
+                    <span class="n">done</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.done'</span><span class="p">)])</span>
+                <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.empty'</span><span class="p">):</span>
+                    <span class="n">empty</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.empty'</span><span class="p">)])</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">pass</span>
-    <span class="k">return</span> <span class="n">out</span>
+    <span class="k">if</span> <span class="n">with_empty</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">done</span> <span class="o">|</span> <span class="n">empty</span><span class="p">,</span> <span class="n">empty</span> <span class="o">-</span> <span class="n">done</span>
+    <span class="k">return</span> <span class="n">done</span> <span class="o">|</span> <span class="n">empty</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_canonical_write_schema</span><span class="p">(</span><span class="n">meta_df</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
@@ -2847,6 +2867,29 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">out</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_unmerged_fragments</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""True if any ``&lt;tmp_dir&gt;/h3_*/year=*/*.parquet`` fragment awaits a merge.</span>
+
+<span class="sd">    Stops at the first fragment. Looks for files, not just ``h3_*`` dirs: a</span>
+<span class="sd">    clean merge that kept tmp for forensics leaves the emptied dirs behind,</span>
+<span class="sd">    and merging those would only drop the bbox index for nothing.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span> <span class="k">as</span> <span class="n">top</span><span class="p">:</span>
+            <span class="n">h3_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">top</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)]</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">h3d</span> <span class="ow">in</span> <span class="n">h3_dirs</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">ydir</span> <span class="ow">in</span> <span class="n">_list_year_subdirs</span><span class="p">(</span><span class="n">h3d</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">ydir</span><span class="p">)</span> <span class="k">as</span> <span class="n">it</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">it</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="k">continue</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_process_h3_partition</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">set</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Return ``{(orbit, granule, track): set(beam_str, ...)}`` for granules</span>
 <span class="sd">    represented under ``h3_dir/year=*/*.parquet``.</span>
@@ -2903,7 +2946,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">out</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_reconcile_granules_from_disk</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_reconcile_granules_from_disk</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">expected_scope</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Mark granules INDEXED based on what's already on disk.</span>
 
 <span class="sd">    Scans the finalized partition metadata under ``h3_dir`` AND the tmp fragment</span>
@@ -2924,6 +2968,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    tmp_dir : str, optional</span>
 <span class="sd">        Temporary partitions directory (typically ``&lt;build_tmp&gt;/partitions``).</span>
 <span class="sd">        Skipped if None or non-existent.</span>
+<span class="sd">    expected_scope : str, optional</span>
+<span class="sd">        Stage 1 scope fingerprint (:func:`_stage1_scope_fingerprint`) the next</span>
+<span class="sd">        Stage 1 will run under. Completion sentinels under ``tmp_dir`` are</span>
+<span class="sd">        trusted for flips only when ``_complete_scope.json`` records exactly</span>
+<span class="sd">        this value: sentinels from another scope (a narrower ROI, other</span>
+<span class="sd">        variables) prove nothing about this one, and the driver discards them</span>
+<span class="sd">        later than this runs. ``None`` (default) trusts no sentinel; the</span>
+<span class="sd">        granules stay non-INDEXED and Stage 1 skips or re-reads their tasks</span>
+<span class="sd">        by sentinel/scope. Finalized-metadata (Pass A) and the legacy flips</span>
+<span class="sd">        for trees with neither ``_complete/``, a scope record nor a</span>
+<span class="sd">        ``_complete.stale.*`` sibling are unaffected. A resume of an</span>
+<span class="sd">        interrupted spatial- or temporal-only expansion re-reads its tasks</span>
+<span class="sd">        (the log then holds the union scope, so the fingerprint differs).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -3070,18 +3127,22 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># emitted as the final step). Sentinels are the authoritative</span>
     <span class="c1"># completeness signal going forward.</span>
     <span class="n">sentinel_beams</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">set</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">data_gids</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># granules with at least one ``.done`` (data) sentinel</span>
     <span class="n">sentinel_dir_exists</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">if</span> <span class="n">tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
         <span class="n">sentinel_dir_exists</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span>
             <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">sentinel_dir_exists</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">frag_name</span> <span class="ow">in</span> <span class="n">_scan_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
+            <span class="n">all_frags</span><span class="p">,</span> <span class="n">empty_frags</span> <span class="o">=</span> <span class="n">_scan_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">with_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">frag_name</span> <span class="ow">in</span> <span class="n">all_frags</span><span class="p">:</span>
                 <span class="n">m</span> <span class="o">=</span> <span class="n">_FRAGMENT_BASENAME_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">frag_name</span><span class="si">}</span><span class="s1">.parquet'</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">continue</span>
                 <span class="n">gid</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">)))</span>
                 <span class="n">sentinel_beams</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">gid</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">frag_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">empty_frags</span><span class="p">:</span>
+                    <span class="n">data_gids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">gid</span><span class="p">)</span>
 
     <span class="c1"># Decide reconcile mode.</span>
     <span class="c1">#</span>
@@ -3097,24 +3158,48 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># fragment-presence heuristic and EMIT sentinels for any granule we</span>
     <span class="c1"># flip INDEXED — that bridges the legacy tree into the sentinel model</span>
     <span class="c1"># so subsequent resumes are sentinel-aware.</span>
-    <span class="n">sentinel_mode</span> <span class="o">=</span> <span class="n">sentinel_dir_exists</span>
+    <span class="c1">#</span>
+    <span class="c1"># A scope record or a ``_complete.stale.*`` sibling also marks a streaming</span>
+    <span class="c1"># tree: ``_check_scope_fingerprint`` renames ``_complete/`` away on a scope</span>
+    <span class="c1"># change, and a run killed before its first task finishes leaves old-scope</span>
+    <span class="c1"># fragments with no ``_complete/``. That must never read as legacy.</span>
+    <span class="n">streaming_tree</span> <span class="o">=</span> <span class="n">sentinel_dir_exists</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">streaming_tree</span> <span class="ow">and</span> <span class="n">tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
+        <span class="n">streaming_tree</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_SCOPE_FILENAME</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">streaming_tree</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">streaming_tree</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
+                    <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">_COMPLETE_SENTINEL_DIRNAME</span> <span class="o">+</span> <span class="s1">'.stale.'</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="k">pass</span>
+    <span class="n">sentinel_mode</span> <span class="o">=</span> <span class="n">streaming_tree</span>
 
     <span class="n">expected_beams</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">GEDI_BEAMS</span><span class="p">)</span>
     <span class="n">n_partial</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">n_migrated_sentinels</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">migration_emit_pairs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># (frag_name, beam) — for clarity in logs</span>
 
-    <span class="k">if</span> <span class="n">sentinel_mode</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">sentinel_mode</span> <span class="ow">and</span> <span class="p">(</span><span class="n">expected_scope</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_read_scope_fingerprint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span> <span class="o">!=</span> <span class="n">expected_scope</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">"Resume reconciliation: completion sentinels were not produced under the current "</span>
+            <span class="s2">"Stage 1 scope (or the scope is unknown); not trusting them for granule status"</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">sentinel_mode</span><span class="p">:</span>
         <span class="c1"># AUTHORITATIVE PATH: granules complete only when every expected</span>
-        <span class="c1"># beam has its sentinel emitted. Fragment-presence in granule_beams</span>
+        <span class="c1"># beam has its sentinel emitted (and at least one is a data sentinel). Fragment-presence in granule_beams</span>
         <span class="c1"># is ignored for completeness; we still report partials based on it</span>
         <span class="c1"># as a diagnostic.</span>
         <span class="k">for</span> <span class="n">gid</span><span class="p">,</span> <span class="n">beams</span> <span class="ow">in</span> <span class="n">sentinel_beams</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">gid</span> <span class="ow">in</span> <span class="n">indexed_ids</span><span class="p">:</span>
                 <span class="k">continue</span>
-            <span class="k">if</span> <span class="n">expected_beams</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">beams</span><span class="p">):</span>
+            <span class="c1"># All beams complete AND at least one carried data: an all-empty</span>
+            <span class="c1"># granule only proves emptiness under the scope that ran, so it</span>
+            <span class="c1"># stays as-is (Stage 1 skips its tasks via the sentinel scan when</span>
+            <span class="c1"># the scope matches, and re-reads them when it changed).</span>
+            <span class="k">if</span> <span class="n">expected_beams</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">beams</span><span class="p">)</span> <span class="ow">and</span> <span class="n">gid</span> <span class="ow">in</span> <span class="n">data_gids</span><span class="p">:</span>
                 <span class="n">indexed_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">gid</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">expected_beams</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">beams</span><span class="p">):</span>
                 <span class="n">n_partial</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="c1"># Also surface fragment-on-disk-but-no-sentinel granules as partial</span>
         <span class="c1"># in the diagnostic count (they will be re-extracted on next run).</span>
@@ -3459,6 +3544,136 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">ddf</span>
 
 
+<span class="c1"># Top-level sidecar (not inside ``_complete/``): renaming ``_complete/`` away</span>
+<span class="c1"># must not lose it, and writing it must not create ``_complete/`` (whose mere</span>
+<span class="c1"># existence flips reconcile into sentinel mode).</span>
+<span class="n">_SCOPE_FILENAME</span> <span class="o">=</span> <span class="s1">'_complete_scope.json'</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_discard_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">desc</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Atomically retire ``tmp_dir/_complete/``; raises ``OSError`` if it cannot.</span>
+
+<span class="sd">    ``_remove_tree_fanout`` is best-effort and not atomic, so a partial or</span>
+<span class="sd">    swallowed failure could leave stale sentinels behind. Renaming first</span>
+<span class="sd">    makes the discard all-or-nothing: either ``_complete/`` is gone (nothing</span>
+<span class="sd">    reads the renamed ``_complete.stale.*`` sibling) or the rename raised.</span>
+<span class="sd">    A missing directory is a no-op. The renamed tree is then removed</span>
+<span class="sd">    best-effort; a leftover is harmless and goes with the whole-tree cleanup.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+    <span class="n">src</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)</span>
+    <span class="n">dst</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">src</span><span class="si">}</span><span class="s2">.stale.</span><span class="si">{</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">dst</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">dst</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="n">desc</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_discard_unscoped_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Retire ``tmp_dir/_complete/`` when no scope record vouches for it.</span>
+
+<span class="sd">    :func:`_check_scope_fingerprint` adopts such a legacy set as in-flight</span>
+<span class="sd">    resume state. The CLI calls this first when the build log says the last</span>
+<span class="sd">    build COMPLETED: the sentinels are then leftovers, and adopting them would</span>
+<span class="sd">    make a wider ROI skip the tasks that were empty under the old one.</span>
+<span class="sd">    Returns True if sentinels were discarded; raises ``GediFileError`` if</span>
+<span class="sd">    they could not be.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_SCOPE_FILENAME</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_discard_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Clearing unscoped completion sentinels"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Cannot discard stale completion sentinels in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="sa">f</span><span class="s2">"Remove </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span><span class="w"> </span><span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)</span><span class="si">}</span><span class="s2"> manually and re-run."</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_scope_fingerprint</span><span class="p">(</span><span class="n">spatial_h3_tiles</span><span class="p">,</span> <span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Hash of the inputs that decide which rows a (granule x beam) task yields."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">'tiles'</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">spatial_h3_tiles</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">spatial_h3_tiles</span><span class="p">),</span>
+        <span class="s1">'res'</span><span class="p">:</span> <span class="n">res</span><span class="p">,</span> <span class="s1">'part'</span><span class="p">:</span> <span class="n">part</span><span class="p">,</span>
+        <span class="s1">'vars'</span><span class="p">:</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span> <span class="ow">or</span> <span class="p">[]))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">())},</span>
+    <span class="p">}</span>
+    <span class="n">h</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">h</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_spatial_tiles</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Stage 1 tile set for an ROI at partition level ``part`` (None = no filter)."""</span>
+    <span class="k">if</span> <span class="n">spatial</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">tiles</span> <span class="o">=</span> <span class="n">intersect_h3_geometries</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">res</span><span class="o">=</span><span class="n">part</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">tiles</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tiles</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stage1_scope_fingerprint</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Scope fingerprint of a Stage 1 run, from its spatial filter, H3 levels and variables.</span>
+
+<span class="sd">    ``build_h3db`` computes it over the *expanded* variables and hands it to</span>
+<span class="sd">    ``_write_partitioned_streaming``. The expansion edits the build log's own</span>
+<span class="sd">    ``product_vars`` in place, so a resumed CLI reads the expanded form back</span>
+<span class="sd">    and its pre-reconcile value agrees with the recorded one. (On a fresh</span>
+<span class="sd">    build the CLI still holds raw specs, but there is no tmp tree to trust.)</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_scope_fingerprint</span><span class="p">(</span><span class="n">_spatial_tiles</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">part</span><span class="p">),</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_scope_fingerprint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fingerprint recorded in ``tmp_dir/_complete_scope.json`` (None if absent/unreadable)."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_SCOPE_FILENAME</span><span class="p">))</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'fingerprint'</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_scope_fingerprint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fingerprint</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Invalidate stale completion sentinels when the Stage 1 scope changed.</span>
+
+<span class="sd">    A sentinel only proves a task finished under the scope it ran with (a task</span>
+<span class="sd">    outside the old ROI is "complete" with zero rows). The scope fingerprint</span>
+<span class="sd">    lives in ``tmp_dir/_complete_scope.json``. On mismatch the sentinels are</span>
+<span class="sd">    retired atomically (:func:`_discard_complete_sentinels`) *before* the new</span>
+<span class="sd">    scope is written, so every task re-runs; leaf writes are idempotent (``&lt;frag_name&gt;.parquet`` is replaced</span>
+<span class="sd">    atomically). A missing file next to existing sentinels is a tmp tree from</span>
+<span class="sd">    an older version: adopt the current scope and keep the sentinels.</span>
+<span class="sd">    """</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_SCOPE_FILENAME</span><span class="p">)</span>
+    <span class="n">stored</span> <span class="o">=</span> <span class="n">_read_scope_fingerprint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stored</span> <span class="o">==</span> <span class="n">fingerprint</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">stored</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="c1"># Changed scope, or a scope file too damaged to prove anything: re-run.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="s2">"Streaming resume: the spatial scope, H3 levels or variables changed since the "</span>
+            <span class="s2">"previous run (or its record is unreadable); discarding its completion sentinels "</span>
+            <span class="s2">"so every task is re-run."</span>
+        <span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">_discard_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Clearing stale completion sentinels"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="c1"># Never stamp the new scope over sentinels we could not retire.</span>
+            <span class="k">raise</span> <span class="n">GediFileError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Cannot discard stale completion sentinels in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">. "</span>
+                <span class="sa">f</span><span class="s2">"Remove </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span><span class="w"> </span><span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">)</span><span class="si">}</span><span class="s2"> manually and re-run."</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">e</span>
+    <span class="c1"># else: no record at all — a fresh tmp tree, or one from an older version</span>
+    <span class="c1"># whose sentinels we keep (legacy behaviour) by adopting the current scope.</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">({</span><span class="s1">'fingerprint'</span><span class="p">:</span> <span class="n">fingerprint</span><span class="p">},</span> <span class="n">fh</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_write_one_granule_beam</span><span class="p">(</span>
     <span class="n">task</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
@@ -3483,10 +3698,14 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    [h3_{part:02d}, year]), writes one parquet leaf per (h3 cell × year)</span>
 <span class="sd">    group via AtomicFileWriter + GeoDataFrame.to_parquet, then emits a</span>
 <span class="sd">    per-(granule × beam) completion sentinel only AFTER every leaf is</span>
-<span class="sd">    committed. The sentinel is what the reconcile trusts as proof that the</span>
-<span class="sd">    (granule × beam) is fully on disk — eliminating the legacy</span>
-<span class="sd">    "any-beam-fragment-equals-complete-granule" data-loss path on</span>
-<span class="sd">    kill-mid-write resume.</span>
+<span class="sd">    committed. The sentinel means "this task was read successfully and all</span>
+<span class="sd">    its leaves (possibly zero) are committed" (``.done`` = at least one leaf,</span>
+<span class="sd">    ``.empty`` = zero rows); the reconcile trusts it as</span>
+<span class="sd">    proof that the (granule × beam) is fully on disk — eliminating the</span>
+<span class="sd">    legacy "any-beam-fragment-equals-complete-granule" data-loss path on</span>
+<span class="sd">    kill-mid-write resume. A task that was read but yielded no rows</span>
+<span class="sd">    (empty beam, outside the ROI, already-covered cells) still gets a</span>
+<span class="sd">    sentinel, so resume does not re-read it.</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -3522,13 +3741,18 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    dict</span>
 <span class="sd">        ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,</span>
 <span class="sd">        'error': Optional[str]}``. ``skipped=True`` covers</span>
-<span class="sd">        empty-after-load, empty-after-spatial-filter, and</span>
-<span class="sd">        empty-after-skip-check (no sentinel emitted in any of these</span>
-<span class="sd">        cases — the (granule × beam) genuinely produced no data).</span>
+<span class="sd">        empty-after-load, empty-after-index, empty-after-spatial-filter,</span>
+<span class="sd">        empty-after-skip-check, and no-leaves-written; the completion</span>
+<span class="sd">        sentinel IS emitted in each of these (the task was read and</span>
+<span class="sd">        genuinely produced no data) as the ``.empty`` kind, with</span>
+<span class="sd">        ``leaves == 0`` and ``empty=True``; a task with &gt;= 1 leaf writes</span>
+<span class="sd">        ``.done`` and ``empty=False``. No sentinel is</span>
+<span class="sd">        emitted on a load error (``error`` set) or when no product file</span>
+<span class="sd">        exists for the task (``load_h5_merged`` returned ``None``).</span>
 <span class="sd">    """</span>
     <span class="n">soc_dict</span><span class="p">,</span> <span class="n">beam</span><span class="p">,</span> <span class="n">frag_name</span> <span class="o">=</span> <span class="n">task</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'frag_name'</span><span class="p">:</span> <span class="n">frag_name</span><span class="p">,</span> <span class="s1">'leaves'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'rows'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'skipped'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-             <span class="s1">'error'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'failure'</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+             <span class="s1">'error'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'failure'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
 
     <span class="c1"># 1) Load HDF5 for one (granule, beam) — identical contract to</span>
     <span class="c1">#    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.</span>
@@ -3549,14 +3773,26 @@ window.runMermaid = runMermaid;</script>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"load_h5_merged: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'failure'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_classify_load_h5_failure</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">soc_dict</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">stats</span>
-    <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># No product file present for this task at all ("no source"), as</span>
+        <span class="c1"># opposed to a file that was read and held zero rows. Leave it</span>
+        <span class="c1"># sentinel-less so a later resume retries once the source exists.</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">stats</span>
+    <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="c1"># Read successfully, zero rows: record completion (``.empty`` kind)</span>
+        <span class="c1"># so resume never re-reads this task.</span>
+        <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">stats</span>
 
     <span class="c1"># 2) H3 index — same call as legacy ddf.map_partitions(h3_index_df, ...).</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">h3_index_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">res</span><span class="o">=</span><span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="n">part</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">stats</span>
 
     <span class="n">h3_part_col</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'h3_</span><span class="si">{</span><span class="n">part</span><span class="si">:</span><span class="s1">02d</span><span class="si">}</span><span class="s1">'</span>
@@ -3566,7 +3802,9 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">spatial_h3_tiles</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="n">h3_part_col</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">spatial_h3_tiles</span><span class="p">)]</span>
         <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="n">stats</span>
 
     <span class="c1"># 4) Skip-existing-data filter — replaces _apply_spatial_filter's</span>
@@ -3576,7 +3814,9 @@ window.runMermaid = runMermaid;</script>
         <span class="n">df</span> <span class="o">=</span> <span class="n">h3_add_skip_column</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">h3_dir</span><span class="o">=</span><span class="n">h3_dir</span><span class="p">)</span>
         <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s1">'_skip'</span><span class="p">]]</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'_skip'</span><span class="p">])</span>
         <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+            <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="n">stats</span>
 
     <span class="c1"># 5) Special columns + year — same calls as legacy.</span>
@@ -3621,11 +3861,14 @@ window.runMermaid = runMermaid;</script>
     <span class="c1">#    only AFTER every leaf is committed (AtomicFileWriter.__exit__</span>
     <span class="c1">#    succeeded). If the worker dies between leaves, no sentinel is</span>
     <span class="c1">#    emitted → reconcile leaves the granule non-INDEXED → next resume</span>
-    <span class="c1">#    re-extracts the (granule × beam) idempotently.</span>
-    <span class="k">if</span> <span class="n">leaves_written</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
+    <span class="c1">#    re-extracts the (granule × beam) idempotently. Emitted even when</span>
+    <span class="c1">#    zero leaves were written: "read OK, all leaves (possibly zero)</span>
+    <span class="c1">#    committed". Errors never reach here (exception path returns early).</span>
+    <span class="c1">#    ``.done`` when a leaf was committed, ``.empty`` for zero leaves.</span>
+    <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="n">leaves_written</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">leaves_written</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">stats</span><span class="p">[</span><span class="s1">'leaves'</span><span class="p">]</span> <span class="o">=</span> <span class="n">leaves_written</span>
     <span class="n">stats</span><span class="p">[</span><span class="s1">'rows'</span><span class="p">]</span> <span class="o">=</span> <span class="n">rows_written</span>
@@ -3685,6 +3928,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">dat_col</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">inflight_target</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">allow_missing_products</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">scope_fingerprint</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Streaming replacement for the legacy ``ddf.to_parquet().persist()``.</span>
 
@@ -3814,6 +4058,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># 4) Skip already-completed granule×beam tasks via sentinel scan. A</span>
     <span class="c1">#    resume picks up exactly where the previous run stopped — completed</span>
     <span class="c1">#    tasks are not re-submitted, partial tasks (no sentinel) are.</span>
+    <span class="n">_check_scope_fingerprint</span><span class="p">(</span>
+        <span class="n">tmp_dir</span><span class="p">,</span> <span class="n">scope_fingerprint</span> <span class="ow">or</span> <span class="n">_scope_fingerprint</span><span class="p">(</span><span class="n">spatial_h3_tiles</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">))</span>
     <span class="n">completed_frags</span> <span class="o">=</span> <span class="n">_scan_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">completed_frags</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
@@ -4168,7 +4414,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">      must not leave the one hazardous file behind). It goes even when a</span>
 <span class="sd">      failure sidecar remains: every partition it lists is merged, and a</span>
 <span class="sd">      kept copy would also make the next merge skip those partitions' new</span>
-<span class="sd">      fragments;</span>
+<span class="sd">      fragments. ``_complete/`` goes right after, for the same reason: the</span>
+<span class="sd">      sentinels are an in-flight Stage 1 resume record, and a kept set would</span>
+<span class="sd">      make a later build with a wider ROI skip tasks that were empty under</span>
+<span class="sd">      the old one;</span>
 <span class="sd">    * then keep the rest while ``_merge_failed_granules.jsonl`` awaits the</span>
 <span class="sd">      CLI fold into the build log, or ``_granule_failures.jsonl`` holds</span>
 <span class="sd">      Stage 1 forensics (read by the end-of-build advisory and</span>
@@ -4194,6 +4443,11 @@ window.runMermaid = runMermaid;</script>
     <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not remove stale merge progress file in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">_discard_complete_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning completion sentinels"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not discard completion sentinels in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_MERGE_FAILED_GRANULES_FILENAME</span><span class="p">)):</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Keeping </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">: merge-failed granules await the build-log fold"</span><span class="p">)</span>
         <span class="k">return</span>
@@ -4205,8 +4459,6 @@ window.runMermaid = runMermaid;</script>
         <span class="p">)</span>
         <span class="k">return</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cleaning up build scaffolding in </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_COMPLETE_SENTINEL_DIRNAME</span><span class="p">),</span>
-                        <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning completion sentinels"</span><span class="p">)</span>
     <span class="n">_remove_tree_fanout</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Cleaning tmp partitions"</span><span class="p">)</span>
 
 
@@ -5688,6 +5940,12 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Expand variable specifications and ensure L2A essentials</span>
         <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">all_soc_files</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
 
+        <span class="c1"># Scope fingerprint over the EXPANDED variables. The expansion edits</span>
+        <span class="c1"># the caller's dict in place, and that dict is the build log's: what</span>
+        <span class="c1"># a resumed CLI reads back (and fingerprints before reconcile) is this</span>
+        <span class="c1"># expanded form, so hashing the raw specs would never match it.</span>
+        <span class="n">scope_fp</span> <span class="o">=</span> <span class="n">_stage1_scope_fingerprint</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+
         <span class="c1"># Filter to only files with required products</span>
         <span class="n">prod_soc_files</span> <span class="o">=</span> <span class="p">[{</span><span class="n">k</span><span class="p">:</span> <span class="n">val</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">}</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">all_soc_files</span><span class="p">]</span>
 
@@ -5699,6 +5957,17 @@ window.runMermaid = runMermaid;</script>
                                      <span class="n">required_products</span><span class="o">=</span><span class="n">required</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_has_unmerged_fragments</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">):</span>
+                <span class="c1"># Resume reconcile flips a granule INDEXED once its sentinels</span>
+                <span class="c1"># prove Stage 1 finished it, merged or not. A run stopped after</span>
+                <span class="c1"># Stage 1 but before the merge recorded progress leaves those</span>
+                <span class="c1"># fragments only in tmp: merge them, or they are lost while the</span>
+                <span class="c1"># log says INDEXED.</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"No new granules to process; merging fragments left by an earlier run"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">status_callback</span><span class="p">:</span>
+                    <span class="n">status_callback</span><span class="p">(</span><span class="s1">'MERGING'</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"No new granules to process"</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">allow_missing_products</span><span class="p">:</span>
@@ -5753,6 +6022,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">spatial</span><span class="p">,</span>
                 <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span>
                 <span class="n">allow_missing_products</span><span class="o">=</span><span class="n">allow_missing_products</span><span class="p">,</span>
+                <span class="n">scope_fingerprint</span><span class="o">=</span><span class="n">scope_fp</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">wrote_any</span> <span class="o">=</span> <span class="n">_write_partitioned</span><span class="p">(</span>
