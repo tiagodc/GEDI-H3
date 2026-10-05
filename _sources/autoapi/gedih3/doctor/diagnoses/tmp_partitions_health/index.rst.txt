@@ -12,7 +12,7 @@ gedih3.doctor.diagnoses.tmp_partitions_health
    already persisted:
 
      * ``tmp_dir/_merge_failures/*.fail`` sentinels  (one per failed merge)
-     * ``tmp_dir/_granule_failures.jsonl``           (one record per failed granule)
+     * ``tmp_dir/_granule_failures.jsonl``           (one record per distinct failed task)
      * ``tmp_dir/_merge_progress.txt`` vs. the DB ``_manifest.txt`` line count
 
    The cost of the check is O(N_failures) + O(1) on the manifest — never
@@ -22,7 +22,7 @@ gedih3.doctor.diagnoses.tmp_partitions_health
    The ``--fix`` variant calls :func:`gh3builder.preclean_merge_failures` to
    remove zero-byte / unreadable parquets + ``.tmp`` siblings under every
    failed-merge partition. Granule failures are reported only — recovery
-   belongs in ``gh3_update --recover-missing-vars``. As a hard guard, the
+   is a ``gh3_build`` re-run (see its end-of-build advisory). As a hard guard, the
    fix refuses to act when a fresh ``gh3_build`` process appears to be
    running (recent ``gh3_build.log`` mtime + matching pgrep PID).
 

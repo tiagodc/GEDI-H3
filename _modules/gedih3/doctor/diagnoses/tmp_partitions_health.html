@@ -768,7 +768,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">already persisted:</span>
 
 <span class="sd">  * ``tmp_dir/_merge_failures/*.fail`` sentinels  (one per failed merge)</span>
-<span class="sd">  * ``tmp_dir/_granule_failures.jsonl``           (one record per failed granule)</span>
+<span class="sd">  * ``tmp_dir/_granule_failures.jsonl``           (one record per distinct failed task)</span>
 <span class="sd">  * ``tmp_dir/_merge_progress.txt`` vs. the DB ``_manifest.txt`` line count</span>
 
 <span class="sd">The cost of the check is O(N_failures) + O(1) on the manifest — never</span>
@@ -778,7 +778,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">The ``--fix`` variant calls :func:`gh3builder.preclean_merge_failures` to</span>
 <span class="sd">remove zero-byte / unreadable parquets + ``.tmp`` siblings under every</span>
 <span class="sd">failed-merge partition. Granule failures are reported only — recovery</span>
-<span class="sd">belongs in ``gh3_update --recover-missing-vars``. As a hard guard, the</span>
+<span class="sd">is a ``gh3_build`` re-run (see its end-of-build advisory). As a hard guard, the</span>
 <span class="sd">fix refuses to act when a fresh ``gh3_build`` process appears to be</span>
 <span class="sd">running (recent ``gh3_build.log`` mtime + matching pgrep PID).</span>
 <span class="sd">"""</span>
@@ -939,7 +939,7 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_merge</span><span class="si">}</span><span class="s2"> failed merges, "</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_gran_records</span><span class="si">}</span><span class="s2"> granule failures across </span><span class="si">{</span><span class="n">n_gran_groups</span><span class="si">}</span><span class="s2"> kind(s), "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_gran_records</span><span class="si">}</span><span class="s2"> failed task(s) across </span><span class="si">{</span><span class="n">n_gran_groups</span><span class="si">}</span><span class="s2"> kind(s), "</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_drift</span><span class="si">}</span><span class="s2"> drift finding(s)"</span>
     <span class="p">)</span>
     <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span> <span class="k">if</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
@@ -1003,7 +1003,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="o">**</span><span class="n">f</span><span class="p">,</span>
                 <span class="s1">'action'</span><span class="p">:</span> <span class="s1">'reported_only'</span><span class="p">,</span>
                 <span class="s1">'recommendation'</span><span class="p">:</span> <span class="p">(</span>
-                    <span class="s1">'gh3_update --recover-missing-vars '</span>
+                    <span class="s1">'gh3_build re-run '</span>
                     <span class="sa">f</span><span class="s2">"(failure_kind=</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'failure_kind'</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
                 <span class="p">),</span>
             <span class="p">})</span>

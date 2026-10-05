@@ -773,7 +773,7 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">import</span><span class="w"> </span><span class="nn">dask_geopandas</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">dask.bag</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dbg</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Union</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">earthaccess.store</span><span class="w"> </span><span class="kn">import</span> <span class="n">EarthAccessFile</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">progress</span>
 
@@ -2324,8 +2324,8 @@ window.runMermaid = runMermaid;</script>
 
 <span class="c1"># Pattern: HDF5 "object 'X' doesn't exist" / "Unable to synchronously open</span>
 <span class="c1"># object (object 'X' doesn't exist)" — used by ``_classify_load_h5_failure``</span>
-<span class="c1"># to recognize the missing-variable case so downstream tooling</span>
-<span class="c1"># (``gh3_update --recover-missing-vars``) can offer a precise recipe.</span>
+<span class="c1"># to recognize the missing-variable case so the end-of-build advisory</span>
+<span class="c1"># can offer a precise recipe.</span>
 <span class="c1"># ``str(KeyError(msg))`` is the repr of ``msg``, which backslash-escapes the</span>
 <span class="c1"># quotes h5py puts around the object name (``object \'x\' doesn\'t exist``).</span>
 <span class="n">_MISSING_VAR_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"object\s+</span><span class="se">\\</span><span class="s2">?['</span><span class="se">\"</span><span class="s2">]([^'</span><span class="se">\"\\</span><span class="s2">]+)</span><span class="se">\\</span><span class="s2">?['</span><span class="se">\"</span><span class="s2">]\s+doesn</span><span class="se">\\</span><span class="s2">?'?t\s+exist"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
@@ -2376,16 +2376,13 @@ window.runMermaid = runMermaid;</script>
 <span class="w">    </span><span class="sd">"""Append one failure record to ``tmp_dir/_granule_failures.jsonl``.</span>
 
 <span class="sd">    Single-writer (driver thread) so no concurrency guard needed. Append-only</span>
-<span class="sd">    + line-buffered for crash-safety — a SIGKILL between batches loses only</span>
-<span class="sd">    the in-flight line. The whole file is folded into the build-log JSON at</span>
-<span class="sd">    finalize so post-build consumers (``gh3_update --recover-missing-vars``)</span>
-<span class="sd">    can resolve {orbit,granule,track} → failure cause with no log-grep.</span>
-
-<span class="sd">    Why JSONL, not full JSON rewrite: rewriting the 97k-granule build log on</span>
-<span class="sd">    every failure would be the exact O(N) driver-side I/O Pillar 1 bans.</span>
-<span class="sd">    Append-only delta + finalize-time fold gives O(1) per failure on the</span>
-<span class="sd">    hot path and O(N_failures) at end-of-build instead of O(N_granules)</span>
-<span class="sd">    per failure.</span>
+<span class="sd">    and O(1) per failure: a SIGKILL loses at most the in-flight line, and the</span>
+<span class="sd">    hot path never rewrites the file. The same task failing on several runs</span>
+<span class="sd">    appends several lines; :func:`_read_granule_failures` collapses them to</span>
+<span class="sd">    one record per ``frag_name`` and :func:`_compact_granule_failures` rewrites</span>
+<span class="sd">    the file once at the end of Stage 1. The file is a forensics sidecar read</span>
+<span class="sd">    by the end-of-build advisory and ``gh3_doctor``'s ``tmp_partitions_health``;</span>
+<span class="sd">    nothing folds it into the build log.</span>
 <span class="sd">    """</span>
     <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_GRANULE_FAILURES_FILENAME</span><span class="p">)</span>
     <span class="n">record</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'frag_name'</span><span class="p">:</span> <span class="n">frag_name</span><span class="p">,</span> <span class="o">**</span><span class="n">failure</span><span class="p">}</span>
@@ -2399,13 +2396,22 @@ window.runMermaid = runMermaid;</script>
         <span class="k">pass</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_read_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">"""Read all recorded granule-failure records. O(N_failures); never</span>
-<span class="sd">    iterates partitions. Used by the finalize fold and by gh3_update."""</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_scan_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Collapse the failure sidecar to ``(records, n_lines, n_invalid)``.</span>
+
+<span class="sd">    One record per ``frag_name`` in first-seen order, carrying the LAST</span>
+<span class="sd">    line's content and ``runs`` = total occurrences (a compacted record's own</span>
+<span class="sd">    ``runs`` counts, a plain line counts 1). ``n_lines`` is the number of</span>
+<span class="sd">    valid lines read and ``n_invalid`` the torn / non-object lines skipped</span>
+<span class="sd">    (blank lines are ignored), so callers can tell whether a rewrite would</span>
+<span class="sd">    change the file. A record without ``frag_name`` is never merged with</span>
+<span class="sd">    another: it is keyed by its line number and stays visible.</span>
+<span class="sd">    """</span>
     <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_GRANULE_FAILURES_FILENAME</span><span class="p">)</span>
-    <span class="n">out</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">by_key</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">n_lines</span> <span class="o">=</span> <span class="n">n_invalid</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">out</span>
+        <span class="k">return</span> <span class="p">[],</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
@@ -2413,15 +2419,76 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
                     <span class="k">continue</span>
                 <span class="k">try</span><span class="p">:</span>
-                    <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+                    <span class="n">rec</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
                 <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">:</span>
                     <span class="c1"># Tolerate the rare torn last line from a SIGKILL during</span>
                     <span class="c1"># the writer's flush — same principle as parquet_merge</span>
                     <span class="c1"># tolerating corrupt fragments.</span>
+                    <span class="n">n_invalid</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="k">continue</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rec</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">n_invalid</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">continue</span>
+                <span class="n">n_lines</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">rec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'__line__'</span><span class="p">,</span> <span class="n">n_lines</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">runs</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">rec</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'runs'</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                    <span class="n">runs</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">runs</span> <span class="o">+=</span> <span class="n">prev</span><span class="p">[</span><span class="s1">'runs'</span><span class="p">]</span>
+                <span class="n">rec</span><span class="p">[</span><span class="s1">'runs'</span><span class="p">]</span> <span class="o">=</span> <span class="n">runs</span>
+                <span class="n">by_key</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rec</span>  <span class="c1"># dict keeps the first-seen position</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">pass</span>
-    <span class="k">return</span> <span class="n">out</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">by_key</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">n_lines</span><span class="p">,</span> <span class="n">n_invalid</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Read the recorded failures, one record per distinct task.</span>
+
+<span class="sd">    O(N_failures); never iterates partitions. Records are keyed by</span>
+<span class="sd">    ``frag_name`` (a Stage 1 ``(granule x beam)`` fragment name, or a granule</span>
+<span class="sd">    id from the variable-add fan). The latest record per key wins and its</span>
+<span class="sd">    ``runs`` field is the total number of times that key was recorded, so</span>
+<span class="sd">    ``len(result)`` is the number of distinct failed tasks.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_scan_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compact_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">recovered</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">())</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Rewrite the failure sidecar once: drop recovered keys, merge duplicates.</span>
+
+<span class="sd">    ``recovered`` holds keys whose task succeeded this run; only those are</span>
+<span class="sd">    dropped (a key of any other namespace, e.g. a variable-fan granule id,</span>
+<span class="sd">    never matches and is kept). One compacted record per remaining key</span>
+<span class="sd">    carries the latest error and its ``runs`` count. The file is deleted when</span>
+<span class="sd">    nothing remains, so ``_cleanup_merged_tmp`` can remove the tmp tree. No-op</span>
+<span class="sd">    when the rewrite would change nothing. A crash before this runs leaves the</span>
+<span class="sd">    append-only file, which :func:`_read_granule_failures` still reads</span>
+<span class="sd">    correctly.</span>
+<span class="sd">    """</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_GRANULE_FAILURES_FILENAME</span><span class="p">)</span>
+    <span class="n">recovered</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">recovered</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">records</span><span class="p">,</span> <span class="n">n_lines</span><span class="p">,</span> <span class="n">n_invalid</span> <span class="o">=</span> <span class="n">_scan_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="n">kept</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">recovered</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span> <span class="o">==</span> <span class="n">n_lines</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">records</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">n_invalid</span><span class="p">:</span>
+            <span class="k">return</span>  <span class="c1"># one clean line per key, nothing recovered</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">kept</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">rec</span> <span class="ow">in</span> <span class="n">kept</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">rec</span><span class="p">)</span> <span class="o">+</span> <span class="s1">'</span><span class="se">\n</span><span class="s1">'</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not compact </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
@@ -3740,7 +3807,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
 <span class="sd">        ``{'frag_name': str, 'leaves': int, 'rows': int, 'skipped': bool,</span>
-<span class="sd">        'error': Optional[str]}``. ``skipped=True`` covers</span>
+<span class="sd">        'error': Optional[str], 'complete': bool}``. ``complete`` is True</span>
+<span class="sd">        exactly when the completion sentinel was emitted (positive evidence</span>
+<span class="sd">        the task was read in full); the driver uses it to retire an earlier</span>
+<span class="sd">        failure record. ``skipped=True`` covers</span>
 <span class="sd">        empty-after-load, empty-after-index, empty-after-spatial-filter,</span>
 <span class="sd">        empty-after-skip-check, and no-leaves-written; the completion</span>
 <span class="sd">        sentinel IS emitted in each of these (the task was read and</span>
@@ -3752,7 +3822,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    """</span>
     <span class="n">soc_dict</span><span class="p">,</span> <span class="n">beam</span><span class="p">,</span> <span class="n">frag_name</span> <span class="o">=</span> <span class="n">task</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'frag_name'</span><span class="p">:</span> <span class="n">frag_name</span><span class="p">,</span> <span class="s1">'leaves'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'rows'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">'skipped'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-             <span class="s1">'error'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'failure'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+             <span class="s1">'error'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'failure'</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">'complete'</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
 
     <span class="c1"># 1) Load HDF5 for one (granule, beam) — identical contract to</span>
     <span class="c1">#    dask_h5_merged(by_beam=True)'s inner load_by_beam closure.</span>
@@ -3767,8 +3837,8 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># corrupt h5 returns an empty meta upstream rather than failing the</span>
         <span class="c1"># whole job. Streaming surfaces the error in stats for visibility,</span>
         <span class="c1"># plus a structured ``failure`` record so the driver can persist it</span>
-        <span class="c1"># for downstream recovery (gh3_update --recover-missing-vars) without</span>
-        <span class="c1"># needing to grep the WARN log lines later.</span>
+        <span class="c1"># for the end-of-build advisory and gh3_doctor without needing to grep</span>
+        <span class="c1"># the WARN log lines later.</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'error'</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"load_h5_merged: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'failure'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_classify_load_h5_failure</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">soc_dict</span><span class="p">)</span>
@@ -3783,6 +3853,7 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Read successfully, zero rows: record completion (``.empty`` kind)</span>
         <span class="c1"># so resume never re-reads this task.</span>
         <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'complete'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">stats</span>
@@ -3791,6 +3862,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">df</span> <span class="o">=</span> <span class="n">h3_index_df</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">res</span><span class="o">=</span><span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="o">=</span><span class="n">part</span><span class="p">,</span> <span class="n">lat_col</span><span class="o">=</span><span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="o">=</span><span class="n">lon_col</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
         <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">stats</span><span class="p">[</span><span class="s1">'complete'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">stats</span>
@@ -3803,6 +3875,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="n">h3_part_col</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">spatial_h3_tiles</span><span class="p">)]</span>
         <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
             <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s1">'complete'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="n">stats</span>
@@ -3815,6 +3888,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="o">~</span><span class="n">df</span><span class="p">[</span><span class="s1">'_skip'</span><span class="p">]]</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'_skip'</span><span class="p">])</span>
         <span class="k">if</span> <span class="n">df</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
             <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s1">'complete'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="k">return</span> <span class="n">stats</span>
@@ -3866,6 +3940,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1">#    committed". Errors never reach here (exception path returns early).</span>
     <span class="c1">#    ``.done`` when a leaf was committed, ``.empty`` for zero leaves.</span>
     <span class="n">_emit_complete_sentinel</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">,</span> <span class="n">empty</span><span class="o">=</span><span class="n">leaves_written</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">stats</span><span class="p">[</span><span class="s1">'complete'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="k">if</span> <span class="n">leaves_written</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'skipped'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">stats</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
@@ -4116,18 +4191,28 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Generator over (soc_dict, beam, frag_name). Skips tasks whose</span>
     <span class="c1"># sentinel is already on disk (resume fast-path).</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Driver: building task list..."</span><span class="p">)</span>
+    <span class="c1"># Keys that failed on an earlier run (small: O(N_failures)). A task that</span>
+    <span class="c1"># later succeeds is "recovered" and its stale record is dropped by one</span>
+    <span class="c1"># compaction at the end of this phase. Only Stage 1 frag_names can ever</span>
+    <span class="c1"># land in ``recovered``; records keyed by anything else are left alone.</span>
+    <span class="n">previously_failed</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_read_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)}</span>
+    <span class="n">recovered</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_task_stream</span><span class="p">():</span>
         <span class="k">for</span> <span class="n">soc</span><span class="p">,</span> <span class="n">beam</span> <span class="ow">in</span> <span class="n">_it</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">soc_files</span><span class="p">,</span> <span class="n">GEDI_BEAMS</span><span class="p">):</span>
             <span class="n">frag_name</span> <span class="o">=</span> <span class="n">_granule_beam_frag_name</span><span class="p">(</span><span class="n">soc</span><span class="p">,</span> <span class="n">beam</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">frag_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">continue</span>  <span class="c1"># opaque soc filename — never happens for NASA granules</span>
             <span class="k">if</span> <span class="n">frag_name</span> <span class="ow">in</span> <span class="n">completed_frags</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">frag_name</span> <span class="ow">in</span> <span class="n">previously_failed</span><span class="p">:</span>
+                    <span class="n">recovered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">frag_name</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="k">yield</span> <span class="p">(</span><span class="n">soc</span><span class="p">,</span> <span class="n">beam</span><span class="p">,</span> <span class="n">frag_name</span><span class="p">)</span>
 
     <span class="n">tasks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">_task_stream</span><span class="p">())</span>  <span class="c1"># materialize so we know the total</span>
     <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tasks</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">_compact_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">recovered</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Streaming write: no remaining tasks (all granules already complete)"</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
             <span class="n">entry</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">entry</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)</span>
@@ -4201,6 +4286,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">n_ok</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="n">n_leaves</span> <span class="o">+=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'leaves'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'complete'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">)</span> <span class="ow">in</span> <span class="n">previously_failed</span><span class="p">:</span>
+                        <span class="n">recovered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">))</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
                 <span class="n">n_fail</span> <span class="o">+=</span> <span class="mi">1</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Stage1 task raised: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -4220,6 +4307,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="n">next_log_t</span> <span class="o">=</span> <span class="n">now</span> <span class="o">+</span> <span class="n">log_every_seconds</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="c1"># One rewrite: drop records of tasks that succeeded this run, merge</span>
+    <span class="c1"># duplicate lines. Must precede the merge's ``_cleanup_merged_tmp``.</span>
+    <span class="n">_compact_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">recovered</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">n_fail</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
@@ -5139,6 +5230,8 @@ window.runMermaid = runMermaid;</script>
     <span class="p">)</span>
     <span class="n">fan_tasks</span> <span class="o">=</span> <span class="p">[(</span><span class="n">ot</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">[</span><span class="n">ot</span><span class="p">],</span> <span class="n">gran_year_pfs</span><span class="p">[</span><span class="n">ot</span><span class="p">])</span> <span class="k">for</span> <span class="n">ot</span> <span class="ow">in</span> <span class="n">gran_year_pfs</span><span class="p">]</span>
     <span class="n">fan_futures</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">fan_fn</span><span class="p">,</span> <span class="n">fan_tasks</span><span class="p">,</span> <span class="n">pure</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">fan_prev_failed</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'frag_name'</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">_read_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)}</span>
+    <span class="n">fan_recovered</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="n">fut_to_gran</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fan_futures</span><span class="p">,</span> <span class="n">fan_tasks</span><span class="p">)}</span>
     <span class="n">failed_granules</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="n">failed_products</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -5160,6 +5253,11 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># A fill product listed by these files but routing no row</span>
                     <span class="c1"># to them filled nothing: leave it pending, never "filled".</span>
                     <span class="n">empty</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'product_fragments'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="p">)</span>
+                    <span class="c1"># failed_granules / failed_products track later-stage and</span>
+                    <span class="c1"># pending-product failures separately; recover only a</span>
+                    <span class="c1"># granule whose read left nothing pending.</span>
+                    <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">)</span> <span class="ow">in</span> <span class="n">fan_prev_failed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">fill</span> <span class="ow">and</span> <span class="n">empty</span><span class="p">):</span>
+                        <span class="n">fan_recovered</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">))</span>
                     <span class="k">if</span> <span class="n">fill</span> <span class="ow">and</span> <span class="n">empty</span><span class="p">:</span>
                         <span class="n">failed_products</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">empty</span><span class="p">)</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Product backfill: granule </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granule'</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">empty</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
@@ -5174,6 +5272,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix</span><span class="p">(</span><span class="n">fragments</span><span class="o">=</span><span class="n">n_frag</span><span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="n">n_fan_fail</span><span class="p">)</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">_compact_granule_failures</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">fan_recovered</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_fan_fail</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"Stage1: </span><span class="si">{</span><span class="n">n_fan_fail</span><span class="si">}</span><span class="s2"> granule(s) failed to read. Their fragments "</span>

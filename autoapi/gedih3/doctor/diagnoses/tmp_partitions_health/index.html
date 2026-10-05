@@ -505,7 +505,7 @@ already persisted:</p>
 <blockquote>
 <div><ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">tmp_dir/_merge_failures/*.fail</span></code> sentinels  (one per failed merge)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tmp_dir/_granule_failures.jsonl</span></code>           (one record per failed granule)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tmp_dir/_granule_failures.jsonl</span></code>           (one record per distinct failed task)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tmp_dir/_merge_progress.txt</span></code> vs. the DB <code class="docutils literal notranslate"><span class="pre">_manifest.txt</span></code> line count</p></li>
 </ul>
 </div></blockquote>
@@ -515,7 +515,7 @@ narrow (a single sentinel directory + two flat files).</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">--fix</span></code> variant calls <code class="xref py py-func docutils literal notranslate"><span class="pre">gh3builder.preclean_merge_failures()</span></code> to
 remove zero-byte / unreadable parquets + <code class="docutils literal notranslate"><span class="pre">.tmp</span></code> siblings under every
 failed-merge partition. Granule failures are reported only — recovery
-belongs in <code class="docutils literal notranslate"><span class="pre">gh3_update</span> <span class="pre">--recover-missing-vars</span></code>. As a hard guard, the
+is a <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> re-run (see its end-of-build advisory). As a hard guard, the
 fix refuses to act when a fresh <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> process appears to be
 running (recent <code class="docutils literal notranslate"><span class="pre">gh3_build.log</span></code> mtime + matching pgrep PID).</p>
 <section id="functions">
