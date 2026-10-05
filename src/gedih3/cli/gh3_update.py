@@ -192,13 +192,15 @@ def _update_from_database(args, dataset_path, dataset_meta, logger):
         if _granules:
             from collections import Counter
             _status_counts = Counter(g.get('status', 'UNKNOWN') for g in _granules)
+            # NO_DATA granules were read in full and hold no rows: nothing to be absent.
             _non_indexed = sum(
-                c for s, c in _status_counts.items() if s != 'INDEXED'
+                c for s, c in _status_counts.items() if s not in ('INDEXED', 'NO_DATA')
             )
             if _non_indexed:
                 logger.warning(
                     f"Source database has {_non_indexed}/{len(_granules)} "
-                    f"non-INDEXED granule(s) — those shots will be ABSENT "
+                    f"non-INDEXED granule(s) (NO_DATA, read and empty, not counted) — "
+                    f"those shots will be ABSENT "
                     f"from the joined columns. Breakdown: {dict(_status_counts)}. "
                     f"Run `gh3_build` on the source database to retry; see "
                     f"its end-of-build advisory for the recovery recipe."

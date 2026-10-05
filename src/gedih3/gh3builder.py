@@ -1094,6 +1094,16 @@ _LEGACY_BEAM_SENTINEL = '*'
 _COMPLETE_SENTINEL_DIRNAME = '_complete'
 
 
+def _frag_name_granule_key(frag_name: Optional[str]) -> Optional[Tuple[int, int, int]]:
+    """``(orbit, granule, track)`` of a Stage 1 fragment name, else ``None``.
+
+    Inverse of :func:`_granule_beam_frag_name` as far as the granule goes;
+    same key the build log uses.
+    """
+    m = _FRAGMENT_BASENAME_RE.match(f'{frag_name}.parquet') if frag_name else None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+
+
 def _granule_beam_frag_name(soc_dict: Dict[str, str], beam: str) -> Optional[str]:
     """Stable basename (without ``.parquet``) for one (granule, beam) tuple.
 
@@ -2262,10 +2272,12 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     int
         Number of granule entries flipped from non-INDEXED to INDEXED.
     """
+    from .logger import GRANULE_STATUS_NO_DATA
     if not hasattr(h3_logger, 'granule_info') or not h3_logger.granule_info:
         return 0
     # Short-circuit: nothing to flip → no need to touch disk.
-    if not any(g.get('status') != 'INDEXED' for g in h3_logger.granule_info):
+    # NO_DATA counts as finished: read in full, nothing on disk to find.
+    if not any(g.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA) for g in h3_logger.granule_info):
         logger.info(
             "Resume reconciliation: build log shows no pending granules, "
             "skipping disk scan"
@@ -2343,6 +2355,11 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
                         _pd, meta_filename=PARTITION_META_FILENAME,
                     )
                 )
+
+    # Evidence a NO_DATA granule may be flipped back on: finalized metadata
+    # only. Sentinels (Pass C) also exist for the zero-row task that earned
+    # NO_DATA, so they say nothing about rows.
+    metadata_ids = set(indexed_ids)
 
     # Pass B — tmp fragments. One Dask task per h3_* partition, with the
     # parquet metadata reads inside each task parallelized via a thread
@@ -2525,10 +2542,16 @@ def _reconcile_granules_from_disk(h3_dir: str, h3_logger, tmp_dir: Optional[str]
     n_flipped = 0
     for g in h3_logger.granule_info:
         key = (g['orbit'], g['granule'], g['track'])
+        status = g.get('status')
         # MERGE_FAILED is found on disk by construction (its other partitions
         # merged); flipping it would skip the re-extraction that recovers it.
-        if key in indexed_ids and g.get('status') not in ('INDEXED', 'MERGE_FAILED'):
+        if key in indexed_ids and status not in ('INDEXED', 'MERGE_FAILED', GRANULE_STATUS_NO_DATA):
             g['status'] = 'INDEXED'
+            n_flipped += 1
+        elif status == GRANULE_STATUS_NO_DATA and key in metadata_ids:
+            g['status'] = 'INDEXED'  # rows now exist (a wider scope found some)
+            g.pop('products', None)  # rebuilt by set_post_build_info / lazy upgrade
+            g.pop('fill_attempts', None)
             n_flipped += 1
     if n_flipped:
         logger.info(
@@ -3211,6 +3234,7 @@ def _write_partitioned_streaming(
     dat_col: str,
     inflight_target: Optional[int] = None,
     allow_missing_products: bool = False,
+    stage1_outcome_callback: Optional[Callable[[set, set], None]] = None,
     scope_fingerprint: Optional[str] = None,
 ) -> bool:
     """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
@@ -3252,6 +3276,14 @@ def _write_partitioned_streaming(
         is completed with the database's columns
         (:func:`_complete_schema_from_db`) and leaves missing product
         columns get them as all-null, so every fragment still merges.
+    stage1_outcome_callback
+        Called once, only after every task was drained, with
+        ``(incomplete_keys, empty_keys)`` of ``(orbit, granule, track)``:
+        granules with any task not proven complete (error, no product file,
+        a lost future) and granules whose every beam task is proven complete
+        AND empty (zero leaves now, or an ``.empty`` sentinel on disk). Never called when the drain is interrupted,
+        so a caller holding no outcome must treat that as "nothing proven".
+        The CLI's ``NO_DATA`` marking rests on it.
     """
     import itertools as _it
     import time as _time
@@ -3343,7 +3375,7 @@ def _write_partitioned_streaming(
     #    tasks are not re-submitted, partial tasks (no sentinel) are.
     _check_scope_fingerprint(
         tmp_dir, scope_fingerprint or _scope_fingerprint(spatial_h3_tiles, res, part, product_vars))
-    completed_frags = _scan_complete_sentinels(tmp_dir)
+    completed_frags, empty_frags = _scan_complete_sentinels(tmp_dir, with_empty=True)
     if completed_frags:
         logger.info(
             f"Streaming resume: {len(completed_frags)} (granule × beam) sentinel(s) "
@@ -3405,6 +3437,28 @@ def _write_partitioned_streaming(
     # land in ``recovered``; records keyed by anything else are left alone.
     previously_failed = {r.get('frag_name') for r in _read_granule_failures(tmp_dir)}
     recovered: set = set()
+    # Per-granule proof for the outcome callback. A beam is proven EMPTY when
+    # its task completed with zero leaves this run, or was skipped on an
+    # ``.empty`` sentinel; a beam that wrote (or has a ``.done`` sentinel) rules
+    # the granule out. O(N_granules), not O(N_tasks).
+    empty_beams: Dict[Tuple[int, int, int], set] = {}
+    has_data: set = set()
+    incomplete_keys: set = set()
+    lost_unattributed = False
+
+    def _note_complete(frag_name, empty):
+        gk = _frag_name_granule_key(frag_name)
+        if gk is None:
+            return
+        if empty:
+            empty_beams.setdefault(gk, set()).add(frag_name.rsplit('.', 1)[1])
+        else:
+            has_data.add(gk)
+
+    def _outcome():
+        full = set(GEDI_BEAMS)
+        return incomplete_keys, {k for k, b in empty_beams.items()
+                                 if full.issubset(b) and k not in has_data and k not in incomplete_keys}
 
     def _task_stream():
         for soc, beam in _it.product(soc_files, GEDI_BEAMS):
@@ -3412,6 +3466,7 @@ def _write_partitioned_streaming(
             if frag_name is None:
                 continue  # opaque soc filename — never happens for NASA granules
             if frag_name in completed_frags:
+                _note_complete(frag_name, frag_name in empty_frags)
                 if frag_name in previously_failed:
                     recovered.add(frag_name)
                 continue
@@ -3421,6 +3476,8 @@ def _write_partitioned_streaming(
     total = len(tasks)
     if total == 0:
         _compact_granule_failures(tmp_dir, recovered)
+        if stage1_outcome_callback is not None:
+            stage1_outcome_callback(*_outcome())
         logger.info("Streaming write: no remaining tasks (all granules already complete)")
         return any(
             entry.is_dir() and entry.name.startswith('h3_')
@@ -3478,6 +3535,14 @@ def _write_partitioned_streaming(
         for fut in ac:
             try:
                 result = fut.result()
+                if result.get('error') or not result.get('complete'):
+                    _gk = _frag_name_granule_key(result.get('frag_name'))
+                    if _gk is None:
+                        lost_unattributed = True
+                    else:
+                        incomplete_keys.add(_gk)
+                else:
+                    _note_complete(result.get('frag_name'), bool(result.get('empty')))
                 if result.get('error'):
                     n_fail += 1
                     logger.warning(
@@ -3499,6 +3564,21 @@ def _write_partitioned_streaming(
             except Exception as e:
                 n_fail += 1
                 logger.warning(f"Stage1 task raised: {type(e).__name__}: {e}")
+                # The future carries no task: find it by key (rare path, so
+                # the O(N) scan is paid only on failure). Unknown => the
+                # outcome cannot be attributed and is withheld.
+                _gk = None
+                try:
+                    for _f, _t in zip(all_futures, tasks):
+                        if _f.key == fut.key:
+                            _gk = _frag_name_granule_key(_t[2])
+                            break
+                except Exception:
+                    _gk = None
+                if _gk is None:
+                    lost_unattributed = True
+                else:
+                    incomplete_keys.add(_gk)
             finally:
                 fut.release()
             pbar.update(1)
@@ -3519,6 +3599,11 @@ def _write_partitioned_streaming(
     # One rewrite: drop records of tasks that succeeded this run, merge
     # duplicate lines. Must precede the merge's ``_cleanup_merged_tmp``.
     _compact_granule_failures(tmp_dir, recovered)
+
+    # Reached only when the loop ran to its end (an interrupt or driver error
+    # propagates past here). Drained fully = every submitted task reported.
+    if stage1_outcome_callback is not None and not lost_unattributed and (n_ok + n_fail) == total:
+        stage1_outcome_callback(*_outcome())
 
     if n_fail:
         logger.error(
@@ -5069,6 +5154,7 @@ def build_h3db(
     exclude: Optional[List[str]] = None,
     allow_missing_products: bool = False,
     granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None,
+    stage1_outcome_callback: Optional[Callable[[set, set], None]] = None,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -5119,6 +5205,12 @@ def build_h3db(
         this Stage 1 processes (an empty list when it has every product).
         The CLI records ``MISSING_SOURCE`` from it, so the backfill knows its
         targets without scanning the database, even after a crash mid-write.
+    stage1_outcome_callback : callable, optional
+        Called as ``(incomplete_keys, empty_keys)`` once Stage 1 drained
+        every task (see :func:`_write_partitioned_streaming`), before the
+        merge. Never called by the legacy writer (``GH3_WRITE_STREAMING``
+        off, deprecated), by an interrupted drain, or when no granule is left
+        to process.
 
     Returns
     -------
@@ -5327,6 +5419,7 @@ def build_h3db(
                 parquet_dir, h3_dir, spatial,
                 lat_col, lon_col, dat_col,
                 allow_missing_products=allow_missing_products,
+                stage1_outcome_callback=stage1_outcome_callback,
                 scope_fingerprint=scope_fp,
             )
         else:
@@ -5440,8 +5533,30 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     granules_2 = log2.get('granules', [])
     merged_granules = granules_1.copy()
     for g in granules_2:
-        if g not in merged_granules:
+        if g in merged_granules:
+            continue
+        # NO_DATA ("no rows under that database's scope") loses to any other
+        # status for the same granule: the other log holds evidence of rows
+        # or of an unfinished read. Other collisions keep both entries.
+        key = (g.get('orbit'), g.get('granule'), g.get('track'))
+        twins = [i for i, e in enumerate(merged_granules)
+                 if (e.get('orbit'), e.get('granule'), e.get('track')) == key
+                 and 'NO_DATA' in (e.get('status'), g.get('status'))]
+        if not twins:
             merged_granules.append(g)
+        elif g.get('status') != 'NO_DATA':
+            for i in reversed(twins[1:]):
+                del merged_granules[i]
+            merged_granules[twins[0]] = g
+    # NO_DATA was proven under one database's scope; the other never examined
+    # the granule, so unless both logs say so it is PENDING again.
+    def _no_data_keys(granules):
+        return {(e.get('orbit'), e.get('granule'), e.get('track'))
+                for e in granules if e.get('status') == 'NO_DATA'}
+    both = _no_data_keys(granules_1) & _no_data_keys(granules_2)
+    for i, e in enumerate(merged_granules):
+        if e.get('status') == 'NO_DATA' and (e.get('orbit'), e.get('granule'), e.get('track')) not in both:
+            merged_granules[i] = {**e, 'status': 'PENDING'}
     if merged_granules:
         merged_log['granules'] = merged_granules
     
