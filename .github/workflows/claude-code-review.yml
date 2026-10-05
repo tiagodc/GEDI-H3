@@ -36,6 +36,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB (below) runs Claude's subprocesses
+      # under bubblewrap, and Claude Code refuses to start without it. The
+      # action only installs it for allowed_non_write_users; same commands.
+      - name: Install subprocess isolation (bubblewrap)
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $i failed, retrying..."; sleep 5
+          done
+          command -v bwrap
+          # Ubuntu 24.04+ restricts unprivileged user namespaces via AppArmor.
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
