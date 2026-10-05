@@ -338,7 +338,7 @@ def main():
     from gedih3.gh3builder import build_h3db, download_soc, soc_file_tree, _reconcile_granules_from_disk, _merge_and_finalize
     from gedih3.gedidriver import GEDIFile, validate_soc_files, gedi_vars_expand
     from gedih3.logger import H3BuildLogger, SOCDownloadLogger, resolve_soc_version
-    from dask.distributed import Client
+    from gedih3.cliutils import dask_client
 
     # Setup logging and print banner
     logger = setup_logging(args, __name__)
@@ -498,7 +498,7 @@ def main():
                 if args.bbox_index and not os.path.exists(
                         os.path.join(args.output, BBOX_INDEX_FILENAME)):
                     logger.info("Creating missing bbox index (footer-only scan)")
-                    with Client(**parse_dask_args(args)):
+                    with dask_client(**parse_dask_args(args)):
                         refresh_bbox_index_after_build(args.output, logger=logger)
                 print_success("Database is up-to-date, no changes needed", logger=logger)
                 return
@@ -539,7 +539,7 @@ def main():
     build_completed = False
 
     try:
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             warnings.filterwarnings("ignore", message=r"Sending large graph of size.*", category=UserWarning, module="distributed.client")
             def _suppress_pandas_perf_warnings():
                 import warnings

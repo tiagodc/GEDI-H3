@@ -96,7 +96,7 @@ def main():
     with cli_exception_handler(args):
         import glob
         import geopandas as gpd
-        from dask.distributed import Client
+        from gedih3.cliutils import dask_client
 
         import gedih3.gh3driver as gh3
         from gedih3.cliutils import (
@@ -196,7 +196,7 @@ def main():
         # Dask
         dask_kwargs = parse_dask_args(args)
 
-        with Client(**dask_kwargs) as client:
+        with dask_client(**dask_kwargs) as client:
             logger.info(f"Dask dashboard: {client.dashboard_link}")
 
             # Load GEDI data based on source type
