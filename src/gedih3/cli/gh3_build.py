@@ -921,9 +921,20 @@ def main():
                     # INDEXED before stage 1 starts. Without this, a kill
                     # during stage 2 leaves all granules PENDING and stage 1
                     # re-extracts everything on the next rerun.
+                    # Sentinels are trusted only if recorded under the scope Stage 1
+                    # is about to run with (build_h3db fingerprints the expanded
+                    # variables, which is the form a resumed log holds).
+                    from gedih3.gh3builder import _stage1_scope_fingerprint
+                    if is_mixed_update:
+                        _s1_vars = {k: val.get('variables')
+                                    for k, val in h3_logger.log_data.get('products', {}).items()}
+                    else:
+                        _s1_vars = h3_logger.get_product_vars()
                     _reconcile_granules_from_disk(
                         args.output, h3_logger,
                         tmp_dir=os.path.join(args.tmpdir, 'partitions'),
+                        expected_scope=_stage1_scope_fingerprint(
+                            _build_kwargs['spatial'], h3_logger.res, h3_logger.part, _s1_vars),
                     )
 
                     h3_logger.save_log('PROCESSING')
@@ -935,6 +946,13 @@ def main():
                 # or mixed update Phase 1.
                 # Skipped for: variable-only update, pending variable resume.
                 if not pending_var_update and not is_variable_only_update:
+                    # Sentinels with no scope record, left by an older gedih3
+                    # after a build that COMPLETED: not an in-flight resume, so
+                    # nothing proves which scope they were empty under.
+                    from gedih3.gh3builder import _discard_unscoped_sentinels
+                    if h3_logger.previous_status == 'COMPLETED' and _discard_unscoped_sentinels(
+                            os.path.join(args.tmpdir, 'partitions')):
+                        logger.info("Discarded completion sentinels left by an older gedih3's completed build")
                     if is_mixed_update:
                         stage1_products = {
                             k: val.get('variables')
