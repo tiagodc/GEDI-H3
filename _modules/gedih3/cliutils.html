@@ -2196,62 +2196,6 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<div class="viewcode-block" id="dask_client">
-<a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.dask_client">[docs]</a>
-<span class="nd">@contextmanager</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">dask_client</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Context manager yielding a dask ``Client`` whose teardown can never raise.</span>
-
-<span class="sd">    Contract: constructs ``distributed.Client(**kwargs)``, enters it exactly as</span>
-<span class="sd">    ``with Client(...)`` does (so it is registered as the current client and</span>
-<span class="sd">    ``parallel_map`` works), yields it, and on exit runs ``Client.__exit__``</span>
-<span class="sd">    with any ``Exception`` it raises (e.g. ``TimeoutError`` closing a slow or</span>
-<span class="sd">    tunnelled cluster) caught and logged as a WARNING, never re-raised.</span>
-
-<span class="sd">    A plain ``with Client(...)`` lets a failing ``close()`` replace the</span>
-<span class="sd">    in-flight exception, so a ``sys.exit(4)``, a Ctrl-C (130), a typed</span>
-<span class="sd">    ``GediError`` or even a fully successful run would all surface as exit 1.</span>
-<span class="sd">    Here the body's outcome always wins. Errors from constructing the client</span>
-<span class="sd">    or from the body propagate unchanged.</span>
-
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    **kwargs</span>
-<span class="sd">        Passed to ``distributed.Client`` (see ``parse_dask_args``).</span>
-
-<span class="sd">    Yields</span>
-<span class="sd">    ------</span>
-<span class="sd">    distributed.Client</span>
-<span class="sd">    """</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
-
-    <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_teardown</span><span class="p">(</span><span class="n">step</span><span class="p">):</span>
-        <span class="c1"># CancelledError is a BaseException; a close() cancelled mid-flight must</span>
-        <span class="c1"># not mask the body's outcome either. KeyboardInterrupt still propagates.</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">step</span><span class="p">()</span>
-        <span class="k">except</span> <span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Dask client teardown failed (</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">); ignoring."</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-            <span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Dask client teardown traceback"</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-    <span class="n">client</span> <span class="o">=</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-    <span class="c1"># Delegate to the public context-manager protocol instead of re-implementing</span>
-    <span class="c1"># the current-client reset; Client.close() also shuts down a LocalCluster it owns.</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">client</span><span class="o">.</span><span class="fm">__enter__</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>
-        <span class="n">_teardown</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
-        <span class="k">raise</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">yield</span> <span class="n">client</span>
-    <span class="k">finally</span><span class="p">:</span>
-        <span class="n">_teardown</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">client</span><span class="o">.</span><span class="fm">__exit__</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span></div>
-
-
-
 <div class="viewcode-block" id="format_dask_cluster_info">
 <a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.format_dask_cluster_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">format_dask_cluster_info</span><span class="p">(</span><span class="n">client</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

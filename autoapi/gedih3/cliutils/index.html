@@ -615,25 +615,22 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.parse_dask_args" title="gedih3.cliutils.parse_dask_args"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_dask_args</span></code></a>(args)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.dask_client" title="gedih3.cliutils.dask_client"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_client</span></code></a>(**kwargs)</p></td>
-<td><p>Context manager yielding a dask <code class="docutils literal notranslate"><span class="pre">Client</span></code> whose teardown can never raise.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.format_dask_cluster_info" title="gedih3.cliutils.format_dask_cluster_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">format_dask_cluster_info</span></code></a>(→ str)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.format_dask_cluster_info" title="gedih3.cliutils.format_dask_cluster_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">format_dask_cluster_info</span></code></a>(→ str)</p></td>
 <td><p>One-line summary of a live dask Client's cluster — workers, total threads, total RAM.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.parse_region" title="gedih3.cliutils.parse_region"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_region</span></code></a>(region_str)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.parse_region" title="gedih3.cliutils.parse_region"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parse_region</span></code></a>(region_str)</p></td>
 <td><p>Parse region argument into GeoDataFrame or bbox</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.collect_columns" title="gedih3.cliutils.collect_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collect_columns</span></code></a>(args[, available_columns])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.collect_columns" title="gedih3.cliutils.collect_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collect_columns</span></code></a>(args[, available_columns])</p></td>
 <td><p>Collect all requested variables from command line arguments and validate against available columns.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.get_product_quality_conditions" title="gedih3.cliutils.get_product_quality_conditions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_product_quality_conditions</span></code></a>(selected_products, ...)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.get_product_quality_conditions" title="gedih3.cliutils.get_product_quality_conditions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_product_quality_conditions</span></code></a>(selected_products, ...)</p></td>
 <td><p>Return quality filter conditions for the selected products and GEDI version.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.build_query_string" title="gedih3.cliutils.build_query_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_query_string</span></code></a>(args[, available_columns])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.build_query_string" title="gedih3.cliutils.build_query_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_query_string</span></code></a>(args[, available_columns])</p></td>
 <td><p>Build pandas query string from arguments</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.safe_query" title="gedih3.cliutils.safe_query"><code class="xref py py-obj docutils literal notranslate"><span class="pre">safe_query</span></code></a>(df, query_str)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.safe_query" title="gedih3.cliutils.safe_query"><code class="xref py py-obj docutils literal notranslate"><span class="pre">safe_query</span></code></a>(df, query_str)</p></td>
 <td><p>Apply a pandas query, handling column names with '/' that pandas can't parse.</p></td>
 </tr>
 </tbody>
@@ -1233,35 +1230,6 @@ Falls back to legacy parsing when <code class="docutils literal notranslate"><sp
 <dd></dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="gedih3.cliutils.dask_client">
-<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">dask_client</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#dask_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.dask_client" title="Link to this definition">#</a></dt>
-<dd><p>Context manager yielding a dask <code class="docutils literal notranslate"><span class="pre">Client</span></code> whose teardown can never raise.</p>
-<p>Contract: constructs <code class="docutils literal notranslate"><span class="pre">distributed.Client(**kwargs)</span></code>, enters it exactly as
-<code class="docutils literal notranslate"><span class="pre">with</span> <span class="pre">Client(...)</span></code> does (so it is registered as the current client and
-<code class="docutils literal notranslate"><span class="pre">parallel_map</span></code> works), yields it, and on exit runs <code class="docutils literal notranslate"><span class="pre">Client.__exit__</span></code>
-with any <code class="docutils literal notranslate"><span class="pre">Exception</span></code> it raises (e.g. <code class="docutils literal notranslate"><span class="pre">TimeoutError</span></code> closing a slow or
-tunnelled cluster) caught and logged as a WARNING, never re-raised.</p>
-<p>A plain <code class="docutils literal notranslate"><span class="pre">with</span> <span class="pre">Client(...)</span></code> lets a failing <code class="docutils literal notranslate"><span class="pre">close()</span></code> replace the
-in-flight exception, so a <code class="docutils literal notranslate"><span class="pre">sys.exit(4)</span></code>, a Ctrl-C (130), a typed
-<code class="docutils literal notranslate"><span class="pre">GediError</span></code> or even a fully successful run would all surface as exit 1.
-Here the body’s outcome always wins. Errors from constructing the client
-or from the body propagate unchanged.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>**kwargs</strong></dt><dd><p>Passed to <code class="docutils literal notranslate"><span class="pre">distributed.Client</span></code> (see <code class="docutils literal notranslate"><span class="pre">parse_dask_args</span></code>).</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Yields<span class="colon">:</span></dt>
-<dd class="field-even"><dl class="simple">
-<dt>distributed.Client</dt><dd></dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cliutils.format_dask_cluster_info">
 <span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">format_dask_cluster_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">client</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#format_dask_cluster_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.format_dask_cluster_info" title="Link to this definition">#</a></dt>
 <dd><p>One-line summary of a live dask Client’s cluster — workers, total threads, total RAM.</p>
@@ -1417,7 +1385,6 @@ This function works around the limitation by temporarily renaming such columns.<
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.resolve_product_vars"><code class="docutils literal notranslate"><span class="pre">resolve_product_vars()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.parse_gedi_args"><code class="docutils literal notranslate"><span class="pre">parse_gedi_args()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.parse_dask_args"><code class="docutils literal notranslate"><span class="pre">parse_dask_args()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.dask_client"><code class="docutils literal notranslate"><span class="pre">dask_client()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.format_dask_cluster_info"><code class="docutils literal notranslate"><span class="pre">format_dask_cluster_info()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.parse_region"><code class="docutils literal notranslate"><span class="pre">parse_region()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.collect_columns"><code class="docutils literal notranslate"><span class="pre">collect_columns()</span></code></a></li>
