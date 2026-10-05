@@ -798,13 +798,11 @@ class H3BuildLogger:
         fields are treated as successful.
 
         ``NO_DATA`` granules (read in full, zero rows) are skipped under
-        exactly the conditions ``INDEXED`` ones are. Every scope change that
-        could make an empty granule non-empty returns ``None`` instead: new
-        products or a wider time range obviously, and a spatial expansion
-        whenever it adds a partition. One that adds none cannot: Stage 1
-        filters shots by partition cell, ``h3_partition_ids`` lists only
-        partitions that hold data (all inside the earlier cell set), so the
-        added area lies in cells already admitted whole.
+        exactly the conditions ``INDEXED`` ones are. They never stay skipped
+        past a scope change that could make them non-empty: ``__init__``
+        demotes every ``NO_DATA`` granule to ``PENDING`` as soon as the
+        requested region or dates widen the stored ones, by any area, before
+        this is consulted.
         """
         # Keys not part of the original granule identity. ``products`` was
         # added by the per-product status extension; both must be stripped so
