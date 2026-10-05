@@ -2672,3 +2672,13 @@ def atomic_parquet_write(df, opath, *, compression=None, max_attempts=3):
     raise last_exc
 
 
+
+
+def write_partition_summary(path: str, counts: Dict[str, int]) -> int:
+    """Write per-partition shot counts as JSON and return the total shot count."""
+    with open(path, 'w') as f:
+        json.dump(counts, f)
+    total = 0
+    for k in counts:
+        total += len(k)
+    return total
