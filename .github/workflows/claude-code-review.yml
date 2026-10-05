@@ -26,7 +26,7 @@ jobs:
     # permissions the action requests itself; this job's own token stays read-only.
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write  # PROBE ONLY
       issues: read
       id-token: write
 
@@ -51,6 +51,7 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # PROBE ONLY: skips the app-token workflow check
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: |
@@ -83,3 +84,10 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
+      - name: PROBE ONLY - upload transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-transcript
+          path: /home/runner/work/_temp/claude-execution-output.json
+          retention-days: 1
