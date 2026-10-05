@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.20.0] - 2026-10-05
 
 ### Added
 - **`NO_DATA` granule status: granules with no rows in the ROI are skipped by later builds.** A granule that Stage 1 read in full but that yields no rows (for example, entirely outside a land-mask ROI) never appears in partition metadata, so it stayed `PENDING` forever. That had three effects: every later `gh3_build` re-read all its product HDF5s, the "already up to date" early exit never fired, and `gh3_update` warned that its shots were absent. Such granules are now recorded as `NO_DATA` and skipped like `INDEXED`. The status is assigned only on direct evidence:
@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Reconcile trusts sentinels only when the recorded scope matches the one the coming Stage 1 will use. The fingerprint covers the expanded variables, which is the form a resumed build log holds, so an interrupted build with an explicit variable list keeps its sentinels on resume.
   - Unscoped sentinels left by an older gedih3 after a completed build are discarded, not adopted.
 - **A build stopped between Stage 1 and its merge no longer loses the extracted fragments.** Resume reconcile marks such granules `INDEXED` from their sentinels, which left Stage 1 nothing to read, and `build_h3db` then returned before merging. The fragments stayed in tmp while the build log said `INDEXED`. It now merges fragments that are left in tmp even when no granule is pending.
+- **The documentation site builds again.** Every docs deploy since 0.19.0 failed on an unresolvable heading-anchor link to the phased-updates section (`myst_heading_anchors` is off and the build treats warnings as errors). The link now uses an explicit `(phased-updates)=` target. (#41)
 - **A Dask shutdown error no longer replaces the CLI's exit code.** Every CLI entered its Dask client with a bare `with Client(...)`, so an error while closing a slow or tunnelled cluster (typically `TimeoutError`) replaced the exception already on its way out. A merge-incomplete exit 4, a Ctrl-C (130), a typed `GediError` exit, and even a fully successful run all surfaced as exit 1 ("Unexpected error"). The CLIs now use `cliutils.dask_client`, which keeps the client registered as usual but logs teardown failures as a warning. The body's outcome decides the exit code, and a teardown failure after a successful run exits 0. A failed `Client.__enter__` now closes the client instead of leaking it. (#34)
 
 ## [0.19.1] - 2026-10-02
