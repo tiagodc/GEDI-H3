@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.doctor.parquet_ops &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.doctor.parquet_ops &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -496,16 +496,12 @@
   <section id="module-gedih3.doctor.parquet_ops">
 <span id="gedih3-doctor-parquet-ops"></span><h1>gedih3.doctor.parquet_ops<a class="headerlink" href="#module-gedih3.doctor.parquet_ops" title="Link to this heading">#</a></h1>
 <p>Streaming parquet operations specific to gh3_doctor.</p>
-<p>Both functions process parquet files row-group by row-group to bound memory.
-They live here (not in <a class="reference internal" href="../../utils/index.html#module-gedih3.utils" title="gedih3.utils"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gedih3.utils</span></code></a>) so the doctor introduces no edits
-to currently-working tools. Promotion to a shared utility is a one-line move
-if other modules ever need them.</p>
+<p>Both functions process parquet files row-group by row-group to bound memory.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#gedih3.doctor.parquet_ops.parquet_fill_columns" title="gedih3.doctor.parquet_ops.parquet_fill_columns"><code class="xref py py-func docutils literal notranslate"><span class="pre">parquet_fill_columns()</span></code></a> is the <strong>fill</strong> counterpart of
-<a class="reference internal" href="../../utils/index.html#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-func docutils literal notranslate"><span class="pre">gedih3.utils.parquet_join_columns()</span></code></a>. Where the latter drops columns
-that already exist in the base file, this one merges them via
-<a class="reference external" href="https://pandas.pydata.org/docs/reference/api/pandas.Series.combine_first.html#pandas.Series.combine_first" title="(in pandas v3.0.6)"><code class="xref py py-meth docutils literal notranslate"><span class="pre">pandas.Series.combine_first()</span></code></a> so non-NaN values in the base are
-preserved and NaN values get filled from the patch.</p></li>
+<li><p><code class="xref py py-func docutils literal notranslate"><span class="pre">parquet_fill_columns()</span></code> now lives in <a class="reference internal" href="../../utils/index.html#module-gedih3.utils" title="gedih3.utils"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gedih3.utils</span></code></a> (the build’s
+product backfill uses it too) and is re-exported here: the <strong>fill</strong>
+counterpart of <a class="reference internal" href="../../utils/index.html#gedih3.utils.parquet_join_columns" title="gedih3.utils.parquet_join_columns"><code class="xref py py-func docutils literal notranslate"><span class="pre">gedih3.utils.parquet_join_columns()</span></code></a> — null/NaN base
+cells take the patch value, existing values are never overwritten.</p></li>
 <li><p><a class="reference internal" href="#gedih3.doctor.parquet_ops.parquet_dedup_partition" title="gedih3.doctor.parquet_ops.parquet_dedup_partition"><code class="xref py py-func docutils literal notranslate"><span class="pre">parquet_dedup_partition()</span></code></a> rewrites a single parquet file dropping
 duplicate <code class="docutils literal notranslate"><span class="pre">shot_number</span></code> rows, keeping the first occurrence.</p></li>
 </ul>
@@ -513,10 +509,7 @@ duplicate <code class="docutils literal notranslate"><span class="pre">shot_numb
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.parquet_ops.parquet_fill_columns" title="gedih3.doctor.parquet_ops.parquet_fill_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_fill_columns</span></code></a>(→ str)</p></td>
-<td><p>Fill NaN values in <code class="docutils literal notranslate"><span class="pre">base_file</span></code> from one or more <code class="docutils literal notranslate"><span class="pre">patch_files</span></code>.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.parquet_ops.parquet_dedup_partition" title="gedih3.doctor.parquet_ops.parquet_dedup_partition"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_dedup_partition</span></code></a>(→ int)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.parquet_ops.parquet_dedup_partition" title="gedih3.doctor.parquet_ops.parquet_dedup_partition"><code class="xref py py-obj docutils literal notranslate"><span class="pre">parquet_dedup_partition</span></code></a>(→ int)</p></td>
 <td><p>Rewrite a parquet file dropping duplicate <code class="docutils literal notranslate"><span class="pre">key_col</span></code> rows.</p></td>
 </tr>
 </tbody>
@@ -525,46 +518,6 @@ duplicate <code class="docutils literal notranslate"><span class="pre">shot_numb
 </section>
 <section id="module-contents">
 <h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="gedih3.doctor.parquet_ops.parquet_fill_columns">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parquet_ops.</span></span><span class="sig-name descname"><span class="pre">parquet_fill_columns</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">patch_files</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ofile</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'shot_number'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.fill.tmp'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parquet_ops.html#parquet_fill_columns"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parquet_ops.parquet_fill_columns" title="Link to this definition">#</a></dt>
-<dd><p>Fill NaN values in <code class="docutils literal notranslate"><span class="pre">base_file</span></code> from one or more <code class="docutils literal notranslate"><span class="pre">patch_files</span></code>.</p>
-<p>For each column shared by the base and patch:</p>
-<ul class="simple">
-<li><p>existing non-NaN values in the base are preserved.</p></li>
-<li><p>NaN values in the base are replaced where the patch provides a value
-for the same <code class="docutils literal notranslate"><span class="pre">key_col</span></code>.</p></li>
-</ul>
-<p>Columns present only in the patch are appended (left-join).
-Columns present only in the base are unchanged.</p>
-<p>The output is streamed row-group by row-group; only one row group plus the
-full patch frames are held in memory at once. Patches are read in full,
-indexed by <code class="docutils literal notranslate"><span class="pre">key_col</span></code>, so callers should pre-restrict patches to one
-partition’s relevant rows.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><dl class="simple">
-<dt><strong>base_file</strong><span class="classifier">str</span></dt><dd><p>Existing parquet file. Determines schema base, row order, row group size.</p>
-</dd>
-<dt><strong>patch_files</strong><span class="classifier">list of str</span></dt><dd><p>Parquet files containing <code class="docutils literal notranslate"><span class="pre">key_col</span></code> plus the columns to merge in.</p>
-</dd>
-<dt><strong>ofile</strong><span class="classifier">str, optional</span></dt><dd><p>Output path. Defaults to <code class="docutils literal notranslate"><span class="pre">base_file</span></code> (in-place rewrite via temp).</p>
-</dd>
-<dt><strong>key_col</strong><span class="classifier">str, default ‘shot_number’</span></dt><dd><p>Join key (column, not index).</p>
-</dd>
-<dt><strong>tmp_suffix</strong><span class="classifier">str</span></dt><dd><p>Suffix for the temp file used during atomic rewrite.</p>
-</dd>
-</dl>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><dl class="simple">
-<dt>str</dt><dd><p>Path to the written file.</p>
-</dd>
-</dl>
-</dd>
-</dl>
-</dd></dl>
-
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.doctor.parquet_ops.parquet_dedup_partition">
 <span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parquet_ops.</span></span><span class="sig-name descname"><span class="pre">parquet_dedup_partition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pq_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_col</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'shot_number'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'first'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tmp_suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'.dedup.tmp'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parquet_ops.html#parquet_dedup_partition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parquet_ops.parquet_dedup_partition" title="Link to this definition">#</a></dt>
@@ -646,7 +599,6 @@ cost is ~8 bytes/row.</p>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-contents">Module Contents</a><ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.parquet_ops.parquet_fill_columns"><code class="docutils literal notranslate"><span class="pre">parquet_fill_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.doctor.parquet_ops.parquet_dedup_partition"><code class="docutils literal notranslate"><span class="pre">parquet_dedup_partition()</span></code></a></li>
 </ul>
 </li>

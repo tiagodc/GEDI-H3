@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.doctor.diagnoses.backfill &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.doctor.diagnoses.backfill &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="../../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -499,7 +499,13 @@
   <section id="module-gedih3.doctor.diagnoses.backfill">
 <span id="gedih3-doctor-diagnoses-backfill"></span><h1>gedih3.doctor.diagnoses.backfill<a class="headerlink" href="#module-gedih3.doctor.diagnoses.backfill" title="Link to this heading">#</a></h1>
 <p>backfill diagnosis — fill NaN gaps in product columns from source HDF5s.</p>
-<p>The detection runs row-level: for each partition × product, we count nulls per
+<p>Granules indexed before some of their products were published
+(<code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">--allow-missing-products</span></code>) are known from the build log alone:
+<code class="docutils literal notranslate"><span class="pre">missing_source</span></code> findings, no data scan. Their fix is the build’s own
+product backfill (<code class="xref py py-func docutils literal notranslate"><span class="pre">gedih3.gh3builder._build_fill_products()</span></code>: each product
+file read once, only the files holding those granules rewritten, only null
+cells written) — the same engine <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> runs automatically.</p>
+<p>The detection below additionally runs row-level: for each partition × product, we count nulls per
 granule by grouping on <code class="docutils literal notranslate"><span class="pre">root_file_l2a</span></code>. Findings include the partition file,
 the product, and the per-granule null counts.</p>
 <dl class="simple">

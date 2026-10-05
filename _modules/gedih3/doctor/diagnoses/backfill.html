@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.doctor.diagnoses.backfill &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.doctor.diagnoses.backfill &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -39,7 +39,7 @@
   <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -480,8 +480,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -763,7 +763,14 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">"""backfill diagnosis — fill NaN gaps in product columns from source HDF5s.</span>
 
-<span class="sd">The detection runs row-level: for each partition × product, we count nulls per</span>
+<span class="sd">Granules indexed before some of their products were published</span>
+<span class="sd">(``gh3_build --allow-missing-products``) are known from the build log alone:</span>
+<span class="sd">``missing_source`` findings, no data scan. Their fix is the build's own</span>
+<span class="sd">product backfill (:func:`gedih3.gh3builder._build_fill_products`: each product</span>
+<span class="sd">file read once, only the files holding those granules rewritten, only null</span>
+<span class="sd">cells written) — the same engine ``gh3_build`` runs automatically.</span>
+
+<span class="sd">The detection below additionally runs row-level: for each partition × product, we count nulls per</span>
 <span class="sd">granule by grouping on ``root_file_l2a``. Findings include the partition file,</span>
 <span class="sd">the product, and the per-granule null counts.</span>
 
@@ -930,11 +937,41 @@ window.runMermaid = runMermaid;</script>
             <span class="k">continue</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
+    <span class="c1"># Granules indexed before their later products were published: known</span>
+    <span class="c1"># from the build log. Their null rows are the same gap as the row scan's</span>
+    <span class="c1"># partial-NaN findings, so those are folded in rather than listed twice.</span>
+    <span class="n">pending</span><span class="p">,</span> <span class="n">given_up</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'pending_product_fills'</span><span class="p">):</span>
+        <span class="n">pending</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">pending_product_fills</span><span class="p">()</span>
+        <span class="n">given_up</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">pending_product_fills</span><span class="p">(</span><span class="n">statuses</span><span class="o">=</span><span class="p">(</span><span class="s1">'FAILED'</span><span class="p">,))</span>
+    <span class="k">if</span> <span class="n">given_up</span><span class="p">:</span>
+        <span class="c1"># Fills gh3_build gave up on (repeated failures, or no database file</span>
+        <span class="c1"># lists the granule): no longer retried automatically — a finding.</span>
+        <span class="n">findings</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'fill_failed'</span><span class="p">,</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
+             <span class="s1">'products'</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">prods</span><span class="p">)}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">given_up</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="p">]</span> <span class="o">+</span> <span class="n">findings</span>
+        <span class="n">pending</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">pending</span><span class="p">,</span> <span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">pending</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">[]))</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">given_up</span><span class="o">.</span><span class="n">items</span><span class="p">()}}</span>
+    <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">findings</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+            <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partial_nan'</span>
+            <span class="ow">and</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]</span> <span class="ow">in</span> <span class="n">pending</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">][</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">][</span><span class="s1">'granule'</span><span class="p">],</span>
+                                             <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">][</span><span class="s1">'track'</span><span class="p">]),</span> <span class="p">())</span>
+        <span class="p">)]</span>
+        <span class="n">findings</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'missing_source'</span><span class="p">,</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">]},</span>
+             <span class="s1">'products'</span><span class="p">:</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">given_up</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">())]}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">pending</span><span class="o">.</span><span class="n">items</span><span class="p">())</span> <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">prods</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">given_up</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">()))</span>
+        <span class="p">]</span> <span class="o">+</span> <span class="n">findings</span>
+
     <span class="n">n_missing</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_column'</span><span class="p">)</span>
     <span class="n">n_partial</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partial_nan'</span><span class="p">)</span>
     <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'scan_error'</span><span class="p">)</span>
 
-    <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
+    <span class="c1"># Products not published yet are an expected state of a phased database,</span>
+    <span class="c1"># not a defect: INFO unless something else needs attention.</span>
+    <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'missing_source'</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span><span class="p">)</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
 
@@ -942,6 +979,10 @@ window.runMermaid = runMermaid;</script>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_missing</span><span class="si">}</span><span class="s2"> (partition × product) missing-column gaps, "</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_partial</span><span class="si">}</span><span class="s2"> (granule × product) partial-NaN gaps"</span>
     <span class="p">)</span>
+    <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">pending</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">given_up</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) awaiting products published after them"</span>
+    <span class="k">if</span> <span class="n">given_up</span><span class="p">:</span>
+        <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">given_up</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) whose backfill gh3_build gave up on"</span>
 
     <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">findings</span><span class="p">:</span>
@@ -997,6 +1038,9 @@ window.runMermaid = runMermaid;</script>
         <span class="k">elif</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'partial_nan'</span><span class="p">:</span>
             <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
             <span class="n">needed</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]))</span>
+        <span class="k">elif</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'missing_source'</span><span class="p">,</span> <span class="s1">'fill_failed'</span><span class="p">):</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
+            <span class="n">needed</span><span class="o">.</span><span class="n">update</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">],</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">f</span><span class="p">[</span><span class="s1">'products'</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">needed</span>
 
 
@@ -1009,13 +1053,15 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    """</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">...gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">soc_file_tree</span>
     <span class="n">glob_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="c1"># Partial granules too: a gap in one product must heal even while</span>
+    <span class="c1"># another of the granule's products is still unpublished.</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">...gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span>
         <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">soc_source</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">soc_source</span> <span class="k">if</span> <span class="n">GEDIFile</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span><span class="o">.</span><span class="n">version</span> <span class="o">==</span> <span class="n">version</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="k">return</span> <span class="p">{}</span>
 
 
@@ -1251,6 +1297,23 @@ window.runMermaid = runMermaid;</script>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="s2">"nothing to fix"</span>
         <span class="k">return</span> <span class="n">report</span>
 
+    <span class="c1"># Every heal rewrites partition files: never alongside a live build (its</span>
+    <span class="c1"># merge could replace the same file), and never before the guard, so a</span>
+    <span class="c1"># refusal downloads and writes nothing — the build log included.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.dtype_drift</span><span class="w"> </span><span class="kn">import</span> <span class="n">_BUILD_IN_FLIGHT</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.tmp_partitions_health</span><span class="w"> </span><span class="kn">import</span> <span class="n">_build_is_active</span>
+    <span class="n">active</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="n">_build_is_active</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tmp_dir</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'log_data'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">active</span> <span class="ow">or</span> <span class="n">status</span> <span class="ow">in</span> <span class="n">_BUILD_IN_FLIGHT</span><span class="p">:</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"refused: a gh3_build appears to be running or stopped mid-way (build log: </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">"</span>
+            <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">", pid </span><span class="si">{</span><span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'pid'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">active</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"). Finish it with gh3_build — it backfills "</span>
+            <span class="s2">"awaited products itself — then re-run this fix for anything left."</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">report</span>
+
     <span class="n">use_s3</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s1">'s3'</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
     <span class="n">s3_tmp_dir</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1267,9 +1330,13 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># Gather products + variable lists for the granules that need filling.</span>
         <span class="n">needed</span> <span class="o">=</span> <span class="n">_granules_needing_fill</span><span class="p">(</span><span class="n">report</span><span class="p">)</span>
         <span class="n">product_vars</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">...gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_product_fill_vars</span>
         <span class="k">for</span> <span class="o">*</span><span class="n">_</span><span class="p">,</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">needed</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">prod</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">:</span>
-                <span class="n">vars_list</span> <span class="o">=</span> <span class="n">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">prod</span><span class="p">)</span>
+                <span class="c1"># Every column the database stores for the product (quality</span>
+                <span class="c1"># flags and essentials included), so the compact files carry</span>
+                <span class="c1"># what either fill path reads.</span>
+                <span class="n">vars_list</span> <span class="o">=</span> <span class="n">_product_fill_vars</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="p">[</span><span class="n">prod</span><span class="p">])[</span><span class="n">prod</span><span class="p">]</span> <span class="ow">or</span> <span class="n">_vars_for_product</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">prod</span><span class="p">)</span>
                 <span class="n">product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">vars_list</span> <span class="k">if</span> <span class="n">vars_list</span> <span class="k">else</span> <span class="kc">None</span>
 
         <span class="n">s3_tmp_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">tmp_dir</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'.tmp'</span><span class="p">),</span> <span class="s1">'_doctor_s3_backfill'</span><span class="p">)</span>
@@ -1303,7 +1370,38 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="n">report</span>
 
     <span class="n">version</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'gedi_version'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-    <span class="n">soc_tree</span> <span class="o">=</span> <span class="n">_build_soc_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+
+    <span class="c1"># Granules awaiting later products: the build's own backfill engine.</span>
+    <span class="n">healed</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">not_available</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">error_actions</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">pending</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">GranuleKey</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'missing_source'</span><span class="p">,</span> <span class="s1">'fill_failed'</span><span class="p">):</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
+            <span class="n">pending</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]),</span> <span class="p">[])</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'products'</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">...gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_build_fill_products</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fill</span> <span class="o">=</span> <span class="n">_build_fill_products</span><span class="p">(</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">pending</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
+                <span class="n">tmp_dir</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">tmp_dir</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'.tmp'</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">BaseException</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">s3_tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">):</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">raise</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Manual retries never count toward gh3_build's give-up limit.</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">record_fill_results</span><span class="p">(</span><span class="n">fill</span><span class="p">,</span> <span class="n">count_failures</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">bucket</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">extra</span> <span class="ow">in</span> <span class="p">((</span><span class="s1">'filled'</span><span class="p">,</span> <span class="n">healed</span><span class="p">,</span> <span class="p">{</span><span class="s1">'action'</span><span class="p">:</span> <span class="s1">'filled'</span><span class="p">}),</span>
+                                      <span class="p">(</span><span class="s1">'unavailable'</span><span class="p">,</span> <span class="n">not_available</span><span class="p">,</span> <span class="p">{</span><span class="s1">'reason'</span><span class="p">:</span> <span class="s1">'source_not_in_soc_tree'</span><span class="p">}),</span>
+                                      <span class="p">(</span><span class="s1">'unlocated'</span><span class="p">,</span> <span class="n">not_available</span><span class="p">,</span> <span class="p">{</span><span class="s1">'reason'</span><span class="p">:</span> <span class="s1">'granule_not_in_database'</span><span class="p">}),</span>
+                                      <span class="p">(</span><span class="s1">'failed'</span><span class="p">,</span> <span class="n">error_actions</span><span class="p">,</span> <span class="p">{</span><span class="s1">'fix_error'</span><span class="p">:</span> <span class="s1">'read or merge failed'</span><span class="p">})):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="n">fill</span><span class="p">[</span><span class="n">bucket</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span><span class="p">:</span>
+                    <span class="n">target</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'product'</span><span class="p">:</span> <span class="n">p</span><span class="p">,</span> <span class="o">**</span><span class="n">extra</span><span class="p">,</span>
+                                   <span class="s1">'granule'</span><span class="p">:</span> <span class="p">{</span><span class="s1">'orbit'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">k</span><span class="p">[</span><span class="mi">2</span><span class="p">]}})</span>
 
     <span class="c1"># Group findings by partition directory so we minimize file rewrites.</span>
     <span class="n">by_partition</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Set</span><span class="p">[</span><span class="n">GranuleKey</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1320,10 +1418,6 @@ window.runMermaid = runMermaid;</script>
             <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">,</span> <span class="p">[]):</span>
                 <span class="n">by_partition</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prod</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
 
-    <span class="n">healed</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">not_available</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">error_actions</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
-
     <span class="c1"># Pre-compute the per-product variable lists once on the driver and</span>
     <span class="c1"># broadcast them to every worker — the only ctx coupling that used</span>
     <span class="c1"># to block parallelization. ctx.h3_logger.product_vars is small</span>
@@ -1339,6 +1433,7 @@ window.runMermaid = runMermaid;</script>
         <span class="k">for</span> <span class="n">part_dir</span><span class="p">,</span> <span class="n">prod_grans</span> <span class="ow">in</span> <span class="n">by_partition</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
     <span class="p">]</span>
 
+    <span class="n">heal_healed</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">..parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
         <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span>
@@ -1358,17 +1453,19 @@ window.runMermaid = runMermaid;</script>
                     <span class="s1">'fix_error'</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                 <span class="p">})</span>
                 <span class="k">continue</span>
-            <span class="n">healed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'healed'</span><span class="p">])</span>
+            <span class="n">heal_healed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'healed'</span><span class="p">])</span>
             <span class="n">not_available</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'not_available'</span><span class="p">])</span>
             <span class="n">error_actions</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'error_actions'</span><span class="p">])</span>
 
         <span class="c1"># Build-log INDEXED marking stays on the driver — it mutates</span>
         <span class="c1"># shared state (the in-memory log) that the workers don't have.</span>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">healed</span><span class="p">:</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">mark_granule_product</span><span class="p">(</span>
-                    <span class="n">h</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">h</span><span class="p">[</span><span class="s1">'product'</span><span class="p">],</span> <span class="s1">'INDEXED'</span><span class="p">,</span>
-                <span class="p">)</span>
+            <span class="n">updates</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">GranuleKey</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">heal_healed</span><span class="p">:</span>
+                <span class="n">g</span> <span class="o">=</span> <span class="n">h</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">]</span>
+                <span class="n">updates</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]),</span> <span class="p">{})[</span><span class="n">h</span><span class="p">[</span><span class="s1">'product'</span><span class="p">]]</span> <span class="o">=</span> <span class="s1">'INDEXED'</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">set_product_statuses</span><span class="p">(</span><span class="n">updates</span><span class="p">)</span>
+        <span class="n">healed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">heal_healed</span><span class="p">)</span>
     <span class="k">finally</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">s3_tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">):</span>
             <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">s3_tmp_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1391,6 +1488,9 @@ window.runMermaid = runMermaid;</script>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"healed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">healed</span><span class="p">)</span><span class="si">}</span><span class="s2"> (granule × product) gaps"</span>
+    <span class="k">if</span> <span class="n">healed</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'gedi.ducklake'</span><span class="p">)):</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">recommendations</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">recommendations</span> <span class="ow">or</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">"gh3_build_ducklake -d </span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">h3_dir</span><span class="si">}</span><span class="s2">   # filled columns changed the statistics the catalog caches"</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">report</span></div>
 

@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>CLI Reference &#8212; gedih3 0.18.1 documentation</title>
+    <title>CLI Reference &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -497,6 +497,9 @@ gh3_build<span class="w"> </span>--s3<span class="w"> </span>-r<span class="w"> 
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--no-bbox-index</span></code></p></td>
 <td><p>Skip the automatic <code class="docutils literal notranslate"><span class="pre">_bbox_index.parquet</span></code> build after a successful build (see <a class="reference internal" href="../autoapi/gedih3/cli/gh3_bbox_index/index.html#module-gedih3.cli.gh3_bbox_index" title="gedih3.cli.gh3_bbox_index"><span class="xref myst py py-mod"><code class="docutils literal notranslate"><span class="pre">gh3_bbox_index</span></code></span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--allow-missing-products</span></code></p></td>
+<td><p>Index granules that have L2A before their later products (L2B, L4A, L4C) are published; those columns stay null until a later <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> fills them automatically (see <a class="reference internal" href="building-a-database.html#phased-updates"><span class="std std-ref">phased updates</span></a>). Remembered in the build log; <code class="docutils literal notranslate"><span class="pre">--no-allow-missing-products</span></code> turns it off. Needs a local SOC directory</p></td>
 </tr>
 </tbody>
 </table>
@@ -876,7 +879,7 @@ plain <code class="docutils literal notranslate"><span class="pre">gh3_doctor</s
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">backfill</span></code></p></td>
-<td><p>NaN gaps in product columns</p></td>
+<td><p>NaN gaps in product columns; granules still waiting for products published after them (INFO), and backfills <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> gave up on (from the build log; <code class="docutils literal notranslate"><span class="pre">--fix</span></code> runs the same backfill <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> does)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">orphans</span></code></p></td>
 <td><p>leftover <code class="docutils literal notranslate"><span class="pre">.tmp</span></code> files and empty directories</p></td>
@@ -907,9 +910,9 @@ plain <code class="docutils literal notranslate"><span class="pre">gh3_doctor</s
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">--online</span></code> decorates the report with NASA upstream availability and emits
 concrete <code class="docutils literal notranslate"><span class="pre">gh3_download</span></code> / <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> commands to recover what is missing.</p>
-<p>Exit codes: <strong>0</strong> clean, <strong>1</strong> findings remain, <strong>2</strong> errors occurred during a
-fix. <code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span> <span class="pre">--fix</span></code> and <code class="docutils literal notranslate"><span class="pre">dtype_drift</span> <span class="pre">--fix</span></code> refuse to act while a
-<code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> is live.</p>
+<p>Exit codes: <strong>0</strong> clean (or informational findings only), <strong>1</strong> findings remain,
+<strong>2</strong> errors occurred during a fix. <code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span> <span class="pre">--fix</span></code>, <code class="docutils literal notranslate"><span class="pre">dtype_drift</span> <span class="pre">--fix</span></code>
+and <code class="docutils literal notranslate"><span class="pre">backfill</span> <span class="pre">--fix</span></code> refuse to act while a <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> is live.</p>
 <p><code class="docutils literal notranslate"><span class="pre">dtype_drift</span></code> derives the reference types by pushing one sample granule of the
 database’s own release through the same schema derivation <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> uses, then
 compares every partition file’s footer against it (<code class="docutils literal notranslate"><span class="pre">string</span></code> vs <code class="docutils literal notranslate"><span class="pre">large_string</span></code>

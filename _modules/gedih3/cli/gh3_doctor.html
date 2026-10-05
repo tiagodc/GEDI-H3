@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.cli.gh3_doctor &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.cli.gh3_doctor &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -39,7 +39,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -480,8 +480,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -950,7 +950,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># other gedih3 tool (gh3_extract, gh3_aggregate, gh3_build, …)</span>
     <span class="c1"># eliminates the dual-path "serial fallback" that used to ship</span>
     <span class="c1"># whenever a user invoked the doctor without ``-s``.</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">dask.distributed</span><span class="w"> </span><span class="kn">import</span> <span class="n">Client</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.cliutils</span><span class="w"> </span><span class="kn">import</span> <span class="n">dask_client</span>
     <span class="n">dask_kwargs</span> <span class="o">=</span> <span class="n">parse_dask_args</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">dask_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'address'</span><span class="p">):</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Connecting to dask cluster: </span><span class="si">{</span><span class="n">dask_kwargs</span><span class="p">[</span><span class="s1">'address'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -960,7 +960,7 @@ window.runMermaid = runMermaid;</script>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">args</span><span class="o">.</span><span class="n">threads</span><span class="si">}</span><span class="s2"> threads/worker)"</span>
         <span class="p">)</span>
 
-    <span class="k">with</span> <span class="n">Client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">_client</span><span class="p">,</span> <span class="n">cli_exception_handler</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">dask_client</span><span class="p">(</span><span class="o">**</span><span class="n">dask_kwargs</span><span class="p">)</span> <span class="k">as</span> <span class="n">_client</span><span class="p">,</span> <span class="n">cli_exception_handler</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dask dashboard available at: </span><span class="si">{</span><span class="n">_client</span><span class="o">.</span><span class="n">dashboard_link</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
@@ -1066,6 +1066,11 @@ window.runMermaid = runMermaid;</script>
         <span class="n">worst</span> <span class="o">=</span> <span class="n">_worst_severity</span><span class="p">(</span><span class="n">reports_to_emit</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">has_findings</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">reports_to_emit</span><span class="p">):</span>
             <span class="n">print_success</span><span class="p">(</span><span class="s2">"Database is clean"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">worst</span> <span class="o">==</span> <span class="s1">'info'</span><span class="p">:</span>
+            <span class="c1"># INFO findings are informational (e.g. products not published</span>
+            <span class="c1"># yet in a phased database): nothing requires action.</span>
+            <span class="n">print_success</span><span class="p">(</span><span class="s2">"No issues requiring action (informational findings only)"</span><span class="p">,</span> <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">)</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
         <span class="c1"># Exit code: 0 if --fix was used and resolved everything, 1 if findings remain</span>

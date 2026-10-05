@@ -74,6 +74,7 @@ Functions
    gedih3.utils.parquet_backfill_bbox
    gedih3.utils.parquet_cast_columns
    gedih3.utils.parquet_merge_files
+   gedih3.utils.parquet_fill_columns
    gedih3.utils.parquet_join_columns
    gedih3.utils.parse_temporal
    gedih3.utils.region_to_geometry
@@ -1279,6 +1280,71 @@ Module Contents
 
        cleaned up before the new write.
            ..
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: parquet_fill_columns(base_file: str, patch_files: List[str], ofile: Optional[str] = None, key_col: str = 'shot_number', tmp_suffix: str = '.fill.tmp', append_new: bool = True) -> str
+
+   
+   Fill null/NaN cells of ``base_file`` from one or more ``patch_files``.
+
+   The **fill** counterpart of :func:`parquet_join_columns`, matching rows on
+   ``key_col``:
+
+   - columns present in both: a base cell that is null (or NaN) takes the
+     patch value; an existing value is never overwritten. When several
+     patches cover the same cell, the first one with a value wins.
+   - columns only in a patch are appended (left join, null where the patch
+     has no row).
+   - columns only in the base pass through untouched (zero-copy).
+
+   Pure Arrow, row group by row group: memory is one base row group plus the
+   patch columns (which callers pre-restrict to this file's rows), and the
+   base layout (row groups, schema metadata such as GeoParquet ``geo``) is
+   preserved. Patch values are cast to the base types with ``safe=True``.
+   The output is written to ``ofile + tmp_suffix`` and atomically renamed;
+   on any error the temp file is removed and the base is untouched. When no
+   cell changes (and nothing is appended) the base is left untouched too.
+
+   :Parameters:
+
+       **base_file** : str
+           Existing parquet file. Determines schema base, row order, row group size.
+
+       **patch_files** : list of str or pyarrow.Table
+           Parquet files (or in-memory tables) containing ``key_col`` plus the
+           columns to merge in.
+
+       **ofile** : str, optional
+           Output path. Defaults to ``base_file`` (in-place rewrite via temp).
+
+       **key_col** : str, default 'shot_number'
+           Join key (a column).
+
+       **tmp_suffix** : str
+           Suffix for the temp file used during the atomic rewrite.
+
+       **append_new** : bool, default True
+           ``False`` never appends: patch columns the base lacks are ignored (a
+           fill must not widen one file's schema away from its neighbours').
+
+
+
+   :Returns:
+
+       str
+           Path to the written file.
 
 
 

@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Building a Database &#8212; gedih3 0.18.1 documentation</title>
+    <title>Building a Database &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -882,6 +882,35 @@ gh3_build<span class="w"> </span>-r<span class="w"> </span>wider_region.shp<span
 </pre></div>
 </div>
 </section>
+<section id="updating-before-every-product-is-published-phased-updates">
+<span id="phased-updates"></span><h3>Updating before every product is published (phased updates)<a class="headerlink" href="#updating-before-every-product-is-published-phased-updates" title="Link to this heading">#</a></h3>
+<p>L2B, L4A and L4C are derived from L2A and are published later than it. By default a granule enters the database only once every product it carries is available, so a database with L4 columns waits for the slowest product. To take new dates as soon as their L2A exists, add <code class="docutils literal notranslate"><span class="pre">--allow-missing-products</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># L2A for the new months is available; L2B/L4A/L4C are not yet</span>
+gh3_build<span class="w"> </span>-i<span class="w"> </span>/data/soc<span class="w"> </span>-o<span class="w"> </span>/data/db<span class="w"> </span>--allow-missing-products
+</pre></div>
+</div>
+<p>A granule still needs L2A (and L1B, when the database carries it, since L1B is published first); only the later products may be missing. The new rows are complete for every product the granule already has. The other products’ columns are stored as null, in the database’s types, and the build log records those products as <code class="docutils literal notranslate"><span class="pre">MISSING_SOURCE</span></code> for each granule.</p>
+<p>The choice is remembered in the build log, so later runs keep admitting new L2A without the flag. <code class="docutils literal notranslate"><span class="pre">--no-allow-missing-products</span></code> turns it off. It applies to local SOC directories (<code class="docutils literal notranslate"><span class="pre">-i</span></code> or <code class="docutils literal notranslate"><span class="pre">--download</span></code>); an <code class="docutils literal notranslate"><span class="pre">--s3</span></code> run builds complete granules only.</p>
+<p>Once the missing product files land in the SOC directory, any later <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> over the same database notices them and fills those columns. It needs no flags:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>gh3_build<span class="w"> </span>-i<span class="w"> </span>/data/soc<span class="w"> </span>-o<span class="w"> </span>/data/db
+</pre></div>
+</div>
+<p>The backfill runs on the build’s own machinery, and costs far less than a rebuild:</p>
+<ul class="simple">
+<li><p><strong>Targets come from the build log.</strong> Nothing scans the database.</p></li>
+<li><p><strong>Each product file is read once.</strong></p></li>
+<li><p><strong>Only the files that hold those granules are rewritten.</strong> Each is rewritten atomically, row group by row group.</p></li>
+<li><p><strong>Only null cells are written.</strong> A value already in the database is never overwritten.</p></li>
+</ul>
+<p>The log reports what was filled, what still waits for its product, and what failed. A failed granule stays pending and is retried on the next runs; the run itself still succeeds. After three failed attempts, or at once when no database file lists the granule, the product is marked <code class="docutils literal notranslate"><span class="pre">FAILED</span></code> and no longer retried automatically, so one bad file cannot make every later run rescan. <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--check</span> <span class="pre">backfill</span></code> lists those as findings, and <code class="docutils literal notranslate"><span class="pre">--fix</span> <span class="pre">backfill</span></code> retries them. Files matching <code class="docutils literal notranslate"><span class="pre">--exclude</span></code> are never used as a source. If you use a DuckLake catalog, rebuild it after a backfill (<code class="docutils literal notranslate"><span class="pre">gh3_build_ducklake</span> <span class="pre">-d</span> <span class="pre">/data/db</span></code>); the log says so.</p>
+<p>The same backfill runs on demand with <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">-i</span> <span class="pre">/data/db</span> <span class="pre">--soc-dir</span> <span class="pre">/data/soc</span> <span class="pre">--fix</span> <span class="pre">backfill</span></code>. <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--check</span> <span class="pre">backfill</span></code> lists the granules still waiting, at INFO level, since that is an expected state of a phased database; INFO-only results exit 0. The fix refuses to run while a <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> is in progress.</p>
+<p>Notes:</p>
+<ul class="simple">
+<li><p><strong>Queries stay clean in the meantime.</strong> Quality-filtered queries on a product (<code class="docutils literal notranslate"><span class="pre">gh3_extract</span> <span class="pre">-y</span></code> with its flags) exclude rows still waiting for it, because their flags are null.</p></li>
+<li><p><strong>The row set can differ slightly from a single all-products build.</strong> A single build loads each product without NaN rows and keeps only shots every product has, so it drops a shot when a later product has no record for it or a NaN value. A phased update keeps such a shot, with null values for that product.</p></li>
+<li><p><strong>Types while a product is pending.</strong> Its columns keep the database’s types, but integer columns holding nulls read into pandas as floats until they are filled.</p></li>
+</ul>
+</section>
 </section>
 <hr class="docutils" />
 <section id="dask-configuration-and-performance">
@@ -1268,6 +1297,7 @@ gh3_build<span class="w"> </span>--help
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#resuming-an-interrupted-build">Resuming an interrupted build</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-variables-to-an-existing-database">Adding variables to an existing database</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expanding-the-spatial-or-temporal-coverage">Expanding the spatial or temporal coverage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updating-before-every-product-is-published-phased-updates">Updating before every product is published (phased updates)</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dask-configuration-and-performance">Dask Configuration and Performance</a><ul class="pst-show_toc_level nav section-nav flex-column">

@@ -480,6 +480,16 @@ Module Contents
    3. Delete the failure sentinel itself so re-running the pre-clean is
       idempotent (next run only re-acts on freshly-failed merges).
 
+   Step 1 probes each fragment in O(1) (``_parquet_tail_ok``: the magic bytes
+   at both ends and a plausible footer length), which catches 0-byte,
+   truncated and never-finished files. The full footer parse is reserved for
+   partitions whose recorded error is a footer-level artifact (thrift) or
+   is missing:
+   parsing a 1.4k-column footer costs seconds per fragment on GPFS, and a
+   serial parse of every fragment behind a 14k-sentinel backlog (e.g. a
+   batch of schema failures, whose fragments are healthy) was ~58 h on the
+   driver. Partitions fan out over the registered dask Client.
+
    Returns ``{'partitions_cleaned': N, 'parquets_removed': N, 'tmps_removed': N}``.
    Companion to ``apply_merge_failures_to_logger`` — calling this without
    the granule flip-back would unlink fragments and leave their granules
@@ -541,7 +551,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None) -> Optional[List[str]]
+.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None, allow_missing_products: bool = False, granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None) -> Optional[List[str]]
 
    
    Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -592,6 +602,20 @@ Module Contents
            If True, only add new variable columns to existing partition files
            via shot_number join (``_build_add_variables``). Skips full pipeline.
            The caller (CLI) determines this from the build logger state.
+
+       **allow_missing_products** : bool, default False
+           Admit granules that have L2A but lack later products (L2B, L4A…
+           published after L2A). Their rows store those products' columns as
+           null, in the database's types, until :func:`_build_fill_products`
+           backfills them. Requires the streaming writer. Default: a granule
+           must have every requested product.
+
+       **granule_products_callback** : callable, optional
+           Called once, before any fragment is written, with
+           ``{(orbit, granule, track): [missing products]}`` for every granule
+           this Stage 1 processes (an empty list when it has every product).
+           The CLI records ``MISSING_SOURCE`` from it, so the backfill knows its
+           targets without scanning the database, even after a crash mid-write.
 
 
 

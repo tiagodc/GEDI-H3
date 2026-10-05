@@ -7,7 +7,14 @@ gedih3.doctor.diagnoses.backfill
 
    backfill diagnosis — fill NaN gaps in product columns from source HDF5s.
 
-   The detection runs row-level: for each partition × product, we count nulls per
+   Granules indexed before some of their products were published
+   (``gh3_build --allow-missing-products``) are known from the build log alone:
+   ``missing_source`` findings, no data scan. Their fix is the build's own
+   product backfill (:func:`gedih3.gh3builder._build_fill_products`: each product
+   file read once, only the files holding those granules rewritten, only null
+   cells written) — the same engine ``gh3_build`` runs automatically.
+
+   The detection below additionally runs row-level: for each partition × product, we count nulls per
    granule by grouping on ``root_file_l2a``. Findings include the partition file,
    the product, and the per-granule null counts.
 

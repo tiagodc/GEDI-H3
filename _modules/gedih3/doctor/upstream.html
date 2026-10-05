@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.doctor.upstream &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.doctor.upstream &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -39,7 +39,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -480,8 +480,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -862,7 +862,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_dir</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">soc_file_tree</span>
-    <span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                         <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">out</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">orb_track</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">tree</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">product</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>

@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.gedidriver &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.gedidriver &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -39,7 +39,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -480,8 +480,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -904,6 +904,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">to_list</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">glob_kwargs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">exclude</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">require_all</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Build a structured tree of GEDI SOC files grouped by orbit/track.</span>
@@ -928,6 +929,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Any file whose basename matches any pattern is dropped from the</span>
 <span class="sd">        result. Useful to exclude internal/SGS variants (e.g.</span>
 <span class="sd">        ``['*_SGS.h5']``) that share the SOC tree with public release files.</span>
+<span class="sd">    require_all : bool, default True</span>
+<span class="sd">        Keep only granules that have a file for every product found in the</span>
+<span class="sd">        listing. ``False`` keeps every granule with whatever products it has</span>
+<span class="sd">        (its dict simply lacks the others) — for callers that judge</span>
+<span class="sd">        completeness against the products they request, e.g. a build admitting</span>
+<span class="sd">        granules whose later products are not published yet.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1009,9 +1016,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">flist</span><span class="p">[</span><span class="s1">'orb_track'</span><span class="p">]</span> <span class="o">=</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
     <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">sort_values</span><span class="p">([</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="s1">'file_paths'</span><span class="p">,</span> <span class="s1">'prod'</span><span class="p">])</span>
     <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="s1">'prod'</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s1">'file_links'</span><span class="p">,</span> <span class="n">aggfunc</span><span class="o">=</span><span class="s1">'last'</span><span class="p">)</span>
-    <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
-
-    <span class="n">soc_tree</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">require_all</span><span class="p">:</span>
+        <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
+        <span class="n">soc_tree</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">soc_tree</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">pd</span><span class="o">.</span><span class="n">isna</span><span class="p">(</span><span class="n">f</span><span class="p">)}</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">flist</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
 
     <span class="k">if</span> <span class="n">to_list</span><span class="p">:</span>
         <span class="n">soc_tree</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">soc_tree</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>

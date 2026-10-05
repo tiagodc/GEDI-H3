@@ -307,6 +307,9 @@ Module Contents
    .. py:attribute:: previous_status
 
 
+   .. py:attribute:: allow_missing_products
+
+
    .. py:attribute:: new_spatial
       :value: None
 
@@ -530,6 +533,96 @@ Module Contents
 
       Caller is responsible for invoking ``save_log()`` to persist.
       Used by gh3_doctor after a fix or verification step.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: set_product_statuses(updates)
+
+      
+      Bulk per-product status update (does not auto-save).
+
+      ``updates`` maps ``(orbit, granule, track)`` to ``{product: status}``.
+      One pass over ``granule_info`` whatever the number of updates, unlike
+      repeated :meth:`mark_granule_product` calls. Returns the count applied.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: pending_product_fills(statuses=(PRODUCT_STATUS_MISSING_SOURCE, ))
+
+      
+      Indexed granules still waiting for products published after them.
+
+      ``{(orbit, granule, track): [product, ...]}`` for every ``INDEXED``
+      granule with a product in one of ``statuses``. The default,
+      ``MISSING_SOURCE``, is what ``gh3_build`` backfills automatically;
+      ``gh3_doctor`` also passes ``FAILED`` (fills given up on, see
+      :meth:`record_fill_results`) to retry them on demand. Log-only, no I/O.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: record_fill_results(result, max_attempts=3, count_failures=True)
+
+      
+      Apply a ``_build_fill_products`` result to per-product statuses.
+
+      * ``filled`` → ``INDEXED`` (attempt count cleared);
+      * ``unlocated`` (the product file exists but no database file lists the
+        granule, so it can never fill) → ``FAILED`` at once;
+      * ``failed`` (read or merge error, or no row matched) → retried by the
+        next runs; after ``max_attempts`` consecutive failures → ``FAILED``,
+        so one bad file does not make every later build rescan. ``FAILED``
+        is not backfilled automatically; ``gh3_doctor --fix backfill``
+        retries it. ``count_failures=False`` leaves failures untouched.
+
+      Does not save the log. Returns ``{key: [products]}`` newly ``FAILED``.
 
 
 

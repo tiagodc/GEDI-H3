@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>gedih3.logger &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.logger &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -40,7 +40,7 @@
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
@@ -125,8 +125,8 @@
       
     
     
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -787,6 +787,11 @@ as successful.</p>
 <dd></dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.allow_missing_products">
+<span class="sig-name descname"><span class="pre">allow_missing_products</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.allow_missing_products" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.new_spatial">
 <span class="sig-name descname"><span class="pre">new_spatial</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.new_spatial" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
@@ -927,6 +932,43 @@ Used by gh3_doctor as the fast-path audit (log-only, no parquet scan).</p>
 Used by gh3_doctor after a fix or verification step.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.set_product_statuses">
+<span class="sig-name descname"><span class="pre">set_product_statuses</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">updates</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.set_product_statuses"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.set_product_statuses" title="Link to this definition">#</a></dt>
+<dd><p>Bulk per-product status update (does not auto-save).</p>
+<p><code class="docutils literal notranslate"><span class="pre">updates</span></code> maps <code class="docutils literal notranslate"><span class="pre">(orbit,</span> <span class="pre">granule,</span> <span class="pre">track)</span></code> to <code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">status}</span></code>.
+One pass over <code class="docutils literal notranslate"><span class="pre">granule_info</span></code> whatever the number of updates, unlike
+repeated <a class="reference internal" href="#gedih3.logger.H3BuildLogger.mark_granule_product" title="gedih3.logger.H3BuildLogger.mark_granule_product"><code class="xref py py-meth docutils literal notranslate"><span class="pre">mark_granule_product()</span></code></a> calls. Returns the count applied.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.pending_product_fills">
+<span class="sig-name descname"><span class="pre">pending_product_fills</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">statuses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(PRODUCT_STATUS_MISSING_SOURCE,)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.pending_product_fills"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.pending_product_fills" title="Link to this definition">#</a></dt>
+<dd><p>Indexed granules still waiting for products published after them.</p>
+<p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">[product,</span> <span class="pre">...]}</span></code> for every <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code>
+granule with a product in one of <code class="docutils literal notranslate"><span class="pre">statuses</span></code>. The default,
+<code class="docutils literal notranslate"><span class="pre">MISSING_SOURCE</span></code>, is what <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> backfills automatically;
+<code class="docutils literal notranslate"><span class="pre">gh3_doctor</span></code> also passes <code class="docutils literal notranslate"><span class="pre">FAILED</span></code> (fills given up on, see
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.record_fill_results" title="gedih3.logger.H3BuildLogger.record_fill_results"><code class="xref py py-meth docutils literal notranslate"><span class="pre">record_fill_results()</span></code></a>) to retry them on demand. Log-only, no I/O.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.record_fill_results">
+<span class="sig-name descname"><span class="pre">record_fill_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count_failures</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.record_fill_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.record_fill_results" title="Link to this definition">#</a></dt>
+<dd><p>Apply a <code class="docutils literal notranslate"><span class="pre">_build_fill_products</span></code> result to per-product statuses.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">filled</span></code> → <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> (attempt count cleared);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unlocated</span></code> (the product file exists but no database file lists the
+granule, so it can never fill) → <code class="docutils literal notranslate"><span class="pre">FAILED</span></code> at once;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">failed</span></code> (read or merge error, or no row matched) → retried by the
+next runs; after <code class="docutils literal notranslate"><span class="pre">max_attempts</span></code> consecutive failures → <code class="docutils literal notranslate"><span class="pre">FAILED</span></code>,
+so one bad file does not make every later build rescan. <code class="docutils literal notranslate"><span class="pre">FAILED</span></code>
+is not backfilled automatically; <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--fix</span> <span class="pre">backfill</span></code>
+retries it. <code class="docutils literal notranslate"><span class="pre">count_failures=False</span></code> leaves failures untouched.</p></li>
+</ul>
+<p>Does not save the log. Returns <code class="docutils literal notranslate"><span class="pre">{key:</span> <span class="pre">[products]}</span></code> newly <code class="docutils literal notranslate"><span class="pre">FAILED</span></code>.</p>
+</dd></dl>
+
 </dd></dl>
 
 </section>
@@ -1023,6 +1065,7 @@ Used by gh3_doctor after a fix or verification step.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.source_mode"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.source_mode</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.build_start_time"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.build_start_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.previous_status"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.previous_status</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.allow_missing_products"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.allow_missing_products</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_spatial"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_spatial</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_temporal"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_temporal</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_product_vars"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_product_vars</span></code></a></li>
@@ -1039,6 +1082,9 @@ Used by gh3_doctor after a fix or verification step.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_granule_product_status"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_granule_product_status()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_product_gaps"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_product_gaps()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.mark_granule_product"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.mark_granule_product()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.set_product_statuses"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.set_product_statuses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.pending_product_fills"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.pending_product_fills()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_fill_results"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_fill_results()</span></code></a></li>
 </ul>
 </li>
 </ul>

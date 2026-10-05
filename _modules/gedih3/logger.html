@@ -6,7 +6,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>gedih3.logger &#8212; gedih3 0.18.1 documentation</title>
+    <title>gedih3.logger &#8212; gedih3 0.19.1 documentation</title>
   
   
   
@@ -39,7 +39,7 @@
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../../_static/documentation_options.js?v=478834ab"></script>
+    <script src="../../_static/documentation_options.js?v=2347e4ef"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
@@ -480,8 +480,8 @@ window.runMermaid = runMermaid;</script>
       
     
     
-    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.18.1 documentation - Home"/>
-    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.18.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-light" alt="gedih3 0.19.1 documentation - Home"/>
+    <img src="../../_static/gh3_logo.png" class="logo__image only-dark pst-js-only" alt="gedih3 0.19.1 documentation - Home"/>
   
   
 </a></div>
@@ -1356,6 +1356,10 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">source_mode</span> <span class="o">=</span> <span class="n">source_mode</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">build_start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">timezone</span><span class="o">.</span><span class="n">utc</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span>
+        <span class="c1"># Phased updates (gh3_build --allow-missing-products): once chosen for</span>
+        <span class="c1"># a database, persisted in its log so later runs keep admitting L2A</span>
+        <span class="c1"># before the later products are published.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">allow_missing_products</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'allow_missing_products'</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span> <span class="o">=</span> <span class="n">product_vars</span>
@@ -1740,9 +1744,16 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># partitions that merged, not of the one that lost its rows.</span>
                 <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">indexed_keys</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'MERGE_FAILED'</span><span class="p">:</span>
                     <span class="n">g</span><span class="p">[</span><span class="s1">'status'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'INDEXED'</span>
-                    <span class="n">g</span><span class="p">[</span><span class="s1">'products'</span><span class="p">]</span> <span class="o">=</span> <span class="n">_per_product_status_from_observed</span><span class="p">(</span>
+                    <span class="n">products</span> <span class="o">=</span> <span class="n">_per_product_status_from_observed</span><span class="p">(</span>
                         <span class="n">active_products</span><span class="p">,</span> <span class="n">gran_observed_products</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
                     <span class="p">)</span>
+                    <span class="c1"># MISSING_SOURCE and a backfill's FAILED stay: the partition</span>
+                    <span class="c1"># carries the product's columns (null for this granule)</span>
+                    <span class="c1"># until a backfill fills them.</span>
+                    <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="n">PRODUCT_STATUS_MISSING_SOURCE</span><span class="p">,</span> <span class="n">PRODUCT_STATUS_FAILED</span><span class="p">)</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">:</span>
+                            <span class="n">products</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">s</span>
+                    <span class="n">g</span><span class="p">[</span><span class="s1">'products'</span><span class="p">]</span> <span class="o">=</span> <span class="n">products</span>
                 <span class="c1"># else: keep existing status (PENDING)</span>
 
             <span class="c1"># Add any newly discovered granules not previously tracked</span>
@@ -1820,6 +1831,9 @@ window.runMermaid = runMermaid;</script>
 
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'h3_partition_ids'</span><span class="p">):</span>
             <span class="n">log_dict</span><span class="p">[</span><span class="s1">'h3_partition_ids'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">h3_partition_ids</span>
+
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'allow_missing_products'</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+            <span class="n">log_dict</span><span class="p">[</span><span class="s1">'allow_missing_products'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'date_range'</span><span class="p">):</span>
             <span class="n">log_dict</span><span class="p">[</span><span class="s1">'date_range'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_range</span>
@@ -1949,6 +1963,98 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">products_map</span><span class="p">[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="n">status</span>
                 <span class="k">return</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.set_product_statuses">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.set_product_statuses">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_product_statuses</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">updates</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Bulk per-product status update (does not auto-save).</span>
+
+<span class="sd">        ``updates`` maps ``(orbit, granule, track)`` to ``{product: status}``.</span>
+<span class="sd">        One pass over ``granule_info`` whatever the number of updates, unlike</span>
+<span class="sd">        repeated :meth:`mark_granule_product` calls. Returns the count applied.</span>
+<span class="sd">        """</span>
+        <span class="k">for</span> <span class="n">statuses</span> <span class="ow">in</span> <span class="n">updates</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">bad</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">statuses</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">_VALID_PRODUCT_STATUSES</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">bad</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid per-product status </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">bad</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="n">statuses</span> <span class="o">=</span> <span class="n">updates</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="n">statuses</span><span class="p">:</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">statuses</span><span class="p">)</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">statuses</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">n</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.pending_product_fills">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.pending_product_fills">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pending_product_fills</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">statuses</span><span class="o">=</span><span class="p">(</span><span class="n">PRODUCT_STATUS_MISSING_SOURCE</span><span class="p">,)):</span>
+<span class="w">        </span><span class="sd">"""Indexed granules still waiting for products published after them.</span>
+
+<span class="sd">        ``{(orbit, granule, track): [product, ...]}`` for every ``INDEXED``</span>
+<span class="sd">        granule with a product in one of ``statuses``. The default,</span>
+<span class="sd">        ``MISSING_SOURCE``, is what ``gh3_build`` backfills automatically;</span>
+<span class="sd">        ``gh3_doctor`` also passes ``FAILED`` (fills given up on, see</span>
+<span class="sd">        :meth:`record_fill_results`) to retry them on demand. Log-only, no I/O.</span>
+<span class="sd">        """</span>
+        <span class="n">statuses</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">statuses</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">'INDEXED'</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">statuses</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="n">out</span><span class="p">[(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])]</span> <span class="o">=</span> <span class="n">missing</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.record_fill_results">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.record_fill_results">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">record_fill_results</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">max_attempts</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">count_failures</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Apply a ``_build_fill_products`` result to per-product statuses.</span>
+
+<span class="sd">        * ``filled`` → ``INDEXED`` (attempt count cleared);</span>
+<span class="sd">        * ``unlocated`` (the product file exists but no database file lists the</span>
+<span class="sd">          granule, so it can never fill) → ``FAILED`` at once;</span>
+<span class="sd">        * ``failed`` (read or merge error, or no row matched) → retried by the</span>
+<span class="sd">          next runs; after ``max_attempts`` consecutive failures → ``FAILED``,</span>
+<span class="sd">          so one bad file does not make every later build rescan. ``FAILED``</span>
+<span class="sd">          is not backfilled automatically; ``gh3_doctor --fix backfill``</span>
+<span class="sd">          retries it. ``count_failures=False`` leaves failures untouched.</span>
+
+<span class="sd">        Does not save the log. Returns ``{key: [products]}`` newly ``FAILED``.</span>
+<span class="sd">        """</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]}</span>
+        <span class="n">given_up</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'filled'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span><span class="p">:</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">PRODUCT_STATUS_INDEXED</span>
+                <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'fill_attempts'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">'fill_attempts'</span> <span class="ow">in</span> <span class="n">g</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">g</span><span class="p">[</span><span class="s1">'fill_attempts'</span><span class="p">]:</span>
+                <span class="k">del</span> <span class="n">g</span><span class="p">[</span><span class="s1">'fill_attempts'</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'unlocated'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span><span class="p">:</span>
+                <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">PRODUCT_STATUS_FAILED</span>
+                <span class="n">given_up</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">count_failures</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'failed'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">g</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">g</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">attempts</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'fill_attempts'</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span><span class="p">:</span>
+                    <span class="n">attempts</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">attempts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">attempts</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">max_attempts</span><span class="p">:</span>
+                        <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">PRODUCT_STATUS_FAILED</span>
+                        <span class="n">given_up</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">given_up</span></div>
 </div>
 
 </pre></div>

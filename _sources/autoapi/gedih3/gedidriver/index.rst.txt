@@ -167,7 +167,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: soc_file_tree(file_struct: Union[str, List[str], List[earthaccess.store.EarthAccessFile]], to_list: bool = False, glob_kwargs: Optional[Dict] = None, exclude: Optional[List[str]] = None) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]
+.. py:function:: soc_file_tree(file_struct: Union[str, List[str], List[earthaccess.store.EarthAccessFile]], to_list: bool = False, glob_kwargs: Optional[Dict] = None, exclude: Optional[List[str]] = None, require_all: bool = True) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]
 
    
    Build a structured tree of GEDI SOC files grouped by orbit/track.
@@ -195,6 +195,13 @@ Module Contents
            Any file whose basename matches any pattern is dropped from the
            result. Useful to exclude internal/SGS variants (e.g.
            ``['*_SGS.h5']``) that share the SOC tree with public release files.
+
+       **require_all** : bool, default True
+           Keep only granules that have a file for every product found in the
+           listing. ``False`` keeps every granule with whatever products it has
+           (its dict simply lacks the others) — for callers that judge
+           completeness against the products they request, e.g. a build admitting
+           granules whose later products are not published yet.
 
 
 
