@@ -10,19 +10,23 @@ on:
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
 
+# One review per PR at a time: a quick push after opening must not race the
+# first run past the plugin's "already commented" check.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+    # Fork PRs get no secrets or OIDC here and would only fail red.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The review posts with the Claude App token from the OIDC exchange, whose
+    # permissions the action requests itself; this job's own token stays read-only.
     permissions:
       contents: read
-      # write: the review is posted as PR comments (summary + inline).
-      pull-requests: write
+      pull-requests: read
       issues: read
       id-token: write
 
@@ -36,6 +40,10 @@ jobs:
         id: claude-review
         uses: anthropics/claude-code-action@v1
         env:
+          # Strip credentials (the OAuth token) from the shells Claude starts:
+          # the plugin reads PR comments, which anyone can write, so an
+          # injected command must find nothing to exfiltrate. GitHub tokens stay.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           # Run subagents in the foreground. Claude Code otherwise starts the
           # plugin's first subagent in the background and ends its turn to
           # wait for it, which ends this headless session ~6 s in, with
@@ -68,12 +76,10 @@ jobs:
             - No hand-maintained counts or file inventories in documentation.
           # Headless runs deny any tool not allowed here. The plugin fans out
           # subagents (Agent), reads the PR with gh, and posts with gh pr
-          # comment / the inline-comment MCP tool.
+          # comment / the inline-comment MCP tool (which the action installs
+          # only when it is listed). Reads inside the checkout need no rule.
           claude_args: |
-            --allowedTools "Agent,Task,Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
-          # Claude's final report in the job summary (trusted input only:
-          # pull_request runs from forks get no secrets).
-          display_report: true
+            --allowedTools "Agent,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*),mcp__github_inline_comment__create_inline_comment"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
