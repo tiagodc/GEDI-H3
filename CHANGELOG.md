@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.20.1] - 2026-10-06
+
+### Fixed
+- **The automated Claude PR review actually reviews and comments now.** The `claude-review` check had passed on every PR without reviewing anything. Its first subagent started in the background, and the headless session ended about 6 s in. The review also printed only to the hidden terminal. Subagents now run in the foreground, and findings are posted as PR comments. Because the agent reads PR comments, which anyone can write, the job was also hardened: credentials are stripped from its subprocesses (under bubblewrap), it gets a minimal tool allowlist, its own token stays read-only, it skips fork PRs, and it has a 20-minute timeout and per-PR concurrency. (#43)
+
 ## [0.20.0] - 2026-10-05
 
 ### Added
