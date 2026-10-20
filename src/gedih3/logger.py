@@ -1287,10 +1287,9 @@ class H3BuildLogger:
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
-        # Pending until the run's stages have run, or until Stage 2 starts: it
-        # records its own _pending_variable_update once a mixed update's Phase 1
-        # drained, and a resumed Phase 2 must get the whole region, not the
-        # added area. See _restore_pending_update.
+        # Pending until the run's stages have run, or until Stage 2 starts: its
+        # own _pending_variable_update then describes all the remaining work.
+        # See _restore_pending_update.
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
         new_product_vars = getattr(self, 'new_product_vars', None)
