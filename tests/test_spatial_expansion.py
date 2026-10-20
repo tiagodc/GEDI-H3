@@ -85,12 +85,36 @@ def test_new_granule_in_a_widening_run_is_indexed_over_the_whole_region(tmp_dir)
     out = gh3_build(f'--region={WIDENED}')
     assert len(_shots_of(h3_dir, 101)) == every_shot         # the indexed granule got the added region
     assert status(102) == 'PENDING' and _shots_of(h3_dir, 102) == []
-    assert 'left for the next build' in out
+    assert 'are left for the next build' in out
 
     gh3_build()                                              # the next build reads it over the whole region
     assert status(102) == 'INDEXED'
     assert len(_shots_of(h3_dir, 102)) == every_shot
     assert 'up-to-date' in gh3_build()
+
+
+def test_widening_after_a_killed_merge_is_not_taken_as_merge_only(tmp_dir):
+    """A build killed while merging leaves status MERGING. A re-run that widens
+    the region must read the added area, not just finish that merge and save
+    the union as COMPLETED."""
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+
+    def gh3_build(*extra):
+        cmd = [sys.executable, '-m', 'gedih3.cli.gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp,
+               '--gedi-version', '2', '-N', '2', '-T', '1', '-M', '2', '-P', '0', '--no-bbox-index', *extra]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
+        return res.stdout + res.stderr
+
+    _write_l2a(soc_dir, (101, 1, 201), '2020100', 7.0e7)
+    gh3_build('-l2a', 'rh_098', f'--region={STORED}')
+    in_stored = len(_shots_of(h3_dir, 101))
+    H3BuildLogger(product_vars=None, dir=h3_dir).save_log('MERGING')    # as if killed while merging
+
+    out = gh3_build(f'--region={WIDENED}')
+
+    assert 'Resume shortcut' not in out
+    assert len(_shots_of(h3_dir, 101)) == len(GEDI_BEAMS) * N_SHOTS > in_stored
 
 
 class TestStage1OnlyGranules:
@@ -141,4 +165,4 @@ def test_filter_granules_leaves_out_granules_not_admitted(monkeypatch):
                                only_granules=[{'orbit': 1, 'granule': 1, 'track': 1}])
 
     assert kept == files[:1]
-    assert any(m.startswith('1 granule(s) not yet indexed are left for the next build') for m in seen)
+    assert any(m.startswith('1 granule(s) not finished under the stored region are left') for m in seen)

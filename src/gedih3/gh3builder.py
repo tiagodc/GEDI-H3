@@ -2694,9 +2694,9 @@ def _filter_granules(
         candidates = [p for p in candidates if _granule_key(p) in only]
         if len(candidates) < n_listed:
             logger.warning(
-                f"{n_listed - len(candidates)} granule(s) not yet indexed are left for the next build: "
-                f"this update reads only the region it adds, and they need the whole region. Run "
-                f"gh3_build again once it completes to index them.")
+                f"{n_listed - len(candidates)} granule(s) not finished under the stored region are left for "
+                f"the next build: this update reads only the region it adds, and they need the whole region. "
+                f"Run gh3_build again once it completes to index them.")
 
     def _filter_soc_file(prod):
         if any(isinstance(f, EarthAccessFile) for f in prod.values()):

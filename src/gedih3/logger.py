@@ -683,6 +683,10 @@ class H3BuildLogger:
                     f"{n_reopen} NO_DATA granule(s) reopened: the requested region/dates widen the "
                     f"scope they were recorded under")
 
+        # What this run itself asks to add, before an interrupted run's pending
+        # update is merged in: gh3_build must not take its merge-only shortcut
+        # over a widening nothing has read yet.
+        self.requested_expansion = self.new_spatial is not None or self.new_temporal is not None
         self._restore_pending_expansion()
 
     def _restore_pending_expansion(self):
