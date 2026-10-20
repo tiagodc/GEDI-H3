@@ -9,6 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 - **Resuming an interrupted region or date expansion no longer skips the added area for indexed granules.** The first save of an expansion stores the widened region or dates in the build log. A run killed before Stage 1 finished therefore resumed as a plain build: it read the whole scope while skipping every `INDEXED` granule, so their shots in the added area were never extracted. The added area is now kept in the log as `_pending_update` until a `COMPLETED` save. A resume reads it under the same expansion semantics, so `INDEXED` granules are re-read in the added area and the interrupted run's Stage 1 sentinels stay valid. An expansion requested by the resuming run is combined with the pending one. (#42)
 
+## [0.20.2] - 2026-10-20
+
+### Fixed
+- **A merge killed before promoting its result no longer loses the partition-year.** When new fragments were merged into an existing partition file, `parquet_merge_files` deleted the existing file and every fragment before `h3_merge_files` renamed the merged `<file>.tmp` into place. A kill in that window (SIGKILL, OOM, node loss) left the merged rows only in the orphan `.tmp`. Readers never see that file, the next merge into that partition-year deleted it, and the build log still listed its granules as `INDEXED`. Inputs now survive until the merged rows atomically replace the file, and the fragments are removed afterwards. A merge that finds an orphan `<file>.tmp` with no `<file>` beside it now promotes it and rewrites its metadata, which recovers databases already hit by the bug. `gh3_doctor --check orphans` reports such a file as `orphan_merge_result`, and `--fix` promotes it instead of deleting it as a stale temp file. Its year directory is no longer reported as empty. Merges now write straight through `parquet_merge_files`' atomic `.merge.tmp` rename, so they no longer create `<file>.tmp`, and keep the fragments until the metadata JSON is written. (#46)
+
 ## [0.20.1] - 2026-10-06
 
 ### Fixed
