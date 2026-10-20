@@ -678,14 +678,14 @@ class H3BuildLogger:
         region/dates, so a plain resume would see no ``new_spatial`` /
         ``new_temporal``: Stage 1 would read the whole scope while skipping
         every INDEXED granule, and their rows in the added area would never be
-        extracted. ``to_dict`` persists the added area as ``_pending_expansion``
+        extracted. ``to_dict`` persists the added area as ``_pending_update``
         until Stage 1 has run under it; this puts it back into ``new_spatial`` /
         ``new_temporal``, so every getter answers as it did in the interrupted
         run (and Stage 1's scope fingerprint matches its sentinels). An
         expansion requested by this run is combined with it: reading a superset
         of the added area costs a re-read, never rows.
         """
-        pending = self.log_data.get('_pending_expansion')
+        pending = self.log_data.get('_pending_update')
         if not pending:
             return
         spatial = parse_spatial(pending.get('spatial'))
@@ -1232,7 +1232,7 @@ class H3BuildLogger:
         new_temporal = getattr(self, 'new_temporal', None)
         if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
                 and (new_spatial is not None or new_temporal is not None)):
-            log_dict['_pending_expansion'] = {
+            log_dict['_pending_update'] = {
                 'spatial': None if new_spatial is None else to_geojson(new_spatial),
                 'temporal': None if new_temporal is None else list(new_temporal),
             }

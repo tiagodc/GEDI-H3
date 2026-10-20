@@ -194,7 +194,7 @@ class TestInterruptedExpansionResume:
         assert after.new_spatial is None
         assert after.get_finished_granules() == [{'orbit': 1, 'granule': 1, 'track': 1}]
         with open(after.log_file) as f:
-            assert '_pending_expansion' not in json.load(f)
+            assert '_pending_update' not in json.load(f)
 
     def test_a_new_widening_combines_with_the_pending_one(self, tmp_dir):
         from shapely.geometry import box
