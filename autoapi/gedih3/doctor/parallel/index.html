@@ -26,8 +26,8 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../../_static/styles/theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
-<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
+  <link href="../../../../_static/styles/theme.css?digest=18bd87630a240e9c25be" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=18bd87630a240e9c25be" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=4ae1632d" />
@@ -35,10 +35,10 @@
     <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=8bafde03" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../../_static/scripts/fontawesome.js?digest=64cc4de3f052d77215f0"></script>
+  <script defer src="../../../../_static/scripts/fontawesome.js?digest=18bd87630a240e9c25be"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
-<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=18bd87630a240e9c25be" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=18bd87630a240e9c25be" />
 
     <script src="../../../../_static/documentation_options.js?v=456b64e2"></script>
     <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -52,6 +52,7 @@
     <link rel="next" title="gedih3.doctor.parquet_ops" href="../parquet_ops/index.html" />
     <link rel="prev" title="gedih3.doctor.inspect" href="../inspect/index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
   
@@ -508,7 +509,7 @@ external caller importing from here keeps working.</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.doctor.parallel.partition_is_empty" title="gedih3.doctor.parallel.partition_is_empty"><code class="xref py py-obj docutils literal notranslate"><span class="pre">partition_is_empty</span></code></a>(→ bool)</p></td>
-<td><p>O(1) emptiness check via <a class="reference external" href="https://docs.python.org/3/library/os.html#os.scandir" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.scandir()</span></code></a> — no recursive glob.</p></td>
+<td><p>O(1) emptiness check via <a class="reference external" href="https://docs.python.org/3/library/os.html#os.scandir" title="(in Python v3.15)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.scandir()</span></code></a> — no recursive glob.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.doctor.parallel.list_year_dirs" title="gedih3.doctor.parallel.list_year_dirs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_year_dirs</span></code></a>(→ List[str])</p></td>
 <td><p>List immediate subdirectories of a partition directory.</p></td>
@@ -524,8 +525,8 @@ external caller importing from here keeps working.</p>
 <h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.doctor.parallel.partition_is_empty">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">partition_is_empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#partition_is_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.partition_is_empty" title="Link to this definition">#</a></dt>
-<dd><p>O(1) emptiness check via <a class="reference external" href="https://docs.python.org/3/library/os.html#os.scandir" title="(in Python v3.14)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.scandir()</span></code></a> — no recursive glob.</p>
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">partition_is_empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#partition_is_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.partition_is_empty" title="Link to this definition">#</a></dt>
+<dd><p>O(1) emptiness check via <a class="reference external" href="https://docs.python.org/3/library/os.html#os.scandir" title="(in Python v3.15)"><code class="xref py py-func docutils literal notranslate"><span class="pre">os.scandir()</span></code></a> — no recursive glob.</p>
 <p>Mirrors the build pipeline’s emptiness check at
 <code class="docutils literal notranslate"><span class="pre">gh3builder.py:1356-1362</span></code>. A partition is considered empty when
 it contains no parquet file at any depth (year subdir or root).</p>
@@ -533,7 +534,7 @@ it contains no parquet file at any depth (year subdir or root).</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.doctor.parallel.list_year_dirs">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">list_year_dirs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#list_year_dirs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.list_year_dirs" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">list_year_dirs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">partition_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#list_year_dirs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.list_year_dirs" title="Link to this definition">#</a></dt>
 <dd><p>List immediate subdirectories of a partition directory.</p>
 <p>Single <code class="docutils literal notranslate"><span class="pre">os.scandir</span></code> call instead of <code class="docutils literal notranslate"><span class="pre">glob.glob('*/')</span></code>; same
 primitive the build pipeline uses to enumerate per-h3 work units.</p>
@@ -541,7 +542,7 @@ primitive the build pipeline uses to enumerate per-h3 work units.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.doctor.parallel.year_dir_is_empty">
-<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">year_dir_is_empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">year_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#year_dir_is_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.year_dir_is_empty" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.doctor.parallel.</span></span><span class="sig-name descname"><span class="pre">year_dir_is_empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">year_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../../_modules/gedih3/doctor/parallel.html#year_dir_is_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.doctor.parallel.year_dir_is_empty" title="Link to this definition">#</a></dt>
 <dd><p>O(1) parquet presence check inside one year=*/ directory.</p>
 </dd></dl>
 
@@ -627,8 +628,8 @@ primitive the build pipeline uses to enumerate per-h3 work units.</p>
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0"></script>
-<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0"></script>
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=18bd87630a240e9c25be"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=18bd87630a240e9c25be"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -648,7 +649,7 @@ primitive the build pipeline uses to enumerate per-h3 work units.</p>
         <div class="footer-item">
 
   <p class="sphinx-version">
-    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.1.
   </p>
 </div>
       
@@ -661,7 +662,7 @@ primitive the build pipeline uses to enumerate per-h3 work units.</p>
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.22.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.23.0.
 </p></div>
       
     </div>

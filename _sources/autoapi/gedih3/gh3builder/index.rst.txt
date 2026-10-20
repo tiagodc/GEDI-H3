@@ -443,7 +443,8 @@ Module Contents
 
        str or None
            Path to the merged parquet file, or None if ``in_dir`` contained
-           no parquet files.
+           no parquet files and there was no orphaned merge result to promote
+           (see ``_promote_orphan_merge_result``).
 
 
 

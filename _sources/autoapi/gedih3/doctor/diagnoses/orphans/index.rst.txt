@@ -9,6 +9,10 @@ gedih3.doctor.diagnoses.orphans
 
    Detects:
      - ``*.tmp``, ``*.join.tmp``, ``*.fill.tmp``, ``*.dedup.tmp`` under db / tmp roots.
+     - ``<X>.parquet.tmp`` with no ``<X>.parquet`` beside it in the database:
+       the only copy of a partition-year left by a merge killed before #46 was
+       fixed. ``--fix`` promotes it instead of deleting it, and the year and
+       partition directories holding it are never reported empty.
      - ``_s3_download/`` and ``dask-worker-space/`` directories left behind by
        crashed builds.
      - Empty ``h3_*/`` partition directories (no parquet files).

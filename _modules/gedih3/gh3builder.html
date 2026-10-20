@@ -25,8 +25,8 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../_static/styles/theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
-<link href="../../_static/styles/pydata-sphinx-theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet" />
+  <link href="../../_static/styles/theme.css?digest=18bd87630a240e9c25be" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=18bd87630a240e9c25be" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
@@ -34,10 +34,10 @@
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=8bafde03" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../_static/scripts/fontawesome.js?digest=64cc4de3f052d77215f0"></script>
+  <script defer src="../../_static/scripts/fontawesome.js?digest=18bd87630a240e9c25be"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
-<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=18bd87630a240e9c25be" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=18bd87630a240e9c25be" />
 
     <script src="../../_static/documentation_options.js?v=456b64e2"></script>
     <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -407,6 +407,7 @@ window.runMermaid = runMermaid;</script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="" />
   
@@ -1555,6 +1556,46 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="kc">True</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_promote_orphan_merge_result</span><span class="p">(</span><span class="n">h3_file</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Promote ``&lt;h3_file&gt;.tmp`` when it is the only copy of the partition-year.</span>
+
+<span class="sd">    Before #46, a merge into an existing destination wrote the complete</span>
+<span class="sd">    merged result to ``&lt;h3_file&gt;.tmp`` (by ``parquet_merge_files``' final</span>
+<span class="sd">    atomic rename), deleted the destination and every fragment, and only</span>
+<span class="sd">    then renamed the result into place. A kill in between left this file as</span>
+<span class="sd">    the only copy. Merges no longer write ``&lt;h3_file&gt;.tmp``, and the</span>
+<span class="sd">    ``AtomicFileWriter`` rewrites that do keep the destination in place</span>
+<span class="sd">    while their ``.tmp`` exists, so a ``&lt;h3_file&gt;.tmp`` with no destination</span>
+<span class="sd">    beside it is such an orphan. Promoting it (and rewriting its metadata,</span>
+<span class="sd">    which that kill skipped) recovers every row; deleting it, as the</span>
+<span class="sd">    stale-tmp sweep and ``gh3_doctor --check orphans`` would, loses them.</span>
+<span class="sd">    (A destination deleted on purpose while an ``AtomicFileWriter`` rewrite</span>
+<span class="sd">    of it was interrupted would also look like this; nothing does that.)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_file : str</span>
+<span class="sd">        Final path of the partition-year parquet.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True if an orphan was promoted.</span>
+<span class="sd">    """</span>
+    <span class="n">orphan</span> <span class="o">=</span> <span class="n">h3_file</span> <span class="o">+</span> <span class="s1">'.tmp'</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">h3_file</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">orphan</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">orphan</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span>  <span class="c1"># readability check</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Orphaned merge result </span><span class="si">{</span><span class="n">orphan</span><span class="si">}</span><span class="s2"> is unreadable (</span><span class="si">{</span><span class="n">e</span><span class="si">!r}</span><span class="s2">); not promoting it"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">orphan</span><span class="p">,</span> <span class="n">h3_file</span><span class="p">)</span>
+    <span class="n">h3_write_metadata</span><span class="p">(</span><span class="n">h3_file</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Recovered </span><span class="si">{</span><span class="n">h3_file</span><span class="si">}</span><span class="s2"> from the orphaned result of an interrupted merge"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
 <div class="viewcode-block" id="h3_merge_files">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_merge_files">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">h3_merge_files</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
@@ -1583,12 +1624,29 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to the merged parquet file, or None if ``in_dir`` contained</span>
-<span class="sd">        no parquet files.</span>
+<span class="sd">        no parquet files and there was no orphaned merge result to promote</span>
+<span class="sd">        (see ``_promote_orphan_merge_result``).</span>
 <span class="sd">    """</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span><span class="s1">'*.parquet'</span><span class="p">))</span>
 
+    <span class="n">year_dir</span> <span class="o">=</span>  <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">in_dir</span><span class="p">)</span>
+    <span class="n">year</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">year_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">))</span>
+
+    <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)</span>
+    <span class="n">h3part</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">h3_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">))</span>
+
+    <span class="n">odir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">h3part</span><span class="p">,</span> <span class="n">year</span><span class="p">)</span>
+    <span class="n">oname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">h3part</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'='</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">.</span><span class="si">{</span><span class="n">year</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'='</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">.0.parquet'</span>
+    <span class="n">out_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="n">oname</span><span class="p">)</span>
+    <span class="n">h3_file</span> <span class="o">=</span> <span class="n">out_file</span>
+
+    <span class="c1"># Before the no-input return: the merge that left an orphan has already</span>
+    <span class="c1"># consumed its fragments, so the resume that should promote it is called</span>
+    <span class="c1"># on an empty in_dir.</span>
+    <span class="n">promoted</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">replace</span> <span class="ow">and</span> <span class="n">_promote_orphan_merge_result</span><span class="p">(</span><span class="n">h3_file</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span>
+        <span class="k">return</span> <span class="n">h3_file</span> <span class="k">if</span> <span class="n">promoted</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="c1"># Preventative: drop 0-byte source fragments before they reach</span>
     <span class="c1"># parquet_merge_files (which fails the whole merge on the first bad</span>
@@ -1619,21 +1677,17 @@ window.runMermaid = runMermaid;</script>
         <span class="n">_filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">_filtered</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span>
+        <span class="k">return</span> <span class="n">h3_file</span> <span class="k">if</span> <span class="n">promoted</span> <span class="k">else</span> <span class="kc">None</span>
 
-    <span class="n">year_dir</span> <span class="o">=</span>  <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">in_dir</span><span class="p">)</span>
-    <span class="n">year</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">year_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">))</span>
-
-    <span class="n">h3_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)</span>
-    <span class="n">h3part</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">h3_dir</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">))</span>
-
-    <span class="n">odir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">h3part</span><span class="p">,</span> <span class="n">year</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="c1"># Per-partition stale tmp cleanup: a prior crash between .merge.tmp write</span>
     <span class="c1"># and os.replace leaves orphaned &lt;out_file&gt;.tmp / .merge.tmp here. Scoping</span>
     <span class="c1"># this to odir keeps the cost O(1) per merge (one listdir on the partition's</span>
-    <span class="c1"># own dir) rather than O(N_partitions) globbed on the driver.</span>
+    <span class="c1"># own dir) rather than O(N_partitions) globbed on the driver. A</span>
+    <span class="c1"># &lt;out_file&gt;.tmp that was the only copy has already been promoted above,</span>
+    <span class="c1"># so what is left here is redundant with the destination and fragments.</span>
+    <span class="c1"># (Merges no longer write &lt;out_file&gt;.tmp; older ones did, see #46.)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">_name</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">odir</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">_name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.merge.tmp'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.parquet.tmp'</span><span class="p">):</span>
@@ -1643,10 +1697,6 @@ window.runMermaid = runMermaid;</script>
                     <span class="k">pass</span>
     <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
         <span class="k">pass</span>
-
-    <span class="n">oname</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">h3part</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'='</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">.</span><span class="si">{</span><span class="n">year</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'='</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s1">.0.parquet'</span>
-    <span class="n">out_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="n">oname</span><span class="p">)</span>
-    <span class="n">h3_file</span> <span class="o">=</span> <span class="n">out_file</span>
 
     <span class="c1"># Disk-canonical skip: this merge already completed in a prior run and</span>
     <span class="c1"># only the source-cleanup step was interrupted — clean up and return, no</span>
@@ -1688,7 +1738,6 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># (the database's schema must win), and check_shots dedup</span>
             <span class="c1"># keeps the first occurrence (existing rows must win).</span>
             <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">out_file</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">f</span> <span class="o">!=</span> <span class="n">out_file</span><span class="p">]</span>
-            <span class="n">out_file</span> <span class="o">+=</span> <span class="s1">'.tmp'</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Existing partition </span><span class="si">{</span><span class="n">h3_file</span><span class="si">}</span><span class="s2"> is unreadable (</span><span class="si">{</span><span class="n">e</span><span class="si">!r}</span><span class="s2">); "</span>
@@ -1705,16 +1754,21 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Capture streaming stats from the merge so h3_write_metadata doesn't</span>
     <span class="c1"># have to re-read the just-written file (saves ~1.5-2 GB peak memory</span>
     <span class="c1"># per dense partition + the GPFS read-back I/O).</span>
+    <span class="c1"># parquet_merge_files writes &lt;dest&gt;.merge.tmp and renames it over the</span>
+    <span class="c1"># destination atomically. rm_src=False keeps the fragments until the</span>
+    <span class="c1"># metadata is written (the rmtree below); deleting inputs before the</span>
+    <span class="c1"># merged rows were in place lost the partition-year on a kill (#46).</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="n">parquet_merge_files</span><span class="p">(</span>
-        <span class="n">out_file</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">check_shots</span><span class="o">=</span><span class="n">is_temp</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="n">rm_src</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
+        <span class="n">out_file</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">check_shots</span><span class="o">=</span><span class="n">is_temp</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">is_temp</span><span class="p">:</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">out_file</span><span class="p">,</span> <span class="n">h3_file</span><span class="p">)</span>
+    <span class="c1"># Metadata before the fragment cleanup: a kill between the two leaves a</span>
+    <span class="c1"># destination whose metadata lists every fragment's granule, so the next</span>
+    <span class="c1"># run takes the _dest_holds_fragments skip instead of re-merging.</span>
+    <span class="n">meta_file</span> <span class="o">=</span> <span class="n">h3_write_metadata</span><span class="p">(</span><span class="n">h3_file</span><span class="p">,</span> <span class="n">stats</span><span class="o">=</span><span class="n">stats</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">rm_src</span><span class="p">:</span>
         <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
-    <span class="n">meta_file</span> <span class="o">=</span> <span class="n">h3_write_metadata</span><span class="p">(</span><span class="n">h3_file</span><span class="p">,</span> <span class="n">stats</span><span class="o">=</span><span class="n">stats</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">h3_file</span></div>
 
 
@@ -6450,8 +6504,8 @@ window.runMermaid = runMermaid;</script>
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0"></script>
-<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0"></script>
+  <script defer src="../../_static/scripts/bootstrap.js?digest=18bd87630a240e9c25be"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=18bd87630a240e9c25be"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -6471,7 +6525,7 @@ window.runMermaid = runMermaid;</script>
         <div class="footer-item">
 
   <p class="sphinx-version">
-    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.1.
   </p>
 </div>
       
@@ -6484,7 +6538,7 @@ window.runMermaid = runMermaid;</script>
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.22.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.23.0.
 </p></div>
       
     </div>
