@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- **A warning when one granule has more than one file in the SOC listing.** `soc_file_tree` keys files by orbit/granule/track and silently keeps the lexicographically last path of each product. When NASA re-releases a granule within the same GEDI version (a new PPDS, PGE or generation), the re-downloaded file lands next to the old one, because downloads skip only an identical basename. Builds then keep the database's existing rows from the old file, while later variable adds and product fills read the new one. Each such granule product is now reported once per process, naming the file used and the ones passed over. Replacing superseded granules is tracked in #47.
+- **A warning when one granule has more than one file in the SOC listing.** `soc_file_tree` keys files by orbit/granule/track and silently keeps the lexicographically last path of each product. When NASA re-releases a granule within the same GEDI version (a new PPDS, PGE or generation), the re-downloaded file lands next to the old one, because downloads skip only an identical basename. Builds then keep the database's existing rows from the old file, while later variable adds and product fills read the new one. Each such granule product is now reported once per process (again if another file appears), naming the file used and the ones passed over; the full list is logged at DEBUG level. Replacing superseded granules is tracked in #47.
 
 ## [0.20.1] - 2026-10-06
 

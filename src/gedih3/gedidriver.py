@@ -129,47 +129,55 @@ def write_soc_manifest(soc_dir: str, files=None) -> int:
     return len(files)
 
 
-# (orb_track, product) groups soc_file_tree has already reported in this
-# process: a build lists the SOC tree several times, and one warning per group
-# is enough.
+# Duplicate groups soc_file_tree has already reported in this process, keyed
+# by (orb_track, product, file paths): a build lists the SOC tree several
+# times, and one warning per group is enough, while a further re-release
+# changes the key and is reported again. A stopgap until superseded granules
+# are tracked in the build log (#47).
 _REPORTED_DUPLICATE_FILES = set()
 
 
 def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
     """Warn once per granule product that has more than one file in a listing.
 
-    ``soc_file_tree`` keys files by orbit/granule/track and keeps the
-    lexicographically last path of each product (``aggfunc='last'``), which in
-    practice ranks PPDS, then PGE, then GEN, then the suffix. A second file is
-    a re-release within the same GEDI version, or an internal variant such as
-    ``_SGS``. Nothing re-indexes a granule whose file changes: rows already in
-    a database stay from the file they were built from, while variables added
-    and products filled later are read from the file chosen here.
+    ``soc_file_tree`` keys files by orbit/granule/track and keeps the last
+    path of each product in full-path order (``aggfunc='last'``); within one
+    directory that ranks PPDS, then PGE, then GEN, then the suffix. A second
+    file is a re-release within the same GEDI version, or an internal variant
+    such as ``_SGS``. Nothing re-indexes a granule whose file changes: rows
+    already in a database stay from the file they were built from, while
+    variables added and products filled later are read from the file chosen
+    here.
 
     Parameters
     ----------
     flist : pandas.DataFrame
         The listing, with ``file_paths``, ``orb_track`` and ``prod`` columns.
     """
-    dup = flist[flist.duplicated(['orb_track', 'prod'], keep=False)]
+    files = flist.drop_duplicates('file_paths')     # one path listed twice is not a second file
+    dup = files[files.duplicated(['orb_track', 'prod'], keep=False)]
     if dup.empty:
         return
     new = []
-    for key, paths in dup.groupby(['orb_track', 'prod'], sort=True)['file_paths']:
+    for (orb_track, prod), paths in dup.groupby(['orb_track', 'prod'], sort=True)['file_paths']:
+        paths = sorted(paths)                       # the pivot keeps the last one
+        key = (orb_track, prod, tuple(paths))
         if key not in _REPORTED_DUPLICATE_FILES:
             _REPORTED_DUPLICATE_FILES.add(key)
-            names = sorted(os.path.basename(p) for p in paths)
-            new.append((names[-1], names[:-1]))
+            new.append((paths[-1], paths[:-1]))
     if not new:
         return
+    for used, others in new:
+        logger.debug(f"Duplicate granule files: using {used} over {', '.join(others)}")
     used, others = new[0]
-    more = f" (and {len(new) - 1} more)" if len(new) > 1 else ""
+    more = f" (and {len(new) - 1} more, listed at DEBUG level)" if len(new) > 1 else ""
     logger.warning(
-        f"{len(new)} granule product file(s) have more than one file in the SOC listing (a re-release "
-        f"within the same GEDI version, or an internal variant such as _SGS). The lexicographically last "
-        f"is used, e.g. {used} over {', '.join(others)}{more}. Rows already in a database are not "
-        f"re-indexed from a newer file, and variables added or products filled later read the file used "
-        f"here. Remove the files you don't want, or exclude them (exclude=, gh3_build --exclude)."
+        f"{len(new)} granule product(s) have more than one file in the SOC listing (a re-release within "
+        f"the same GEDI version, or an internal variant such as _SGS). The last in path order is used, "
+        f"e.g. {os.path.basename(used)} over {', '.join(os.path.basename(o) for o in others)}{more}. "
+        f"Rows already in a database are not re-indexed from a newer file, and variables added or "
+        f"products filled later read the file used here. Remove the files you don't want, or exclude "
+        f"them (exclude=, gh3_build --exclude)."
     )
 
 

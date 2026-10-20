@@ -790,7 +790,7 @@ def test_soc_file_tree_warns_about_a_rereleased_granule(duplicate_warnings):
     assert tree['O01956_03_T03909']['L2A'].endswith('_02_004_01_V003.h5')   # the later PGE is used
     assert len(duplicate_warnings) == 1
     msg = duplicate_warnings[0]
-    assert msg.startswith('1 granule product file(s)')
+    assert msg.startswith('1 granule product(s)')
     assert 'GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5 over ' \
            'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5' in msg
     assert msg.isascii()
@@ -812,3 +812,26 @@ def test_soc_file_tree_exclude_silences_the_duplicate(duplicate_warnings):
     tree = soc_file_tree(_RERELEASE_NAMES, exclude=['*_02_003_01_V003.h5'])
     assert duplicate_warnings == []
     assert tree['O01956_03_T03909']['L2A'].endswith('_02_004_01_V003.h5')
+
+
+def test_soc_file_tree_names_the_file_the_pivot_keeps_across_directories(duplicate_warnings):
+    """The pivot ranks full paths, not basenames: an old copy in a later
+    directory wins, and the warning must say so."""
+    old = '/soc/z/GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
+    new = '/soc/a/GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5'
+    tree = soc_file_tree([new, old])
+    assert tree['O01956_03_T03909']['L2A'] == old
+    assert f'{os.path.basename(old)} over {os.path.basename(new)}' in duplicate_warnings[0]
+
+
+def test_soc_file_tree_a_path_listed_twice_is_not_a_duplicate(duplicate_warnings):
+    soc_file_tree([_RERELEASE_NAMES[0], _RERELEASE_NAMES[0]])
+    assert duplicate_warnings == []
+
+
+def test_soc_file_tree_reports_a_further_rerelease_again(duplicate_warnings):
+    soc_file_tree(_RERELEASE_NAMES)
+    third = _RERELEASE_NAMES[1].replace('_02_004_01_', '_02_004_02_')
+    soc_file_tree(_RERELEASE_NAMES + [third])
+    assert len(duplicate_warnings) == 2
+    assert os.path.basename(third) + ' over ' in duplicate_warnings[1]
