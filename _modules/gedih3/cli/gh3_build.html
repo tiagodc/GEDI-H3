@@ -1584,9 +1584,11 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># up; gh3_doctor can flag/fix this if needed.)</span>
             <span class="c1">#</span>
             <span class="c1"># has_pending_new_work vetoes both signals whenever this</span>
-            <span class="c1"># invocation is a variable-only update, a mixed update's Phase 2,</span>
-            <span class="c1"># or a crash-recovered pending variable update: neither signal</span>
-            <span class="c1"># proves anything about product/variable work that has never</span>
+            <span class="c1"># invocation widens the region or dates: the shortcut would save</span>
+            <span class="c1"># the union as COMPLETED without reading the added area (#42).</span>
+            <span class="c1"># It also vetoes them for a variable-only update, a mixed update's</span>
+            <span class="c1"># Phase 2, or a crash-recovered pending variable update: neither</span>
+            <span class="c1"># signal proves anything about product/variable work that has never</span>
             <span class="c1"># been through Stage 1/2, and a stale _merge_progress.txt left</span>
             <span class="c1"># over from an earlier, already-completed build in the same tmp</span>
             <span class="c1"># directory would otherwise be misread as "this request's merge</span>
@@ -1606,6 +1608,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">h3_logger</span><span class="p">,</span> <span class="n">_parquet_dir</span><span class="p">,</span>
                 <span class="n">has_pending_new_work</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span>
                     <span class="n">is_variable_only_update</span> <span class="ow">or</span> <span class="n">is_mixed_update</span> <span class="ow">or</span> <span class="n">pending_var_update</span>
+                    <span class="ow">or</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">requested_expansion</span>
                 <span class="p">),</span>
             <span class="p">)</span>
             <span class="k">if</span> <span class="n">_merge_signal</span><span class="p">:</span>
@@ -1742,6 +1745,8 @@ window.runMermaid = runMermaid;</script>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">stage1_products</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">()</span>
                         <span class="n">stage1_skip</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">get_finished_granules</span><span class="p">()</span>
+                    <span class="c1"># None except on a spatial-only expansion (#42): see stage1_only_granules.</span>
+                    <span class="n">stage1_only</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">is_mixed_update</span> <span class="k">else</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">stage1_only_granules</span><span class="p">()</span>
 
                     <span class="k">def</span><span class="w"> </span><span class="nf">_record_granule_products</span><span class="p">(</span><span class="n">processed</span><span class="p">):</span>
                         <span class="c1"># Persisted before Stage 1 writes anything: a granule</span>
@@ -1774,6 +1779,7 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">product_vars</span><span class="o">=</span><span class="n">stage1_products</span><span class="p">,</span>
                         <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span>
                         <span class="n">skip_granules</span><span class="o">=</span><span class="n">stage1_skip</span><span class="p">,</span>
+                        <span class="n">only_granules</span><span class="o">=</span><span class="n">stage1_only</span><span class="p">,</span>
                         <span class="n">variable_only_update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                         <span class="n">allow_missing_products</span><span class="o">=</span><span class="n">allow_missing</span><span class="p">,</span>
                         <span class="n">granule_products_callback</span><span class="o">=</span><span class="n">_record_granule_products</span><span class="p">,</span>
@@ -1784,7 +1790,12 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># reopened the lost tasks, so every listed one was re-extracted</span>
                     <span class="c1"># and merged: PENDING lets set_post_build_info index it, and</span>
                     <span class="c1"># the fold below re-flags any whose merge failed again.</span>
-                    <span class="n">_release_merge_failed</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">listed</span><span class="o">=</span><span class="n">_stage1_listed</span><span class="p">)</span>
+                    <span class="c1"># A spatial-only expansion admits only finished granules, so it</span>
+                    <span class="c1"># re-extracted no MERGE_FAILED one: each keeps its flag for the</span>
+                    <span class="c1"># next build (released, it would be marked INDEXED from the</span>
+                    <span class="c1"># partition metadata with its lost fragments never redone).</span>
+                    <span class="k">if</span> <span class="n">stage1_only</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">_release_merge_failed</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">listed</span><span class="o">=</span><span class="n">_stage1_listed</span><span class="p">)</span>
 
                 <span class="c1"># ── Stage 2: Variable update ─────────────────────────────</span>
                 <span class="c1"># Runs for: variable-only update, mixed update Phase 2,</span>

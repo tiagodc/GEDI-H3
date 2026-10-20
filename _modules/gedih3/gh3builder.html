@@ -3485,11 +3485,74 @@ window.runMermaid = runMermaid;</script>
 <span class="n">_PRODUCTS_BEFORE_L2B</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s1">'L1B'</span><span class="p">,</span> <span class="s1">'L2A'</span><span class="p">})</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_drop_partition_fragments</span><span class="p">(</span><span class="n">h3_part_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">keys</span><span class="p">:</span> <span class="nb">set</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Worker: delete the fragments (and completion sentinels) of ``keys`` under one tmp ``h3_*`` dir."""</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">ydir</span> <span class="ow">in</span> <span class="n">_list_year_subdirs</span><span class="p">(</span><span class="n">h3_part_dir</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">entries</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">ydir</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">_FRAGMENT_BASENAME_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">m</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">_complete_sentinel_path</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">)])):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">n</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_drop_deferred_fragments</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">keys</span><span class="p">:</span> <span class="nb">set</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Delete tmp fragments of granules a spatial-only expansion leaves for the next build.</span>
+
+<span class="sd">    A run killed during Stage 1 can leave some of a granule's (granule ×</span>
+<span class="sd">    beam) fragments in ``tmp_dir``. If this run defers that granule</span>
+<span class="sd">    (``build_h3db(only_granules=)``), merging those fragments would list it</span>
+<span class="sd">    in the partition metadata, and ``set_post_build_info`` (or the next</span>
+<span class="sd">    reconcile) would mark it ``INDEXED`` with its other beams never read.</span>
+<span class="sd">    Its fragments go instead: the next build reads it over the whole region.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tmp_dir : str</span>
+<span class="sd">        Stage 1 fragment root (``&lt;tmp&gt;/partitions``).</span>
+<span class="sd">    keys : set of tuple</span>
+<span class="sd">        ``(orbit, granule, track)`` of the deferred granules.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">        Number of fragments removed.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">keys</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_has_unmerged_fragments</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span> <span class="k">as</span> <span class="n">top</span><span class="p">:</span>
+            <span class="n">h3_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">top</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_dir</span><span class="p">(</span><span class="n">follow_symlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'h3_'</span><span class="p">)]</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">client</span> <span class="o">=</span> <span class="n">get_dask_client</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">h3_dirs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">h3_dirs</span><span class="p">,</span> <span class="n">_drop_partition_fragments</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">'dropping deferred fragments'</span><span class="p">,</span>
+                                              <span class="n">unit</span><span class="o">=</span><span class="s1">'part'</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">keys</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">(</span><span class="n">_drop_partition_fragments</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">keys</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">h3_dirs</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="nb">int</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">n</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dropped </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2"> tmp fragment(s) of granules left for the next build"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">n</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_filter_granules</span><span class="p">(</span>
     <span class="n">prod_soc_files</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
     <span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
     <span class="n">skip_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">required_products</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">set</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">only_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Filter SOC files to exclude incomplete, corrupted, or already-processed granules.</span>
@@ -3511,6 +3574,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Products a granule must have. ``None`` requires every product in</span>
 <span class="sd">        ``product_vars``; a subset (``{'L2A'}``) admits granules whose later</span>
 <span class="sd">        products are not published yet.</span>
+<span class="sd">    only_granules : list of dict, optional</span>
+<span class="sd">        If given, every other granule is left out (and counted as deferred):</span>
+<span class="sd">        see ``H3BuildLogger.stage1_only_granules``.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -3519,6 +3585,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    """</span>
     <span class="n">required</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span><span class="p">)</span> <span class="k">if</span> <span class="n">required_products</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">set</span><span class="p">(</span><span class="n">required_products</span><span class="p">)</span>
     <span class="n">skip</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="p">(</span><span class="n">skip_granules</span> <span class="ow">or</span> <span class="p">[])}</span>
+    <span class="n">only</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">only_granules</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">only_granules</span><span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_granule_key</span><span class="p">(</span><span class="n">prod</span><span class="p">):</span>
         <span class="n">path</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">prod</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
@@ -3530,6 +3597,14 @@ window.runMermaid = runMermaid;</script>
 
     <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prod_soc_files</span>
                   <span class="k">if</span> <span class="n">p</span> <span class="ow">and</span> <span class="n">required</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="n">skip</span> <span class="ow">or</span> <span class="n">_granule_key</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">skip</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">only</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">n_listed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">candidates</span> <span class="k">if</span> <span class="n">_granule_key</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">in</span> <span class="n">only</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">n_listed</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_listed</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) not finished under the stored region are left for "</span>
+                <span class="sa">f</span><span class="s2">"the next build: this update reads only the region it adds, and they need the whole region. "</span>
+                <span class="sa">f</span><span class="s2">"Run gh3_build again once it completes to index them."</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_filter_soc_file</span><span class="p">(</span><span class="n">prod</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">EarthAccessFile</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">prod</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
@@ -5997,6 +6072,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="p">,</span> <span class="s1">'gh3_build'</span><span class="p">),</span>
     <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">,</span>
     <span class="n">skip_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">only_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">status_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">variable_only_update</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">exclude</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -6035,6 +6111,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Output path for the H3-indexed parquet database.</span>
 <span class="sd">    skip_granules : list of dict, optional</span>
 <span class="sd">        List of granule identifiers to skip (from previous builds).</span>
+<span class="sd">    only_granules : list of dict, optional</span>
+<span class="sd">        If given, Stage 1 reads only these granules and leaves every other one</span>
+<span class="sd">        for a later build (``H3BuildLogger.stage1_only_granules``: a</span>
+<span class="sd">        spatial-only expansion reads only the added region).</span>
 <span class="sd">    status_callback : callable, optional</span>
 <span class="sd">        Called with status string at pipeline stage transitions.</span>
 <span class="sd">    variable_only_update : bool, default False</span>
@@ -6199,7 +6279,12 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># incomplete download, not a product that is not out yet.</span>
         <span class="n">required</span> <span class="o">=</span> <span class="p">(</span><span class="n">_PRODUCTS_BEFORE_L2B</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span><span class="p">))</span> <span class="ow">or</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">allow_missing_products</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="n">soc_files</span> <span class="o">=</span> <span class="n">_filter_granules</span><span class="p">(</span><span class="n">prod_soc_files</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">skip_granules</span><span class="p">,</span>
-                                     <span class="n">required_products</span><span class="o">=</span><span class="n">required</span><span class="p">)</span>
+                                     <span class="n">required_products</span><span class="o">=</span><span class="n">required</span><span class="p">,</span> <span class="n">only_granules</span><span class="o">=</span><span class="n">only_granules</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">only_granules</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_admitted</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">only_granules</span><span class="p">}</span>
+            <span class="n">_listed</span> <span class="o">=</span> <span class="p">{</span><span class="n">_granule_id_from_l2a_path</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span>
+                       <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prod_soc_files</span> <span class="k">if</span> <span class="n">p</span><span class="p">)}</span>
+            <span class="n">_drop_deferred_fragments</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">),</span> <span class="n">_listed</span> <span class="o">-</span> <span class="n">_admitted</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">})</span>
 
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">soc_files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
             <span class="n">parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>

@@ -1401,6 +1401,7 @@ window.runMermaid = runMermaid;</script>
             <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">new_product_vars</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">requested_expansion</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="k">return</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_filters_from_log</span><span class="p">()</span>
@@ -1452,9 +1453,23 @@ window.runMermaid = runMermaid;</script>
         <span class="n">widened</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">prev_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">widened</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">prev_spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">())</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                <span class="n">added</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">()</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">prev_spatial</span><span class="o">.</span><span class="n">union_all</span><span class="p">())</span>
+                <span class="n">widened</span> <span class="o">=</span> <span class="n">added</span><span class="o">.</span><span class="n">area</span> <span class="o">&gt;</span> <span class="mi">0</span>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="n">widened</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># cannot tell: reopen (costs a re-read)</span>
+                <span class="n">added</span><span class="p">,</span> <span class="n">widened</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span>  <span class="c1"># cannot tell: reopen, keep the symmetric difference (a superset)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">widened</span><span class="p">:</span>
+                <span class="c1"># A narrower or identical region adds nothing (a database's</span>
+                <span class="c1"># scope never shrinks): this is a plain update over the stored</span>
+                <span class="c1"># region. Left set, the symmetric difference made it a</span>
+                <span class="c1"># "spatial-only expansion" over stored-minus-requested, and a</span>
+                <span class="c1"># granule new to the database lost its rows outside that (#42).</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">elif</span> <span class="n">added</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Only the area the request adds: the symmetric difference also</span>
+                <span class="c1"># holds the stored region outside the request (all of it, for a</span>
+                <span class="c1"># disjoint request), which Stage 1 then re-read for nothing.</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">geometry</span><span class="o">=</span><span class="p">[</span><span class="n">added</span><span class="p">],</span> <span class="n">crs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">spatial</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">widened</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">widened</span><span class="p">:</span>
@@ -1476,6 +1491,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">n_reopen</span><span class="si">}</span><span class="s2"> NO_DATA granule(s) reopened: the requested region/dates widen the "</span>
                     <span class="sa">f</span><span class="s2">"scope they were recorded under"</span><span class="p">)</span>
 
+        <span class="c1"># What this run itself asks to add, before an interrupted run's pending</span>
+        <span class="c1"># update is merged in: gh3_build must not take its merge-only shortcut</span>
+        <span class="c1"># over a widening nothing has read yet.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">requested_expansion</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_restore_pending_expansion</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_restore_pending_expansion</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -1659,20 +1678,58 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        requested region or dates widen the stored ones, by any area, before</span>
 <span class="sd">        this is consulted.</span>
 <span class="sd">        """</span>
-        <span class="c1"># Keys not part of the original granule identity. ``products`` was</span>
-        <span class="c1"># added by the per-product status extension; both must be stripped so</span>
-        <span class="c1"># _filter_granules' dict equality keeps matching legacy entries.</span>
-        <span class="n">_strip</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'products'</span><span class="p">}</span>
         <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">)</span>
                 <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_product_vars'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
                 <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
                 <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_adding_h3_parts</span><span class="p">()):</span>
-            <span class="k">return</span> <span class="p">[</span>
-                <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_strip</span><span class="p">}</span>
-                <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span>
-                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finished_granule_list</span><span class="p">()</span>
         <span class="k">return</span> <span class="kc">None</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_finished_granule_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Keys not part of the original granule identity. ``products`` was</span>
+        <span class="c1"># added by the per-product status extension; both must be stripped so</span>
+        <span class="c1"># _filter_granules' dict equality keeps matching legacy entries.</span>
+        <span class="n">_strip</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'products'</span><span class="p">}</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_strip</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="p">]</span>
+
+<div class="viewcode-block" id="H3BuildLogger.reads_added_area_only">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.reads_added_area_only">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reads_added_area_only</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""True when Stage 1 reads only the region this update adds (a spatial-only expansion)."""</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'updating'</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_spatial'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_product_vars'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.stage1_only_granules">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.stage1_only_granules">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage1_only_granules</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Granules Stage 1 may read in this run, or None when it may read any.</span>
+
+<span class="sd">        A spatial-only expansion hands Stage 1 only the added region</span>
+<span class="sd">        (:meth:`get_spatial`). That is exactly what a granule finished under</span>
+<span class="sd">        the stored region still needs. Any other granule (new to the database,</span>
+<span class="sd">        ``PENDING``, ``FAILED``, a ``NO_DATA`` reopened by the widening) would</span>
+<span class="sd">        have its rows outside the added region dropped, while its rows inside</span>
+<span class="sd">        made it ``INDEXED`` and kept later builds from ever reading the rest</span>
+<span class="sd">        (#42). Such granules are left as they are for the next build, which</span>
+<span class="sd">        reads them over the whole region.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of dict or None</span>
+<span class="sd">            ``{'orbit', 'granule', 'track'}`` dicts, as for</span>
+<span class="sd">            :meth:`get_finished_granules`.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads_added_area_only</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finished_granule_list</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.is_up_to_date">
@@ -1923,11 +1980,9 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'updating'</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">True</span>
         <span class="n">no_prod</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_product_vars'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
-        <span class="n">new_sp</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_spatial'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">new_tm</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">spatial_only</span> <span class="o">=</span> <span class="n">new_sp</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">no_prod</span> <span class="ow">and</span> <span class="n">new_tm</span> <span class="ow">is</span> <span class="kc">None</span>
-        <span class="n">temporal_only</span> <span class="o">=</span> <span class="n">new_tm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">no_prod</span> <span class="ow">and</span> <span class="n">new_sp</span> <span class="ow">is</span> <span class="kc">None</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="p">(</span><span class="n">spatial_only</span> <span class="ow">or</span> <span class="n">temporal_only</span><span class="p">)</span></div>
+        <span class="n">temporal_only</span> <span class="o">=</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_temporal'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">no_prod</span>
+                         <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'new_spatial'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads_added_area_only</span><span class="p">()</span> <span class="ow">or</span> <span class="n">temporal_only</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.mark_no_data">

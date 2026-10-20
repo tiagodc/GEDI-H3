@@ -820,6 +820,11 @@ as successful.</p>
 <span class="sig-name descname"><span class="pre">new_product_vars</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.new_product_vars" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.requested_expansion">
+<span class="sig-name descname"><span class="pre">requested_expansion</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.requested_expansion" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.get_temporal">
 <span class="sig-name descname"><span class="pre">get_temporal</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.get_temporal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.get_temporal" title="Link to this definition">#</a></dt>
@@ -881,6 +886,35 @@ past a scope change that could make them non-empty: <code class="docutils litera
 demotes every <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> granule to <code class="docutils literal notranslate"><span class="pre">PENDING</span></code> as soon as the
 requested region or dates widen the stored ones, by any area, before
 this is consulted.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.reads_added_area_only">
+<span class="sig-name descname"><span class="pre">reads_added_area_only</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.reads_added_area_only"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.reads_added_area_only" title="Link to this definition">#</a></dt>
+<dd><p>True when Stage 1 reads only the region this update adds (a spatial-only expansion).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.stage1_only_granules">
+<span class="sig-name descname"><span class="pre">stage1_only_granules</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.stage1_only_granules"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.stage1_only_granules" title="Link to this definition">#</a></dt>
+<dd><p>Granules Stage 1 may read in this run, or None when it may read any.</p>
+<p>A spatial-only expansion hands Stage 1 only the added region
+(<a class="reference internal" href="#gedih3.logger.H3BuildLogger.get_spatial" title="gedih3.logger.H3BuildLogger.get_spatial"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_spatial()</span></code></a>). That is exactly what a granule finished under
+the stored region still needs. Any other granule (new to the database,
+<code class="docutils literal notranslate"><span class="pre">PENDING</span></code>, <code class="docutils literal notranslate"><span class="pre">FAILED</span></code>, a <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> reopened by the widening) would
+have its rows outside the added region dropped, while its rows inside
+made it <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> and kept later builds from ever reading the rest
+(#42). Such granules are left as they are for the next build, which
+reads them over the whole region.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>list of dict or None</dt><dd><p><code class="docutils literal notranslate"><span class="pre">{'orbit',</span> <span class="pre">'granule',</span> <span class="pre">'track'}</span></code> dicts, as for
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.get_finished_granules" title="gedih3.logger.H3BuildLogger.get_finished_granules"><code class="xref py py-meth docutils literal notranslate"><span class="pre">get_finished_granules()</span></code></a>.</p>
+</dd>
+</dl>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -1145,12 +1179,15 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_spatial"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_spatial</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_temporal"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_temporal</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_product_vars"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_product_vars</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.requested_expansion"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.requested_expansion</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_temporal"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_temporal()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_spatial"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_spatial()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_product_vars"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_product_vars()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.register_pending_granules"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.register_pending_granules()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.update_granule_status"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.update_granule_status()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_finished_granules"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_finished_granules()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.reads_added_area_only"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.reads_added_area_only()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.stage1_only_granules"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.stage1_only_granules()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.is_up_to_date"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.is_up_to_date()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.set_post_build_info"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.set_post_build_info()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.stage1_full_scope"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.stage1_full_scope()</span></code></a></li>

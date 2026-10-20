@@ -335,6 +335,9 @@ Module Contents
 
 
 
+   .. py:attribute:: requested_expansion
+
+
    .. py:method:: get_temporal()
 
 
@@ -425,6 +428,67 @@ Module Contents
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: reads_added_area_only()
+
+      
+      True when Stage 1 reads only the region this update adds (a spatial-only expansion).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: stage1_only_granules()
+
+      
+      Granules Stage 1 may read in this run, or None when it may read any.
+
+      A spatial-only expansion hands Stage 1 only the added region
+      (:meth:`get_spatial`). That is exactly what a granule finished under
+      the stored region still needs. Any other granule (new to the database,
+      ``PENDING``, ``FAILED``, a ``NO_DATA`` reopened by the widening) would
+      have its rows outside the added region dropped, while its rows inside
+      made it ``INDEXED`` and kept later builds from ever reading the rest
+      (#42). Such granules are left as they are for the next build, which
+      reads them over the whole region.
+
+
+
+
+      :Returns:
+
+          list of dict or None
+              ``{'orbit', 'granule', 'track'}`` dicts, as for
+              :meth:`get_finished_granules`.
 
 
 
