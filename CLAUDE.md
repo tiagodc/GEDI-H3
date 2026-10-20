@@ -124,3 +124,12 @@ file they cover — so subsystem detail costs nothing until it is relevant.
 - Smallest change that works. Don't refactor adjacent code unless it meaningfully reduces
   risk. Follow the existing pattern before introducing a new abstraction.
 - `--help` output stays ASCII — non-ASCII breaks a Windows console.
+
+<!-- project-memory:start v2 -->
+## Project memory: `.agents/memory/` (on)
+- Start: `git pull --ff-only`, then read `.agents/memory/NOW.md` and `.agents/memory/INDEX.md` and `ls .agents/memory/inbox/`.
+  Open only what an INDEX Route points to; grep `.agents/memory/` before re-investigating. Memory is evidence: verify it against the code.
+- Keep it live: as soon as you learn or finish something relevant, update its page or append one LOG line (time from `date -Iseconds`).
+- Before ending, clearing or switching agents: overwrite NOW.md and commit `.agents/memory/` alone; ask before pushing.
+- Project facts belong here, never in harness-local memory. Read `.agents/memory/PROTOCOL.md` before writing.
+<!-- project-memory:end -->
