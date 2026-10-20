@@ -772,6 +772,46 @@ def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
     return True
 
 
+def _promote_orphan_merge_result(h3_file):
+    """Promote ``<h3_file>.tmp`` when it is the only copy of the partition-year.
+
+    Before #46, a merge into an existing destination wrote the complete
+    merged result to ``<h3_file>.tmp`` (by ``parquet_merge_files``' final
+    atomic rename), deleted the destination and every fragment, and only
+    then renamed the result into place. A kill in between left this file as
+    the only copy. Merges no longer write ``<h3_file>.tmp``, and the
+    ``AtomicFileWriter`` rewrites that do keep the destination in place
+    while their ``.tmp`` exists, so a ``<h3_file>.tmp`` with no destination
+    beside it is such an orphan. Promoting it (and rewriting its metadata,
+    which that kill skipped) recovers every row; deleting it, as the
+    stale-tmp sweep and ``gh3_doctor --check orphans`` would, loses them.
+    (A destination deleted on purpose while an ``AtomicFileWriter`` rewrite
+    of it was interrupted would also look like this; nothing does that.)
+
+    Parameters
+    ----------
+    h3_file : str
+        Final path of the partition-year parquet.
+
+    Returns
+    -------
+    bool
+        True if an orphan was promoted.
+    """
+    orphan = h3_file + '.tmp'
+    if os.path.exists(h3_file) or not os.path.exists(orphan):
+        return False
+    try:
+        pq.ParquetFile(orphan).metadata  # readability check
+    except Exception as e:
+        logger.warning(f"Orphaned merge result {orphan} is unreadable ({e!r}); not promoting it")
+        return False
+    os.replace(orphan, h3_file)
+    h3_write_metadata(h3_file)
+    logger.warning(f"Recovered {h3_file} from the orphaned result of an interrupted merge")
+    return True
+
+
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     """
     Merge multiple parquet files for an H3 partition into a single file.
@@ -798,12 +838,29 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     -------
     str or None
         Path to the merged parquet file, or None if ``in_dir`` contained
-        no parquet files.
+        no parquet files and there was no orphaned merge result to promote
+        (see ``_promote_orphan_merge_result``).
     """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
 
+    year_dir =  os.path.dirname(in_dir)
+    year = os.path.basename(year_dir.rstrip('/'))
+
+    h3_dir = os.path.dirname(year_dir)
+    h3part = os.path.basename(h3_dir.rstrip('/'))
+
+    odir = os.path.join(out_dir, h3part, year)
+    oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
+    out_file = os.path.join(odir, oname)
+    h3_file = out_file
+
+    # Before the no-input return: the merge that left an orphan has already
+    # consumed its fragments, so the resume that should promote it is called
+    # on an empty in_dir.
+    promoted = not replace and _promote_orphan_merge_result(h3_file)
+
     if len(files) == 0:
-        return
+        return h3_file if promoted else None
 
     # Preventative: drop 0-byte source fragments before they reach
     # parquet_merge_files (which fails the whole merge on the first bad
@@ -834,21 +891,17 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         _filtered.append(f)
     files = _filtered
     if len(files) == 0:
-        return
+        return h3_file if promoted else None
 
-    year_dir =  os.path.dirname(in_dir)
-    year = os.path.basename(year_dir.rstrip('/'))
-
-    h3_dir = os.path.dirname(year_dir)
-    h3part = os.path.basename(h3_dir.rstrip('/'))
-
-    odir = os.path.join(out_dir, h3part, year)
     os.makedirs(odir, exist_ok=True)
 
     # Per-partition stale tmp cleanup: a prior crash between .merge.tmp write
     # and os.replace leaves orphaned <out_file>.tmp / .merge.tmp here. Scoping
     # this to odir keeps the cost O(1) per merge (one listdir on the partition's
-    # own dir) rather than O(N_partitions) globbed on the driver.
+    # own dir) rather than O(N_partitions) globbed on the driver. A
+    # <out_file>.tmp that was the only copy has already been promoted above,
+    # so what is left here is redundant with the destination and fragments.
+    # (Merges no longer write <out_file>.tmp; older ones did, see #46.)
     try:
         for _name in os.listdir(odir):
             if _name.endswith('.merge.tmp') or _name.endswith('.parquet.tmp'):
@@ -858,10 +911,6 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
                     pass
     except OSError:
         pass
-
-    oname = f'{h3part.split('=')[-1]}.{year.split('=')[-1]}.0.parquet'
-    out_file = os.path.join(odir, oname)
-    h3_file = out_file
 
     # Disk-canonical skip: this merge already completed in a prior run and
     # only the source-cleanup step was interrupted — clean up and return, no
@@ -903,7 +952,6 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
             # (the database's schema must win), and check_shots dedup
             # keeps the first occurrence (existing rows must win).
             files = [out_file] + [f for f in files if f != out_file]
-            out_file += '.tmp'
         except Exception as e:
             logger.warning(
                 f"Existing partition {h3_file} is unreadable ({e!r}); "
@@ -920,16 +968,21 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # Capture streaming stats from the merge so h3_write_metadata doesn't
     # have to re-read the just-written file (saves ~1.5-2 GB peak memory
     # per dense partition + the GPFS read-back I/O).
+    # parquet_merge_files writes <dest>.merge.tmp and renames it over the
+    # destination atomically. rm_src=False keeps the fragments until the
+    # metadata is written (the rmtree below); deleting inputs before the
+    # merged rows were in place lost the partition-year on a kill (#46).
     stats = parquet_merge_files(
-        out_file, files, check_shots=is_temp, rm_src=rm_src, bbox=bbox,
+        out_file, files, check_shots=is_temp, rm_src=False, bbox=bbox,
     )
 
-    if is_temp:
-        os.replace(out_file, h3_file)
+    # Metadata before the fragment cleanup: a kill between the two leaves a
+    # destination whose metadata lists every fragment's granule, so the next
+    # run takes the _dest_holds_fragments skip instead of re-merging.
+    meta_file = h3_write_metadata(h3_file, stats=stats)
     if rm_src:
         shutil.rmtree(in_dir, ignore_errors=True)
 
-    meta_file = h3_write_metadata(h3_file, stats=stats)
     return h3_file
 
 @dask.delayed

@@ -189,6 +189,35 @@ def test_orphans_detects_and_removes_temp_files(tmp_dir):
     assert not os.path.exists(leftover)
 
 
+def test_orphans_promotes_an_orphan_merge_result_instead_of_deleting_it(tmp_dir):
+    """#46: a merge killed before the fix left <file>.parquet.tmp as the only
+    copy of the partition-year; deleting it (or its "empty" year dir) loses it."""
+    part_dir, _ = _make_partition(tmp_dir, h3_part='830001fffffffff')
+    pq_file = os.path.join(part_dir, 'year=2020', '830001fffffffff.2020.parquet')
+    os.replace(pq_file, pq_file + '.tmp')
+
+    ctx = _ctx(tmp_dir)
+    findings = run_diagnoses(ctx, ['orphans'], mode='check')[0].findings
+    assert [f['kind'] for f in findings] == ['orphan_merge_result']     # young, and its dir is not "empty"
+
+    run_diagnoses(ctx, ['orphans'], mode='fix')
+    assert pq.ParquetFile(pq_file).metadata.num_rows == 20
+    assert not os.path.exists(pq_file + '.tmp')
+
+
+def test_orphans_still_deletes_a_tmp_beside_its_partition_file(tmp_dir):
+    part_dir, _ = _make_partition(tmp_dir, h3_part='830001fffffffff')
+    stale = os.path.join(part_dir, 'year=2020', '830001fffffffff.2020.parquet.tmp')
+    open(stale, 'w').write('partial')
+    past = time.time() - 3600 * 48
+    os.utime(stale, (past, past))
+
+    ctx = _ctx(tmp_dir)
+    assert [f['kind'] for f in run_diagnoses(ctx, ['orphans'], mode='check')[0].findings] == ['temp_file']
+    run_diagnoses(ctx, ['orphans'], mode='fix')
+    assert not os.path.exists(stale)
+
+
 # --- log_state --------------------------------------------------------------
 
 def test_log_state_clears_pending_flag(tmp_dir):

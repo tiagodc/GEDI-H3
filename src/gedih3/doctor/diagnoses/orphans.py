@@ -6,6 +6,10 @@
 
 Detects:
   - ``*.tmp``, ``*.join.tmp``, ``*.fill.tmp``, ``*.dedup.tmp`` under db / tmp roots.
+  - ``<X>.parquet.tmp`` with no ``<X>.parquet`` beside it in the database:
+    the only copy of a partition-year left by a merge killed before #46 was
+    fixed. ``--fix`` promotes it instead of deleting it, and the year and
+    partition directories holding it are never reported empty.
   - ``_s3_download/`` and ``dask-worker-space/`` directories left behind by
     crashed builds.
   - Empty ``h3_*/`` partition directories (no parquet files).
@@ -47,6 +51,17 @@ _TMP_PATTERNS = ('*.tmp', '*.join.tmp', '*.fill.tmp', '*.dedup.tmp')
 _LEFTOVER_DIRS = ('_s3_download', 'dask-worker-space')
 
 
+def _is_orphan_merge_result(path: str) -> bool:
+    """``<X>.parquet.tmp`` with no ``<X>.parquet``: a merge result to recover, not a temp file."""
+    return path.endswith('.parquet.tmp') and not os.path.exists(path[:-len('.tmp')])
+
+
+def _holds_orphan_merge_result(dir_path: str) -> bool:
+    """True when ``dir_path`` or one of its subdirs holds an orphan merge result."""
+    return bool(glob.glob(os.path.join(dir_path, '*.parquet.tmp'))
+                or glob.glob(os.path.join(dir_path, '*', '*.parquet.tmp')))
+
+
 def _scan_partition_orphans(partition_dir: str, age_seconds: float) -> List[dict]:
     """Worker: list orphan temp files / leftover dirs under one partition.
 
@@ -64,7 +79,10 @@ def _scan_partition_orphans(partition_dir: str, age_seconds: float) -> List[dict
                 age = now - os.path.getmtime(f)
             except OSError:
                 continue
-            if age >= age_seconds:
+            if _is_orphan_merge_result(f):
+                # Reported at any age: it is never in progress (merges no longer write it).
+                found.append({'path': f, 'age_seconds': int(age), 'kind': 'orphan_merge_result'})
+            elif age >= age_seconds:
                 found.append({'path': f, 'age_seconds': int(age), 'kind': 'temp_file'})
 
     for leftover in _LEFTOVER_DIRS:
@@ -124,11 +142,12 @@ def _empty_check_partition(partition_dir: str) -> List[dict]:
     """Worker: O(1) emptiness checks for one partition + its year subdirs."""
     findings: List[dict] = []
     if partition_is_empty(partition_dir):
-        findings.append({'path': partition_dir, 'kind': 'empty_partition'})
+        if not _holds_orphan_merge_result(partition_dir):
+            findings.append({'path': partition_dir, 'kind': 'empty_partition'})
         # If the partition itself is empty there are no year subdirs to enumerate.
         return findings
     for year_dir in list_year_dirs(partition_dir):
-        if year_dir_is_empty(year_dir):
+        if year_dir_is_empty(year_dir) and not _holds_orphan_merge_result(year_dir):
             findings.append({'path': year_dir, 'kind': 'empty_year_dir'})
     return findings
 
@@ -183,8 +202,12 @@ def _finalize_orphans_check(
     n_files = sum(1 for f in findings if f['kind'] == 'temp_file')
     n_dirs = sum(1 for f in findings if f['kind'] == 'leftover_dir')
     n_empty = sum(1 for f in findings if f['kind'] in ('empty_partition', 'empty_year_dir'))
+    n_orphan = sum(1 for f in findings if f['kind'] == 'orphan_merge_result')
 
     summary = f"{n_files} temp files, {n_dirs} leftover dirs, {n_empty} empty partition/year dirs"
+    if n_orphan:
+        summary += (f", {n_orphan} partition file(s) left only as <file>.parquet.tmp by an interrupted "
+                    f"merge (--fix promotes them)")
     severity = Severity.INFO if not findings else Severity.WARN
     return Report(name='orphans', severity=severity, findings=findings, summary=summary)
 
@@ -214,7 +237,13 @@ def orphans_fix(ctx: DoctorContext, report: Report) -> Report:
         path = f['path']
         kind = f['kind']
         try:
-            if kind in ('temp_file',):
+            if kind == 'orphan_merge_result':
+                from ...gh3builder import _promote_orphan_merge_result
+                if _promote_orphan_merge_result(path[:-len('.tmp')]):
+                    fixed.append({**f, 'action': 'promoted'})
+                else:
+                    fixed.append({**f, 'action': 'skipped_unreadable'})
+            elif kind in ('temp_file',):
                 if os.path.isfile(path):
                     os.unlink(path)
                     fixed.append({**f, 'action': 'deleted'})
@@ -245,7 +274,7 @@ def orphans_fix(ctx: DoctorContext, report: Report) -> Report:
     # removed, regenerate the H3 manifest so future consumers don't
     # see ghost entries pointing at deleted paths.
     removed_anything = any(
-        x.get('action') in ('deleted', 'removed') for x in fixed
+        x.get('action') in ('deleted', 'removed', 'promoted') for x in fixed
     )
     if removed_anything:
         from ...utils import generate_manifest
