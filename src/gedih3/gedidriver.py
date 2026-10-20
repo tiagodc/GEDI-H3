@@ -617,8 +617,10 @@ class GEDIShot(GEDIFile):
     """
     Decoder for GEDI shot numbers.
 
-    Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
-    The shot number is a 64-bit integer encoding multiple fields.
+    Extracts the orbit, beam, granule and shot index encoded in GEDI shot
+    numbers. A shot number has 18 digits, ``OOOOOBBRRGNNNNNNNN``: orbit (5),
+    beam (2), reserved (2), granule within the orbit (1), shot index (8).
+    The ground track is not encoded.
 
     Attributes
     ----------
@@ -628,8 +630,9 @@ class GEDIShot(GEDIFile):
         Orbit number
     orbit_granule : int or array
         Granule number within orbit
-    track : int or array
-        Ground track number
+    track : None
+        Not encoded in the shot number, so file globs match any track
+        (orbit and granule identify the file).
     beam : int or array
         Beam number (0-7)
     beam_str : str or list
@@ -641,22 +644,22 @@ class GEDIShot(GEDIFile):
 
     Examples
     --------
-    >>> shot = GEDIShot(12345678901234567890)
-    >>> shot.beam_str
-    'BEAM0101'
+    >>> shot = GEDIShot(19560500300012345)
+    >>> shot.orbit, shot.orbit_granule, shot.beam_str, shot.shot_index
+    (1956, 3, 'BEAM0101', 12345)
     """
 
     def __init__(self, shot: Union[int, np.ndarray], build_glob: bool = False):
         self.parse_shot(shot)
         if build_glob:
-            self.get_file_glob()
+            self.get_glob_pattern()
 
     def parse_shot(self, shot: Union[int, np.ndarray]) -> None:
         self.is_scalar = np.isscalar(shot)
         self.shot = shot
         self.orbit = shot // 10000000000000
         self.orbit_granule = shot % 1000000000 // 100000000
-        self.track = shot // 100000000000
+        self.track = None  # not encoded; ``shot // 1e11`` is the orbit and beam digits
         self.beam = shot % 10000000000000 // 100000000000
         self.power = self.beam > 3
         self.reserved  = shot % 1000000000000 // 1000000000 % 100
@@ -671,8 +674,8 @@ class GEDIShot(GEDIFile):
         if self.is_scalar:
             self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
-            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track[i], product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
-            self.file_glob_pattern - list(set(self.file_pattern))
+            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track, product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
+            self.file_glob_pattern = list(set(self.file_glob_pattern))
         
     def search_file(self, soc_dir: str):
         if self.is_scalar:

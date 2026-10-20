@@ -122,6 +122,23 @@ class TestGediDriver:
         assert gs.beam is not None
         assert gs.orbit is not None
 
+    def test_gedi_shot_decodes_every_encoded_field(self, tmp_path):
+        """OOOOOBBRRGNNNNNNNN; the track is not encoded, so globs match any."""
+        import numpy as np
+        from gedih3.gedidriver import GEDIShot
+
+        gs = GEDIShot(19560500300012345, build_glob=True)
+        assert (gs.orbit, gs.beam, gs.orbit_granule, gs.shot_index) == (1956, 5, 3, 12345)
+        assert gs.beam_str == 'BEAM0101' and gs.power and gs.track is None
+
+        name = 'GEDI01_B_2019108002012_O01956_03_T03909_02_005_01_V002.h5'
+        (tmp_path / name).touch()
+        assert gs.search_file(str(tmp_path)) == [str(tmp_path / name)]
+
+        arr = GEDIShot(np.array([19560500300012345, 19560500300012346, 19570100100000001]), build_glob=True)
+        assert list(arr.orbit) == [1956, 1956, 1957] and arr.track is None
+        assert len(arr.file_glob_pattern) == 2          # one per distinct granule
+
     def test_gedi_vars_expand(self):
         """Test variable expansion."""
         from gedih3.gedidriver import gedi_vars_expand
