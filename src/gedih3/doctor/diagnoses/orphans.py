@@ -241,6 +241,8 @@ def orphans_fix(ctx: DoctorContext, report: Report) -> Report:
                 from ...gh3builder import _promote_orphan_merge_result
                 if _promote_orphan_merge_result(path[:-len('.tmp')]):
                     fixed.append({**f, 'action': 'promoted'})
+                else:
+                    fixed.append({**f, 'action': 'skipped_unreadable'})
             elif kind in ('temp_file',):
                 if os.path.isfile(path):
                     os.unlink(path)

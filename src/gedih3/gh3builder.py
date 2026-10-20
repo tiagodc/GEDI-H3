@@ -785,6 +785,8 @@ def _promote_orphan_merge_result(h3_file):
     beside it is such an orphan. Promoting it (and rewriting its metadata,
     which that kill skipped) recovers every row; deleting it, as the
     stale-tmp sweep and ``gh3_doctor --check orphans`` would, loses them.
+    (A destination deleted on purpose while an ``AtomicFileWriter`` rewrite
+    of it was interrupted would also look like this; nothing does that.)
 
     Parameters
     ----------
@@ -808,20 +810,6 @@ def _promote_orphan_merge_result(h3_file):
     h3_write_metadata(h3_file)
     logger.warning(f"Recovered {h3_file} from the orphaned result of an interrupted merge")
     return True
-
-
-def _metadata_is_stale(h3_file):
-    """True when ``h3_file`` exists and its metadata JSON is missing or older.
-
-    Only consulted when a merge has no input: a kill between promoting an
-    orphan and rewriting its metadata leaves the old (or no) metadata beside
-    the recovered rows, and no fragment would ever trigger the rewrite.
-    """
-    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
-    try:
-        return os.path.getmtime(meta_file) < os.path.getmtime(h3_file)
-    except FileNotFoundError:
-        return os.path.exists(h3_file)
 
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -850,9 +838,8 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     -------
     str or None
         Path to the merged parquet file, or None if ``in_dir`` contained
-        no parquet files and there was nothing to recover (an orphaned
-        merge result, ``_promote_orphan_merge_result``, or the metadata
-        that a kill right after promoting one skipped).
+        no parquet files and there was no orphaned merge result to promote
+        (see ``_promote_orphan_merge_result``).
     """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
 
@@ -873,12 +860,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     promoted = not replace and _promote_orphan_merge_result(h3_file)
 
     if len(files) == 0:
-        if promoted:
-            return h3_file
-        if not replace and _metadata_is_stale(h3_file):
-            h3_write_metadata(h3_file)
-            return h3_file
-        return
+        return h3_file if promoted else None
 
     # Preventative: drop 0-byte source fragments before they reach
     # parquet_merge_files (which fails the whole merge on the first bad
@@ -986,12 +968,10 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # Capture streaming stats from the merge so h3_write_metadata doesn't
     # have to re-read the just-written file (saves ~1.5-2 GB peak memory
     # per dense partition + the GPFS read-back I/O).
-    # The merge writes <dest>.merge.tmp and renames it over the destination
-    # atomically, so the destination is intact until the merged rows replace
-    # it. rm_src=False keeps every input until then: parquet_merge_files would
-    # unlink the fragments right after its rename, and the rmtree below does
-    # it once the metadata is written. (Merging into <dest>.tmp and unlinking
-    # every input before promoting it lost the partition-year on a kill, #46.)
+    # parquet_merge_files writes <dest>.merge.tmp and renames it over the
+    # destination atomically. rm_src=False keeps the fragments until the
+    # metadata is written (the rmtree below); deleting inputs before the
+    # merged rows were in place lost the partition-year on a kill (#46).
     stats = parquet_merge_files(
         out_file, files, check_shots=is_temp, rm_src=False, bbox=bbox,
     )
