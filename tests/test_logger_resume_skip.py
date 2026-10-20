@@ -19,6 +19,8 @@ added, regardless of whether the attribute was persisted.
 import json
 import os
 
+import pytest
+
 from gedih3.logger import H3BuildLogger
 
 
@@ -148,7 +150,7 @@ class TestInterruptedExpansionResume:
     read the whole scope while skipping every INDEXED granule, whose rows in
     the added area were then never extracted."""
     A = _box(-51, 0, -50, 1)
-    B = _box(-45, 0, -44, 1)        # disjoint: adds partitions
+    B = _box(-51, 0, -44, 1)        # A widened eastwards: adds partitions
 
     def _db(self, tmp_dir):
         from conftest import make_build_log
@@ -170,7 +172,9 @@ class TestInterruptedExpansionResume:
 
         resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
 
-        assert resume.get_spatial().union_all().equals(run.get_spatial().union_all())
+        added = run.get_spatial().union_all()
+        assert added.area == pytest.approx(6.0)                # the added area, not the union
+        assert resume.get_spatial().union_all().equals(added)
         assert resume.get_finished_granules() is None          # INDEXED granules are read in B
         assert not resume.stage1_full_scope()                  # so no NO_DATA proof either
         assert not resume.is_up_to_date()
@@ -196,11 +200,12 @@ class TestInterruptedExpansionResume:
         from shapely.geometry import box
         self._interrupted(tmp_dir, spatial=self.B)
 
-        resume = H3BuildLogger(product_vars=None, dir=tmp_dir, spatial=_box(-40, 0, -39, 1))
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir, spatial=_box(-51, 0, -39, 1))
 
         added = resume.get_spatial().union_all()
-        assert added.contains(box(-44.9, 0.1, -44.1, 0.9))     # the interrupted run's area
-        assert added.contains(box(-39.9, 0.1, -39.1, 0.9))     # and this run's
+        assert added.contains(box(-49.9, 0.1, -44.1, 0.9))     # the interrupted run's area
+        assert added.contains(box(-43.9, 0.1, -39.1, 0.9))     # and this run's
+        assert not added.contains(box(-50.9, 0.1, -50.1, 0.9))  # never the stored region
 
     def test_temporal_expansion_is_restored_too(self, tmp_dir):
         run = self._interrupted(tmp_dir, temporal=['2020-01-01', '2020-06-30'])
@@ -210,3 +215,18 @@ class TestInterruptedExpansionResume:
         assert resume.new_temporal == run.new_temporal
         assert resume.get_temporal() == run.get_temporal()
         assert resume.get_finished_granules() is None
+
+
+    def test_resumed_mixed_update_phase_2_gets_the_whole_region(self, tmp_dir):
+        """Phase 2 of a mixed update starts once Phase 1 drained; a resume of it
+        must not narrow Stage 2 (in S3 mode, its download) to the added area."""
+        self._db(tmp_dir)
+        run = H3BuildLogger(product_vars={'L2B': ['cover']}, dir=tmp_dir, spatial=self.B)
+        whole = run.get_spatial().union_all()
+        run.log_data['_pending_variable_update'] = {'product_vars': dict(run.new_product_vars)}
+        run.save_log('PROCESSING')       # killed in Phase 2
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert resume.new_spatial is None
+        assert resume.get_spatial().union_all().equals(whole)

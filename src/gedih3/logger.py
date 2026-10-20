@@ -693,7 +693,7 @@ class H3BuildLogger:
         ``new_temporal``: Stage 1 would read the whole scope while skipping
         every INDEXED granule, and their rows in the added area would never be
         extracted. ``to_dict`` persists the added area as ``_pending_expansion``
-        until a ``COMPLETED`` save; this puts it back into ``new_spatial`` /
+        until Stage 1 has run under it; this puts it back into ``new_spatial`` /
         ``new_temporal``, so every getter answers as it did in the interrupted
         run (and Stage 1's scope fingerprint matches its sentinels). An
         expansion requested by this run is combined with it: reading a superset
@@ -711,9 +711,8 @@ class H3BuildLogger:
             self.new_temporal = (temporal if self.new_temporal is None
                                  else merge_temporal(self.new_temporal, temporal)[0])
         from .logging_config import get_logger
-        get_logger(__name__).info(
-            "Resuming an interrupted region/date expansion: Stage 1 reads the added area again "
-            "and does not skip indexed granules there")
+        get_logger(__name__).debug(
+            "Build log holds an interrupted region/date expansion: its added area is read again")
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
@@ -1270,12 +1269,15 @@ class H3BuildLogger:
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
-        # The added area of an expansion stays pending until a COMPLETED save,
-        # which every path writes only after Stage 1 has drained under it; see
-        # _restore_pending_expansion.
+        # The added area of an expansion stays pending until Stage 1 has run
+        # under it: up to a COMPLETED save, or until a mixed update reaches its
+        # Phase 2 (_pending_variable_update is set only once Phase 1 drained,
+        # and a resumed Phase 2 must get the whole region, not the added area).
+        # See _restore_pending_expansion.
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
-        if status != 'COMPLETED' and (new_spatial is not None or new_temporal is not None):
+        if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
+                and (new_spatial is not None or new_temporal is not None)):
             log_dict['_pending_expansion'] = {
                 'spatial': None if new_spatial is None else to_geojson(new_spatial),
                 'temporal': None if new_temporal is None else list(new_temporal),
