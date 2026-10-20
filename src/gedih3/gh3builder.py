@@ -2644,6 +2644,7 @@ def _filter_granules(
     product_vars: Dict[str, List[str]],
     skip_granules: Optional[List[Dict]] = None,
     required_products: Optional[set] = None,
+    only_granules: Optional[List[Dict]] = None,
 ) -> List[Dict[str, str]]:
     """
     Filter SOC files to exclude incomplete, corrupted, or already-processed granules.
@@ -2665,6 +2666,9 @@ def _filter_granules(
         Products a granule must have. ``None`` requires every product in
         ``product_vars``; a subset (``{'L2A'}``) admits granules whose later
         products are not published yet.
+    only_granules : list of dict, optional
+        If given, every other granule is left out (and counted as deferred):
+        see ``H3BuildLogger.stage1_only_granules``.
 
     Returns
     -------
@@ -2673,6 +2677,7 @@ def _filter_granules(
     """
     required = set(product_vars) if required_products is None else set(required_products)
     skip = {(g['orbit'], g['granule'], g['track']) for g in (skip_granules or [])}
+    only = None if only_granules is None else {(g['orbit'], g['granule'], g['track']) for g in only_granules}
 
     def _granule_key(prod):
         path = next(iter(prod.values()))
@@ -2684,6 +2689,14 @@ def _filter_granules(
 
     candidates = [p for p in prod_soc_files
                   if p and required.issubset(p) and (not skip or _granule_key(p) not in skip)]
+    if only is not None:
+        n_listed = len(candidates)
+        candidates = [p for p in candidates if _granule_key(p) in only]
+        if len(candidates) < n_listed:
+            logger.warning(
+                f"{n_listed - len(candidates)} granule(s) not yet indexed are left for the next build: "
+                f"this update reads only the region it adds, and they need the whole region. Run "
+                f"gh3_build again once it completes to index them.")
 
     def _filter_soc_file(prod):
         if any(isinstance(f, EarthAccessFile) for f in prod.values()):
@@ -5149,6 +5162,7 @@ def build_h3db(
     tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
+    only_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     variable_only_update: bool = False,
     exclude: Optional[List[str]] = None,
@@ -5187,6 +5201,10 @@ def build_h3db(
         Output path for the H3-indexed parquet database.
     skip_granules : list of dict, optional
         List of granule identifiers to skip (from previous builds).
+    only_granules : list of dict, optional
+        If given, Stage 1 reads only these granules and leaves every other one
+        for a later build (``H3BuildLogger.stage1_only_granules``: a
+        spatial-only expansion reads only the added region).
     status_callback : callable, optional
         Called with status string at pipeline stage transitions.
     variable_only_update : bool, default False
@@ -5351,7 +5369,7 @@ def build_h3db(
         # incomplete download, not a product that is not out yet.
         required = (_PRODUCTS_BEFORE_L2B & set(product_vars)) or None if allow_missing_products else None
         soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules,
-                                     required_products=required)
+                                     required_products=required, only_granules=only_granules)
 
         if len(soc_files) == 0:
             parquet_dir = os.path.join(tmp_dir, 'partitions')

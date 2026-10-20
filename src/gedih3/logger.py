@@ -645,9 +645,23 @@ class H3BuildLogger:
         widened = False
         if self.new_spatial is not None and prev_spatial is not None:
             try:
-                widened = self.spatial.union_all().difference(prev_spatial.union_all()).area > 0
+                added = self.spatial.union_all().difference(prev_spatial.union_all())
+                widened = added.area > 0
             except Exception:
-                widened = True  # cannot tell: reopen (costs a re-read)
+                added, widened = None, True  # cannot tell: reopen, keep the difference (costs a re-read)
+            if not widened:
+                # A narrower or identical region adds nothing (a database's
+                # scope never shrinks): this is a plain update over the stored
+                # region. Left set, the symmetric difference made it a
+                # "spatial-only expansion" over stored-minus-requested, and a
+                # granule new to the database lost its rows outside that (#42).
+                self.new_spatial = None
+            elif added is not None:
+                # Only the area the request adds: the symmetric difference also
+                # holds the stored region outside the request (all of it, for a
+                # disjoint request), which Stage 1 then re-read for nothing.
+                import geopandas as gpd
+                self.new_spatial = gpd.GeoDataFrame(geometry=[added], crs=self.spatial.crs)
         elif self.new_spatial is not None:
             widened = True
         if self.new_temporal is not None and not widened:
@@ -836,20 +850,52 @@ class H3BuildLogger:
         requested region or dates widen the stored ones, by any area, before
         this is consulted.
         """
-        # Keys not part of the original granule identity. ``products`` was
-        # added by the per-product status extension; both must be stripped so
-        # _filter_granules' dict equality keeps matching legacy entries.
-        _strip = {'status', 'products'}
         if (hasattr(self, 'granule_info')
                 and getattr(self, 'new_product_vars', None) is None
                 and getattr(self, 'new_temporal', None) is None
                 and not self._adding_h3_parts()):
-            return [
-                {k: v for k, v in g.items() if k not in _strip}
-                for g in self.granule_info
-                if g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
-            ]
+            return self._finished_granule_list()
         return None
+
+    def _finished_granule_list(self):
+        # Keys not part of the original granule identity. ``products`` was
+        # added by the per-product status extension; both must be stripped so
+        # _filter_granules' dict equality keeps matching legacy entries.
+        _strip = {'status', 'products'}
+        return [
+            {k: v for k, v in g.items() if k not in _strip}
+            for g in getattr(self, 'granule_info', None) or []
+            if g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
+        ]
+
+    def reads_added_area_only(self):
+        """True when Stage 1 reads only the region this update adds (a spatial-only expansion)."""
+        return (getattr(self, 'updating', False)
+                and getattr(self, 'new_spatial', None) is not None
+                and getattr(self, 'new_product_vars', None) is None
+                and getattr(self, 'new_temporal', None) is None)
+
+    def stage1_only_granules(self):
+        """Granules Stage 1 may read in this run, or None when it may read any.
+
+        A spatial-only expansion hands Stage 1 only the added region
+        (:meth:`get_spatial`). That is exactly what a granule finished under
+        the stored region still needs. Any other granule (new to the database,
+        ``PENDING``, ``FAILED``, a ``NO_DATA`` reopened by the widening) would
+        have its rows outside the added region dropped, while its rows inside
+        made it ``INDEXED`` and kept later builds from ever reading the rest
+        (#42). Such granules are left as they are for the next build, which
+        reads them over the whole region.
+
+        Returns
+        -------
+        list of dict or None
+            ``{'orbit', 'granule', 'track'}`` dicts, as for
+            :meth:`get_finished_granules`.
+        """
+        if not self.reads_added_area_only():
+            return None
+        return self._finished_granule_list()
 
     def is_up_to_date(self):
         """Check if database already matches requested parameters.

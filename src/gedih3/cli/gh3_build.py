@@ -966,6 +966,8 @@ def main():
                     else:
                         stage1_products = h3_logger.get_product_vars()
                         stage1_skip = h3_logger.get_finished_granules()
+                    # None except on a spatial-only expansion (#42): see stage1_only_granules.
+                    stage1_only = None if is_mixed_update else h3_logger.stage1_only_granules()
 
                     def _record_granule_products(processed):
                         # Persisted before Stage 1 writes anything: a granule
@@ -998,6 +1000,7 @@ def main():
                         product_vars=stage1_products,
                         soc_source=soc_source,
                         skip_granules=stage1_skip,
+                        only_granules=stage1_only,
                         variable_only_update=False,
                         allow_missing_products=allow_missing,
                         granule_products_callback=_record_granule_products,
@@ -1008,7 +1011,13 @@ def main():
                     # reopened the lost tasks, so every listed one was re-extracted
                     # and merged: PENDING lets set_post_build_info index it, and
                     # the fold below re-flags any whose merge failed again.
-                    _release_merge_failed(h3_logger, listed=_stage1_listed)
+                    # A granule a spatial-only expansion left for the next build was
+                    # not re-extracted: it keeps its flag.
+                    _released = _stage1_listed
+                    if stage1_only is not None:
+                        _admitted = {(g['orbit'], g['granule'], g['track']) for g in stage1_only}
+                        _released = _admitted if _released is None else _released & _admitted
+                    _release_merge_failed(h3_logger, listed=_released)
 
                 # ── Stage 2: Variable update ─────────────────────────────
                 # Runs for: variable-only update, mixed update Phase 2,
