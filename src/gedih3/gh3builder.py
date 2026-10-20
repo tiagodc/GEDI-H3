@@ -775,14 +775,16 @@ def _dest_holds_fragments(out_file: str, files: List[str]) -> bool:
 def _promote_orphan_merge_result(h3_file):
     """Promote ``<h3_file>.tmp`` when it is the only copy of the partition-year.
 
-    ``<h3_file>.tmp`` is written only when appending to an existing
-    destination, and only by ``parquet_merge_files``' final atomic rename,
-    so it always holds the complete merge of the destination and its
-    fragments. A destination missing beside it means a merge before #46
-    was killed after deleting its inputs and before promoting the result.
-    Promoting it (and rewriting its metadata, which that kill skipped)
-    recovers every row; deleting it, as the stale-tmp sweep would, loses
-    them.
+    Before #46, a merge into an existing destination wrote the complete
+    merged result to ``<h3_file>.tmp`` (by ``parquet_merge_files``' final
+    atomic rename), deleted the destination and every fragment, and only
+    then renamed the result into place. A kill in between left this file as
+    the only copy. Merges no longer write ``<h3_file>.tmp``, and the
+    ``AtomicFileWriter`` rewrites that do keep the destination in place
+    while their ``.tmp`` exists, so a ``<h3_file>.tmp`` with no destination
+    beside it is such an orphan. Promoting it (and rewriting its metadata,
+    which that kill skipped) recovers every row; deleting it, as the
+    stale-tmp sweep and ``gh3_doctor --check orphans`` would, loses them.
 
     Parameters
     ----------
@@ -806,6 +808,20 @@ def _promote_orphan_merge_result(h3_file):
     h3_write_metadata(h3_file)
     logger.warning(f"Recovered {h3_file} from the orphaned result of an interrupted merge")
     return True
+
+
+def _metadata_is_stale(h3_file):
+    """True when ``h3_file`` exists and its metadata JSON is missing or older.
+
+    Only consulted when a merge has no input: a kill between promoting an
+    orphan and rewriting its metadata leaves the old (or no) metadata beside
+    the recovered rows, and no fragment would ever trigger the rewrite.
+    """
+    meta_file = h3_file.replace('.parquet', PARTITION_META_FILENAME)
+    try:
+        return os.path.getmtime(meta_file) < os.path.getmtime(h3_file)
+    except FileNotFoundError:
+        return os.path.exists(h3_file)
 
 
 def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
@@ -834,8 +850,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     -------
     str or None
         Path to the merged parquet file, or None if ``in_dir`` contained
-        no parquet files and there was no orphaned merge result to promote
-        (see ``_promote_orphan_merge_result``).
+        no parquet files and there was nothing to recover (an orphaned
+        merge result, ``_promote_orphan_merge_result``, or the metadata
+        that a kill right after promoting one skipped).
     """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
 
@@ -853,10 +870,14 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # Before the no-input return: the merge that left an orphan has already
     # consumed its fragments, so the resume that should promote it is called
     # on an empty in_dir.
-    if not replace and _promote_orphan_merge_result(h3_file) and len(files) == 0:
-        return h3_file
+    promoted = not replace and _promote_orphan_merge_result(h3_file)
 
     if len(files) == 0:
+        if promoted:
+            return h3_file
+        if not replace and _metadata_is_stale(h3_file):
+            h3_write_metadata(h3_file)
+            return h3_file
         return
 
     # Preventative: drop 0-byte source fragments before they reach
@@ -888,7 +909,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
         _filtered.append(f)
     files = _filtered
     if len(files) == 0:
-        return
+        return h3_file if promoted else None
 
     os.makedirs(odir, exist_ok=True)
 
@@ -898,6 +919,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # own dir) rather than O(N_partitions) globbed on the driver. A
     # <out_file>.tmp that was the only copy has already been promoted above,
     # so what is left here is redundant with the destination and fragments.
+    # (Merges no longer write <out_file>.tmp; older ones did, see #46.)
     try:
         for _name in os.listdir(odir):
             if _name.endswith('.merge.tmp') or _name.endswith('.parquet.tmp'):
@@ -948,7 +970,6 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
             # (the database's schema must win), and check_shots dedup
             # keeps the first occurrence (existing rows must win).
             files = [out_file] + [f for f in files if f != out_file]
-            out_file += '.tmp'
         except Exception as e:
             logger.warning(
                 f"Existing partition {h3_file} is unreadable ({e!r}); "
@@ -965,16 +986,16 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # Capture streaming stats from the merge so h3_write_metadata doesn't
     # have to re-read the just-written file (saves ~1.5-2 GB peak memory
     # per dense partition + the GPFS read-back I/O).
-    # rm_src=False: when appending, files[0] is the existing destination, and
-    # parquet_merge_files would unlink it along with the fragments before the
-    # merged result is promoted below. A kill in between lost the partition-
-    # year (#46). The fragments are removed by the rmtree after the promote.
+    # The merge writes <dest>.merge.tmp and renames it over the destination
+    # atomically, so the destination is intact until the merged rows replace
+    # it. rm_src=False keeps every input until then: parquet_merge_files would
+    # unlink the fragments right after its rename, and the rmtree below does
+    # it once the metadata is written. (Merging into <dest>.tmp and unlinking
+    # every input before promoting it lost the partition-year on a kill, #46.)
     stats = parquet_merge_files(
         out_file, files, check_shots=is_temp, rm_src=False, bbox=bbox,
     )
 
-    if is_temp:
-        os.replace(out_file, h3_file)
     # Metadata before the fragment cleanup: a kill between the two leaves a
     # destination whose metadata lists every fragment's granule, so the next
     # run takes the _dest_holds_fragments skip instead of re-merging.

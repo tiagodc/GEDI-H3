@@ -713,6 +713,28 @@ class TestMergeKillBeforePromote:
         assert sorted(pq.read_table(dest)['shot_number'].to_pylist()) == [1, 2, 3, 4, 5, 6]
         assert not os.path.exists(dest + '.tmp')
 
+    def test_kill_after_promoting_an_orphan_rewrites_its_metadata_on_resume(self, tmp_dir, monkeypatch):
+        import gedih3.gh3builder as gb
+        from gedih3.config import PARTITION_META_FILENAME
+        in_dir, out_dir, dest = self._orphan(tmp_dir)
+        meta = dest.replace('.parquet', PARTITION_META_FILENAME)
+        with open(meta, 'w') as f:
+            json.dump({'shot_count': 2}, f)                  # the pre-kill destination's metadata
+        os.utime(meta, (os.path.getmtime(dest + '.tmp') - 60,) * 2)
+        real_write = gb.h3_write_metadata
+
+        def killed(*a, **kw):
+            raise KeyboardInterrupt('simulated kill after the promote')
+
+        monkeypatch.setattr(gb, 'h3_write_metadata', killed)
+        with pytest.raises(KeyboardInterrupt):
+            gb.h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+        monkeypatch.setattr(gb, 'h3_write_metadata', real_write)
+
+        assert gb.h3_merge_files(in_dir, out_dir, rm_src=True, replace=False) == dest
+        with open(meta) as f:
+            assert json.load(f)['shot_count'] == 5
+
     def test_tmp_beside_a_destination_is_swept_not_promoted(self, tmp_dir):
         from gedih3.gh3builder import h3_merge_files
         in_dir, out_dir, dest = self._setup(tmp_dir)
