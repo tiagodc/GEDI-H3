@@ -131,13 +131,19 @@ class TestGediDriver:
         assert (gs.orbit, gs.beam, gs.orbit_granule, gs.shot_index) == (1956, 5, 3, 12345)
         assert gs.beam_str == 'BEAM0101' and gs.power and gs.track is None
 
-        name = 'GEDI01_B_2019108002012_O01956_03_T03909_02_005_01_V002.h5'
-        (tmp_path / name).touch()
-        assert gs.search_file(str(tmp_path)) == [str(tmp_path / name)]
+        # A SOC tree is <soc>/<year>/<doy>/.
+        day = tmp_path / '2019' / '108'
+        day.mkdir(parents=True)
+        l1b = [day / 'GEDI01_B_2019108002012_O01956_03_T03909_02_005_01_V002.h5',
+               day / 'GEDI01_B_2019108010000_O01957_01_T01234_02_005_01_V002.h5']
+        for f in l1b:
+            f.touch()
+        assert gs.search_file(str(tmp_path)) == [str(l1b[0])]
 
-        arr = GEDIShot(np.array([19560500300012345, 19560500300012346, 19570100100000001]), build_glob=True)
+        arr = GEDIShot(np.array([19560500300012345, 19560500300012346, 19570100100000001]))
         assert list(arr.orbit) == [1956, 1956, 1957] and arr.track is None
-        assert len(arr.file_glob_pattern) == 2          # one per distinct granule
+        assert len(arr.get_glob_pattern()) == 2          # one per distinct granule
+        assert arr.search_file(str(tmp_path)) == sorted(str(f) for f in l1b)
 
     def test_gedi_vars_expand(self):
         """Test variable expansion."""

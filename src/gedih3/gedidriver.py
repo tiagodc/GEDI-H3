@@ -675,19 +675,19 @@ class GEDIShot(GEDIFile):
             self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
             self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track, product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
-            self.file_glob_pattern = list(set(self.file_glob_pattern))
-        
-    def search_file(self, soc_dir: str):
-        if self.is_scalar:
-            files = glob.glob(os.path.join(soc_dir, self.file_glob_pattern))
-        else:
-            files = []
-            for fp in self.file_glob_pattern:
-                files.extend(glob.glob(os.path.join(soc_dir, fp)))
-            files = list(set(files))
+            self.file_glob_pattern = sorted(set(self.file_glob_pattern))
+        return self.file_glob_pattern
 
-        return files
-            
+    def search_file(self, soc_dir: str):
+        # A SOC tree is <soc>/<year>/<doy>/: search it recursively, as GEDIFile.search_file does.
+        patterns = getattr(self, 'file_glob_pattern', None) or self.get_glob_pattern()
+        if self.is_scalar:
+            patterns = [patterns]
+        files = set()
+        for fp in patterns:
+            files.update(glob.glob(os.path.join(soc_dir, '**', fp), recursive=True))
+        return sorted(files)
+
 @njit
 def wfm_pad(wave, n_bins=1420, cval=0):
     bin_diff = len(wave) - n_bins
