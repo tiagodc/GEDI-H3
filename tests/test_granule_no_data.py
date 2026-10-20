@@ -572,10 +572,11 @@ class TestScopeWideningReopensNoData:
         # The plain resume keeps the interrupted expansion (#42), so it skips
         # no granule, exactly like the run it resumes.
         assert plain.get_finished_granules() is None and h.get_finished_granules() is None
-        if h.new_spatial is None:
-            assert plain.new_spatial is None
-        else:
+        assert (h.new_spatial is None) == ('spatial' not in kw)
+        if 'spatial' in kw:
             assert plain.new_spatial.union_all().equals(h.new_spatial.union_all())
+        else:
+            assert plain.new_spatial is None
         assert plain.new_temporal == h.new_temporal
 
     def test_no_widening_keeps_no_data(self, tmp_dir):

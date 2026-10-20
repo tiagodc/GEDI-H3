@@ -242,3 +242,14 @@ class TestInterruptedExpansionResume:
 
         assert resume.new_spatial is None
         assert resume.get_finished_granules() == [{'orbit': 1, 'granule': 1, 'track': 1}]
+
+
+    def test_mixed_update_is_not_resumed_as_a_spatial_only_expansion(self, tmp_dir):
+        """Its first save already merged the new variables: a restored area alone
+        would demote the resume to a spatial-only expansion (#52 restores both)."""
+        self._db(tmp_dir)
+        run = H3BuildLogger(product_vars={'L2B': ['cover']}, dir=tmp_dir, spatial=self.B)
+        run.save_log('PARTITIONING')
+
+        with open(run.log_file) as f:
+            assert '_pending_update' not in json.load(f)

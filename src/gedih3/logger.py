@@ -573,6 +573,9 @@ class H3BuildLogger:
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=effective_version)
         self.updating = False
+        # Set by gh3_build once every stage ran under this run's update: its
+        # final save (MERGING when merges failed) must not keep it pending.
+        self.update_ran = False
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
         self.previous_status = self.log_data.get('status')
@@ -1223,16 +1226,15 @@ class H3BuildLogger:
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
-        # The added area of an expansion stays pending until Stage 1 has run
-        # under it: up to a COMPLETED save, or the final save of a run whose
-        # merges failed (gh3_build sets ``update_ran``), or until a mixed update reaches its
-        # Phase 2 (_pending_variable_update is set only once Phase 1 drained,
-        # and a resumed Phase 2 must get the whole region, not the added area).
-        # See _restore_pending_expansion.
+        # Pending until the run's stages have run; see _restore_pending_expansion.
+        # Not for a mixed update (new variables too): its first save already
+        # merged them, so a restored area alone would resume it as a
+        # spatial-only expansion (#52).
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
         if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
                 and not getattr(self, 'update_ran', False)
+                and not getattr(self, 'new_product_vars', None)
                 and (new_spatial is not None or new_temporal is not None)):
             log_dict['_pending_update'] = {
                 'spatial': None if new_spatial is None else to_geojson(new_spatial),
