@@ -810,11 +810,11 @@ def main():
             # up; gh3_doctor can flag/fix this if needed.)
             #
             # has_pending_new_work vetoes both signals whenever this
-            # invocation is a variable-only update, a mixed update's Phase 2,
-            # a crash-recovered pending variable update, or widens the region
-            # or dates (the shortcut would save the union as COMPLETED without
-            # reading the added area, #42): neither signal
-            # proves anything about product/variable work that has never
+            # invocation widens the region or dates: the shortcut would save
+            # the union as COMPLETED without reading the added area (#42).
+            # It also vetoes them for a variable-only update, a mixed update's
+            # Phase 2, or a crash-recovered pending variable update: neither
+            # signal proves anything about product/variable work that has never
             # been through Stage 1/2, and a stale _merge_progress.txt left
             # over from an earlier, already-completed build in the same tmp
             # directory would otherwise be misread as "this request's merge
@@ -834,7 +834,7 @@ def main():
                 h3_logger, _parquet_dir,
                 has_pending_new_work=bool(
                     is_variable_only_update or is_mixed_update or pending_var_update
-                    or getattr(h3_logger, 'requested_expansion', False)
+                    or h3_logger.requested_expansion
                 ),
             )
             if _merge_signal:

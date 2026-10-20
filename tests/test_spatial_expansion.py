@@ -117,6 +117,48 @@ def test_widening_after_a_killed_merge_is_not_taken_as_merge_only(tmp_dir):
     assert len(_shots_of(h3_dir, 101)) == len(GEDI_BEAMS) * N_SHOTS > in_stored
 
 
+def test_a_deferred_granules_leftover_fragments_are_not_merged(tmp_dir):
+    """A plain build killed in Stage 1 left one beam of granule 102 in tmp. The
+    widening run defers 102: merging that fragment would list 102 in the
+    partition metadata, and it would be marked INDEXED with its other beams
+    never read."""
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+
+    def gh3_build(*extra):
+        cmd = [sys.executable, '-m', 'gedih3.cli.gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp,
+               '--gedi-version', '2', '-N', '2', '-T', '1', '-M', '2', '-P', '0', '--no-bbox-index', *extra]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
+        return res.stdout + res.stderr
+
+    def status(orbit):
+        log = json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))
+        return next(g['status'] for g in log['granules'] if g['orbit'] == orbit)
+
+    _write_l2a(soc_dir, (101, 1, 201), '2020100', 7.0e7)
+    gh3_build('-l2a', 'rh_098', f'--region={STORED}')
+    _write_l2a(soc_dir, (102, 1, 202), '2020200', 8.0e7)
+    # The leftover: one partition's rows recast as a BEAM0000 fragment of granule 102.
+    db_file = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))[0]
+    part, year = db_file.split(os.sep)[-3:-1]
+    t = pq.read_table(db_file)
+    shots = pa.array(np.arange(t.num_rows, dtype=np.uint64) + np.uint64(102 * 10**6), type=t['shot_number'].type)
+    t = t.set_column(t.schema.get_field_index('shot_number'), 'shot_number', shots)
+    root = pa.array([os.path.basename(glob.glob(os.path.join(soc_dir, '*', '*', '*O00102*'))[0])] * t.num_rows)
+    t = t.set_column(t.schema.get_field_index('root_file_l2a'), 'root_file_l2a', root)
+    frag_dir = os.path.join(tmp, 'partitions', part, year)
+    os.makedirs(frag_dir)
+    pq.write_table(t, os.path.join(frag_dir, 'O00102_G01_T00202.BEAM0000.parquet'))
+
+    out = gh3_build(f'--region={WIDENED}')
+
+    assert 'Dropped 1 tmp fragment(s)' in out
+    assert status(102) == 'PENDING' and _shots_of(h3_dir, 102) == []
+    gh3_build()
+    assert status(102) == 'INDEXED'
+    assert len(_shots_of(h3_dir, 102)) == len(GEDI_BEAMS) * N_SHOTS
+
+
 class TestStage1OnlyGranules:
     def _db(self, tmp_dir):
         make_build_log(tmp_dir, spatial=_box(-51, 0, -50, 1), granules=[

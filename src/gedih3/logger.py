@@ -597,6 +597,7 @@ class H3BuildLogger:
             self.new_spatial = None
             self.new_temporal = None
             self.new_product_vars = None
+            self.requested_expansion = False
             return
 
         self._load_filters_from_log()
@@ -651,7 +652,7 @@ class H3BuildLogger:
                 added = self.spatial.union_all().difference(prev_spatial.union_all())
                 widened = added.area > 0
             except Exception:
-                added, widened = None, True  # cannot tell: reopen, keep the difference (costs a re-read)
+                added, widened = None, True  # cannot tell: reopen, keep the symmetric difference (a superset)
             if not widened:
                 # A narrower or identical region adds nothing (a database's
                 # scope never shrinks): this is a plain update over the stored
@@ -1143,11 +1144,9 @@ class H3BuildLogger:
         if not getattr(self, 'updating', False):
             return True
         no_prod = getattr(self, 'new_product_vars', None) is None
-        new_sp = getattr(self, 'new_spatial', None)
-        new_tm = getattr(self, 'new_temporal', None)
-        spatial_only = new_sp is not None and no_prod and new_tm is None
-        temporal_only = new_tm is not None and no_prod and new_sp is None
-        return not (spatial_only or temporal_only)
+        temporal_only = (getattr(self, 'new_temporal', None) is not None and no_prod
+                         and getattr(self, 'new_spatial', None) is None)
+        return not (self.reads_added_area_only() or temporal_only)
 
     def mark_no_data(self, listed_keys, incomplete_keys, empty_keys):
         """Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.
