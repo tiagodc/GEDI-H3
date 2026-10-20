@@ -573,6 +573,9 @@ class H3BuildLogger:
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=effective_version)
         self.updating = False
+        # Set by gh3_build once every stage ran under this run's update: its
+        # final save (MERGING when merges failed) must not keep it pending.
+        self.update_ran = False
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
         self.previous_status = self.log_data.get('status')
@@ -668,6 +671,37 @@ class H3BuildLogger:
                 get_logger(__name__).info(
                     f"{n_reopen} NO_DATA granule(s) reopened: the requested region/dates widen the "
                     f"scope they were recorded under")
+
+        self._restore_pending_expansion()
+
+    def _restore_pending_expansion(self):
+        """Resume an expansion that a previous run started but never completed (#42).
+
+        The first ``save_log`` of an expansion already stores the widened
+        region/dates, so a plain resume would see no ``new_spatial`` /
+        ``new_temporal``: Stage 1 would read the whole scope while skipping
+        every INDEXED granule, and their rows in the added area would never be
+        extracted. ``to_dict`` persists the added area as ``_pending_update``
+        until Stage 1 has run under it; this puts it back into ``new_spatial`` /
+        ``new_temporal``, so every getter answers as it did in the interrupted
+        run (and Stage 1's scope fingerprint matches its sentinels). An
+        expansion requested by this run is combined with it: reading a superset
+        of the added area costs a re-read, never rows.
+        """
+        pending = self.log_data.get('_pending_update')
+        if not pending:
+            return
+        spatial = parse_spatial(pending.get('spatial'))
+        if spatial is not None:
+            self.new_spatial = (spatial if self.new_spatial is None
+                                else merge_spatial(self.new_spatial, spatial)[0])
+        temporal = parse_temporal(pending.get('temporal'))
+        if temporal is not None:
+            self.new_temporal = (temporal if self.new_temporal is None
+                                 else merge_temporal(self.new_temporal, temporal)[0])
+        from .logging_config import get_logger
+        get_logger(__name__).debug(
+            "Build log holds an interrupted region/date expansion: its added area is read again")
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
@@ -1191,6 +1225,21 @@ class H3BuildLogger:
         # Preserve pending variable update state for crash recovery (P0-B)
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
+
+        # Pending until the run's stages have run; see _restore_pending_expansion.
+        # Not for a mixed update (new variables too): its first save already
+        # merged them, so a restored area alone would resume it as a
+        # spatial-only expansion (#52).
+        new_spatial = getattr(self, 'new_spatial', None)
+        new_temporal = getattr(self, 'new_temporal', None)
+        if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
+                and not getattr(self, 'update_ran', False)
+                and not getattr(self, 'new_product_vars', None)
+                and (new_spatial is not None or new_temporal is not None)):
+            log_dict['_pending_update'] = {
+                'spatial': None if new_spatial is None else to_geojson(new_spatial),
+                'temporal': None if new_temporal is None else list(new_temporal),
+            }
 
         return log_dict
 
