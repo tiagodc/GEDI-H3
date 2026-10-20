@@ -724,7 +724,8 @@ def main():
                                 # and let download_soc() resume idempotently.
                                 needs_download = True
                                 logger.info("New variables requested — downloading missing granules (idempotent resume)")
-                        elif not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars:
+                        elif (h3_logger.new_spatial is None and h3_logger.new_temporal is None
+                              and not h3_logger.new_product_vars):
                             # Same parameters — still run download to discover new NASA granules.
                             # download_soc() is idempotent: existing files are skipped via resume=True.
                             needs_download = True

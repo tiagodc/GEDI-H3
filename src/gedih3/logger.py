@@ -573,6 +573,9 @@ class H3BuildLogger:
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=effective_version)
         self.updating = False
+        # Set by gh3_build once every stage ran under this run's update: its
+        # final save (MERGING when merges failed) must not keep it pending.
+        self.update_ran = False
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
         self.previous_status = self.log_data.get('status')
@@ -1235,12 +1238,10 @@ class H3BuildLogger:
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
-        # The added area and variables of an update stay pending until it has
-        # run: up to a COMPLETED save, the final save of a run whose merges
-        # failed (gh3_build sets ``update_ran``), or until Stage 2 starts, which
-        # records its own _pending_variable_update (set only once a mixed
-        # update's Phase 1 drained; a resumed Phase 2 must get the whole region,
-        # not the added area). See _restore_pending_update.
+        # Pending until the run's stages have run, or until Stage 2 starts: it
+        # records its own _pending_variable_update once a mixed update's Phase 1
+        # drained, and a resumed Phase 2 must get the whole region, not the
+        # added area. See _restore_pending_update.
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
         new_product_vars = getattr(self, 'new_product_vars', None)
