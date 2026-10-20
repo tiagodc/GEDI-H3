@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **A granule new to the database is no longer indexed from only part of a widened region.** A spatial-only update hands Stage 1 only the region it adds. A granule downloaded in the same run that widened `-r` was read under that added region alone. Its rows there made it `INDEXED`, so no later build read its rows in the stored region. Such an update now reads only granules already indexed under the stored region. Every other granule (new, `PENDING`, `FAILED`, `MERGE_FAILED`, or a `NO_DATA` reopened by the widening) is left as it is, with a warning, along with any of its fragments left in tmp by an interrupted run. The next `gh3_build` reads it over the whole region. A region request that does not widen the stored one is now a plain update. Before, `merge_spatial`'s symmetric difference turned it into a "spatial-only expansion" over the stored region minus the request, with the same loss. The added region is now exactly the new area: before, a disjoint request re-read the whole stored region. (#42)
+
 ## [0.20.3] - 2026-10-20
 
 ### Fixed
