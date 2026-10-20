@@ -1236,14 +1236,16 @@ class H3BuildLogger:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
         # The added area and variables of an update stay pending until it has
-        # run: up to a COMPLETED save, or until Stage 2 starts, which records
-        # its own _pending_variable_update (set only once a mixed update's Phase
-        # 1 drained; a resumed Phase 2 must get the whole region, not the added
-        # area). See _restore_pending_update.
+        # run: up to a COMPLETED save, the final save of a run whose merges
+        # failed (gh3_build sets ``update_ran``), or until Stage 2 starts, which
+        # records its own _pending_variable_update (set only once a mixed
+        # update's Phase 1 drained; a resumed Phase 2 must get the whole region,
+        # not the added area). See _restore_pending_update.
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
         new_product_vars = getattr(self, 'new_product_vars', None)
         if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
+                and not getattr(self, 'update_ran', False)
                 and (new_spatial is not None or new_temporal is not None or new_product_vars)):
             log_dict['_pending_update'] = {
                 'spatial': None if new_spatial is None else to_geojson(new_spatial),

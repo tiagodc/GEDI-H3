@@ -858,6 +858,7 @@ def main():
                     )
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
+                h3_logger.update_ran = True     # a MERGING save retries merges only
                 _n_merge_failed = _count_merge_failures(_parquet_dir)
                 h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
                 build_completed = not _n_merge_failed
@@ -1155,6 +1156,9 @@ def main():
                 # Crash safety: if crash between pop and save, disk still has
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
+                # Every stage ran under the update: a MERGING save (merges to
+                # retry) must not keep it pending, or the retry re-reads it all.
+                h3_logger.update_ran = True
                 h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
                 build_completed = not _n_merge_failed
 

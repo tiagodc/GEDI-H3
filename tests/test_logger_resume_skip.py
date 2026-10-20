@@ -230,3 +230,15 @@ class TestInterruptedExpansionResume:
 
         assert resume.new_spatial is None
         assert resume.get_spatial().union_all().equals(whole)
+
+
+    def test_final_save_after_failed_merges_does_not_keep_it_pending(self, tmp_dir):
+        """Every stage ran; only merges are left to retry, which must not re-read the added area."""
+        run = self._interrupted(tmp_dir, spatial=self.B)
+        run.update_ran = True
+        run.save_log('MERGING')
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert resume.new_spatial is None
+        assert resume.get_finished_granules() == [{'orbit': 1, 'granule': 1, 'track': 1}]
