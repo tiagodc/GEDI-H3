@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
+- **Resuming an update whose new variables never reached Stage 2 now adds them.** The first save of an update stores the merged products and variables in the build log. Stage 2 records its own pending marker only when it starts, and for a mixed update (wider region or dates plus new variables) that happens only after Phase 1 has drained. A run killed in between resumed as a plain build: Stage 2 never ran, and granules already indexed never got the new columns, while the log listed the variables. `_pending_update` now also carries the new variables, so the resume is again a mixed or variable-only update. (#52)
 - **Resuming an interrupted region or date expansion no longer skips the added area for indexed granules.** The first save of an expansion stores the widened region or dates in the build log. A run killed before Stage 1 finished therefore resumed as a plain build: it read the whole scope while skipping every `INDEXED` granule, so their shots in the added area were never extracted. The added area is now kept in the log as `_pending_update` until a `COMPLETED` save. A resume reads it under the same expansion semantics, so `INDEXED` granules are re-read in the added area and the interrupted run's Stage 1 sentinels stay valid. An expansion requested by the resuming run is combined with the pending one. (#42)
 
 ## [0.20.1] - 2026-10-06
