@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **A merge killed before promoting its result no longer loses the partition-year.** When new fragments were merged into an existing partition file, `parquet_merge_files` deleted the existing file and every fragment before `h3_merge_files` renamed the merged `<file>.tmp` into place. A kill in that window (SIGKILL, OOM, node loss) left the merged rows only in the orphan `.tmp`. Readers never see that file, the next merge into that partition-year deleted it, and the build log still listed its granules as `INDEXED`. Inputs now survive until the rename, and the fragments are removed afterwards. A merge that finds an orphan `<file>.tmp` with no `<file>` beside it now promotes it and rewrites its metadata, which recovers databases already hit by the bug. The metadata JSON is also written before the fragments are removed, so a kill between the two takes the existing "already merged" skip instead of re-merging. (#46)
+
 ## [0.20.1] - 2026-10-06
 
 ### Fixed
