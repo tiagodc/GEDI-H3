@@ -1498,7 +1498,8 @@ window.runMermaid = runMermaid;</script>
                                 <span class="c1"># and let download_soc() resume idempotently.</span>
                                 <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
                                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"New variables requested — downloading missing granules (idempotent resume)"</span><span class="p">)</span>
-                        <span class="k">elif</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">:</span>
+                        <span class="k">elif</span> <span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">new_spatial</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_temporal</span> <span class="ow">is</span> <span class="kc">None</span>
+                              <span class="ow">and</span> <span class="ow">not</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">new_product_vars</span><span class="p">):</span>
                             <span class="c1"># Same parameters — still run download to discover new NASA granules.</span>
                             <span class="c1"># download_soc() is idempotent: existing files are skipped via resume=True.</span>
                             <span class="n">needs_download</span> <span class="o">=</span> <span class="kc">True</span>
@@ -1632,6 +1633,7 @@ window.runMermaid = runMermaid;</script>
                     <span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">set_post_build_info</span><span class="p">()</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">update_ran</span> <span class="o">=</span> <span class="kc">True</span>     <span class="c1"># a MERGING save retries merges only</span>
                 <span class="n">_n_merge_failed</span> <span class="o">=</span> <span class="n">_count_merge_failures</span><span class="p">(</span><span class="n">_parquet_dir</span><span class="p">)</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span> <span class="k">if</span> <span class="n">_n_merge_failed</span> <span class="k">else</span> <span class="s1">'COMPLETED'</span><span class="p">)</span>
                 <span class="n">build_completed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span>
@@ -1929,6 +1931,9 @@ window.runMermaid = runMermaid;</script>
                 <span class="c1"># Crash safety: if crash between pop and save, disk still has</span>
                 <span class="c1"># PROCESSING status with the flag → next run resumes correctly.</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="c1"># Every stage ran under the update: a MERGING save (merges to</span>
+                <span class="c1"># retry) must not keep it pending, or the retry re-reads it all.</span>
+                <span class="n">h3_logger</span><span class="o">.</span><span class="n">update_ran</span> <span class="o">=</span> <span class="kc">True</span>
                 <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'MERGING'</span> <span class="k">if</span> <span class="n">_n_merge_failed</span> <span class="k">else</span> <span class="s1">'COMPLETED'</span><span class="p">)</span>
                 <span class="n">build_completed</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">_n_merge_failed</span>
 
