@@ -2692,11 +2692,74 @@ def _filter_soc_files_by_temporal(all_soc_files, temporal):
 _PRODUCTS_BEFORE_L2B = frozenset({'L1B', 'L2A'})
 
 
+def _drop_partition_fragments(h3_part_dir: str, *, keys: set, tmp_dir: str) -> int:
+    """Worker: delete the fragments (and completion sentinels) of ``keys`` under one tmp ``h3_*`` dir."""
+    n = 0
+    for ydir in _list_year_subdirs(h3_part_dir):
+        try:
+            entries = list(os.scandir(ydir))
+        except OSError:
+            continue
+        for e in entries:
+            m = _FRAGMENT_BASENAME_RE.match(e.name)
+            if m and (int(m[1]), int(m[2]), int(m[3])) in keys:
+                for path in (e.path, _complete_sentinel_path(tmp_dir, e.name[:-len('.parquet')])):
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+                n += 1
+    return n
+
+
+def _drop_deferred_fragments(tmp_dir: str, keys: set) -> int:
+    """Delete tmp fragments of granules a spatial-only expansion leaves for the next build.
+
+    A run killed during Stage 1 can leave some of a granule's (granule ×
+    beam) fragments in ``tmp_dir``. If this run defers that granule
+    (``build_h3db(only_granules=)``), merging those fragments would list it
+    in the partition metadata, and ``set_post_build_info`` (or the next
+    reconcile) would mark it ``INDEXED`` with its other beams never read.
+    Its fragments go instead: the next build reads it over the whole region.
+
+    Parameters
+    ----------
+    tmp_dir : str
+        Stage 1 fragment root (``<tmp>/partitions``).
+    keys : set of tuple
+        ``(orbit, granule, track)`` of the deferred granules.
+
+    Returns
+    -------
+    int
+        Number of fragments removed.
+    """
+    if not keys or not _has_unmerged_fragments(tmp_dir):
+        return 0
+    try:
+        with os.scandir(tmp_dir) as top:
+            h3_dirs = [e.path for e in top if e.is_dir(follow_symlinks=False) and e.name.startswith('h3_')]
+    except OSError:
+        return 0
+    client = get_dask_client()
+    if client is not None and len(h3_dirs) > 1:
+        from .parallel import parallel_map
+        results = (r for _, r in parallel_map(h3_dirs, _drop_partition_fragments, desc='dropping deferred fragments',
+                                              unit='part', batch_size=256, keys=keys, tmp_dir=tmp_dir))
+    else:
+        results = (_drop_partition_fragments(d, keys=keys, tmp_dir=tmp_dir) for d in h3_dirs)
+    n = sum(r for r in results if isinstance(r, int))
+    if n:
+        logger.info(f"Dropped {n} tmp fragment(s) of granules left for the next build")
+    return n
+
+
 def _filter_granules(
     prod_soc_files: List[Dict[str, str]],
     product_vars: Dict[str, List[str]],
     skip_granules: Optional[List[Dict]] = None,
     required_products: Optional[set] = None,
+    only_granules: Optional[List[Dict]] = None,
 ) -> List[Dict[str, str]]:
     """
     Filter SOC files to exclude incomplete, corrupted, or already-processed granules.
@@ -2718,6 +2781,9 @@ def _filter_granules(
         Products a granule must have. ``None`` requires every product in
         ``product_vars``; a subset (``{'L2A'}``) admits granules whose later
         products are not published yet.
+    only_granules : list of dict, optional
+        If given, every other granule is left out (and counted as deferred):
+        see ``H3BuildLogger.stage1_only_granules``.
 
     Returns
     -------
@@ -2726,6 +2792,7 @@ def _filter_granules(
     """
     required = set(product_vars) if required_products is None else set(required_products)
     skip = {(g['orbit'], g['granule'], g['track']) for g in (skip_granules or [])}
+    only = None if only_granules is None else {(g['orbit'], g['granule'], g['track']) for g in only_granules}
 
     def _granule_key(prod):
         path = next(iter(prod.values()))
@@ -2737,6 +2804,14 @@ def _filter_granules(
 
     candidates = [p for p in prod_soc_files
                   if p and required.issubset(p) and (not skip or _granule_key(p) not in skip)]
+    if only is not None:
+        n_listed = len(candidates)
+        candidates = [p for p in candidates if _granule_key(p) in only]
+        if len(candidates) < n_listed:
+            logger.warning(
+                f"{n_listed - len(candidates)} granule(s) not finished under the stored region are left for "
+                f"the next build: this update reads only the region it adds, and they need the whole region. "
+                f"Run gh3_build again once it completes to index them.")
 
     def _filter_soc_file(prod):
         if any(isinstance(f, EarthAccessFile) for f in prod.values()):
@@ -5202,6 +5277,7 @@ def build_h3db(
     tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
+    only_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     variable_only_update: bool = False,
     exclude: Optional[List[str]] = None,
@@ -5240,6 +5316,10 @@ def build_h3db(
         Output path for the H3-indexed parquet database.
     skip_granules : list of dict, optional
         List of granule identifiers to skip (from previous builds).
+    only_granules : list of dict, optional
+        If given, Stage 1 reads only these granules and leaves every other one
+        for a later build (``H3BuildLogger.stage1_only_granules``: a
+        spatial-only expansion reads only the added region).
     status_callback : callable, optional
         Called with status string at pipeline stage transitions.
     variable_only_update : bool, default False
@@ -5404,7 +5484,12 @@ def build_h3db(
         # incomplete download, not a product that is not out yet.
         required = (_PRODUCTS_BEFORE_L2B & set(product_vars)) or None if allow_missing_products else None
         soc_files = _filter_granules(prod_soc_files, product_vars, skip_granules,
-                                     required_products=required)
+                                     required_products=required, only_granules=only_granules)
+        if only_granules is not None:
+            _admitted = {(g['orbit'], g['granule'], g['track']) for g in only_granules}
+            _listed = {_granule_id_from_l2a_path(getattr(f, 'path', f))
+                       for f in (next(iter(p.values())) for p in prod_soc_files if p)}
+            _drop_deferred_fragments(os.path.join(tmp_dir, 'partitions'), _listed - _admitted - {None})
 
         if len(soc_files) == 0:
             parquet_dir = os.path.join(tmp_dir, 'partitions')

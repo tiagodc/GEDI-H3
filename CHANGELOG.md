@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - **Resuming an update whose new variables never reached Stage 2 now adds them.** The first save of an update stores the merged products and variables in the build log. Stage 2 records its own pending marker only when it starts, and for a mixed update (wider region or dates plus new variables) that happens only after Phase 1 has drained. A run killed in between resumed as a plain build: Stage 2 never ran, and granules already indexed never got the new columns, while the log listed the variables. `_pending_update` now also carries the new variables, so the resume is again a mixed or variable-only update. (#52)
+
+## [0.20.4] - 2026-10-20
+
+### Fixed
+- **A granule new to the database is no longer indexed from only part of a widened region.** A spatial-only update hands Stage 1 only the region it adds. A granule downloaded in the same run that widened `-r` was read under that added region alone. Its rows there made it `INDEXED`, so no later build read its rows in the stored region. Such an update now reads only granules already indexed under the stored region. Every other granule (new, `PENDING`, `FAILED`, `MERGE_FAILED`, or a `NO_DATA` reopened by the widening) is left as it is, with a warning, along with any of its fragments left in tmp by an interrupted run. The next `gh3_build` reads it over the whole region. A region request that does not widen the stored one is now a plain update. Before, `merge_spatial`'s symmetric difference turned it into a "spatial-only expansion" over the stored region minus the request, with the same loss. The added region is now exactly the new area: before, a disjoint request re-read the whole stored region. (#42)
+
+## [0.20.3] - 2026-10-20
+
+### Fixed
 - **Resuming an interrupted region or date expansion no longer skips the added area for indexed granules.** The first save of an expansion stores the widened region or dates in the build log. A run killed before Stage 1 finished therefore resumed as a plain build: it read the whole scope while skipping every `INDEXED` granule, so their shots in the added area were never extracted. The added area is now kept in the log as `_pending_update` until the run's stages have completed. A resume reads it under the same expansion semantics, so `INDEXED` granules are re-read in the added area and the interrupted run's Stage 1 sentinels stay valid. An expansion requested by the resuming run is combined with the pending one. (#42)
 
 ## [0.20.2] - 2026-10-20
