@@ -10,7 +10,8 @@ from .config import GEDI_PRODUCTS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_SOC_DIR
 from .exceptions import GediValidationError
 from .utils import now, json_read, json_write, read_vector_file, to_geojson, from_geojson, parse_spatial, merge_spatial, parse_temporal, get_package_version
 from .h3utils import intersect_h3_geometries
-from .gedidriver import GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files, write_soc_manifest
+from .gedidriver import (GEDIFile, gedi_vars_expand, soc_file_tree, check_soc_file_vars, validate_soc_files,
+                         write_soc_manifest, gedi_release_rank, gedi_release_tag)
 from .gh3driver import gh3_list_files
 
 _VALID_STATUSES = (
@@ -1437,6 +1438,50 @@ class H3BuildLogger:
                 g.setdefault('products', {}).update(statuses)
                 n += len(statuses)
         return n
+
+    def superseded_releases(self, soc_entries):
+        """Indexed granules whose listed source differs from the release read.
+
+        Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded
+        ``releases`` with the file a listing would read now. Log-only, no I/O.
+        A product with no recorded tag is unknown and never reported.
+
+        Parameters
+        ----------
+        soc_entries : iterable of dict
+            ``{product: path}`` per granule, as ``soc_file_tree(...,
+            to_list=True)`` returns them (each product's latest release).
+
+        Returns
+        -------
+        dict
+            ``{'newer': {key: {product: (recorded, listed)}}, 'older': {...}}``
+            keyed by ``(orbit, granule, track)``. ``newer``: a re-release
+            within the GEDI version that the rows do not come from (#47).
+            ``older``: only an older release than the one read is listed;
+            it is never applied, but variables added and products filled
+            later would read it.
+        """
+        index = {(g['orbit'], g['granule'], g['track']): g for g in getattr(self, 'granule_info', None) or []
+                 if g.get('releases') and g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA)}
+        out = {'newer': {}, 'older': {}}
+        if not index:
+            return out
+        for entry in soc_entries:
+            for product, path in entry.items():
+                path = str(getattr(path, 'path', path))
+                fl = os.path.basename(path).split('_')
+                try:
+                    key = (int(fl[3][1:]), int(fl[4]), int(fl[5][1:]))
+                except (IndexError, ValueError):
+                    continue
+                recorded = (index.get(key) or {}).get('releases', {}).get(product)
+                listed = gedi_release_tag(path)
+                if recorded is None or listed is None or listed == recorded:
+                    continue
+                side = 'newer' if gedi_release_rank(listed) > gedi_release_rank(recorded) else 'older'
+                out[side].setdefault(key, {})[product] = (recorded, listed)
+        return out
 
     def pending_product_fills(self, statuses=(PRODUCT_STATUS_MISSING_SOURCE,)):
         """Indexed granules still waiting for products published after them.

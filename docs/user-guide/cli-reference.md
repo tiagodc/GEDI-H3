@@ -282,11 +282,11 @@ group alias:
 | Alias | Runs |
 |-------|------|
 | `db` | the default: `backfill`, `orphans`, `log_state`, `metadata`, `parquet_health`, `geoparquet_bbox`, `dtype_drift` |
-| `soc` | `soc_health` |
+| `soc` | `soc_health`, `superseded_granules` |
 | `all` | every registered diagnosis |
 
 ```{note}
-`soc_health` and `tmp_partitions_health` are **not** in the `db` group, so a
+`soc_health`, `superseded_granules` and `tmp_partitions_health` are **not** in the `db` group, so a
 plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 ```
 
@@ -300,6 +300,7 @@ plain `gh3_doctor -i /db` does not run them. Ask for them by name, or use `all`.
 | `geoparquet_bbox` | GeoParquet bbox metadata coverage |
 | `dtype_drift` | columns stored in a type other than the source HDF5 of the database's release (needs the SOC tree: `--soc-dir`) |
 | `soc_health` | invalid HDF5 files, and download-log drift |
+| `superseded_granules` | indexed granules whose source file has a newer release in the SOC tree (NASA re-releases within one GEDI version), or only an older one; read-only, from the build log's recorded releases (needs `--soc-dir`) |
 | `tmp_partitions_health` | post-build forensics on `tmp/partitions/`: merge-failure sentinels, granule-failure summaries, and progress↔manifest drift |
 
 `--online` decorates the report with NASA upstream availability and emits

@@ -32,7 +32,7 @@ _REGISTRY: Dict[str, Diagnosis] = {}
 # against whatever diagnoses have registered.
 ALIAS_GROUPS = {
     'db': ['backfill', 'orphans', 'log_state', 'metadata', 'parquet_health', 'geoparquet_bbox', 'dtype_drift'],
-    'soc': ['soc_health'],
+    'soc': ['soc_health', 'superseded_granules'],
     'all': None,                         # special: all registered diagnoses
 }
 

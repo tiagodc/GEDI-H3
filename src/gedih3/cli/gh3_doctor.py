@@ -57,7 +57,7 @@ Examples:
 
 Common knobs:
   --orphan-age-hours  protects in-progress builds (default 24h: anything younger is ignored)
-  --soc-dir           required for backfill / soc_health if not at default location
+  --soc-dir           required for backfill / soc_health / superseded_granules if not at default location
   -s tcp://...        attach to an existing dask cluster (for parallel diagnoses)
 """
 

@@ -802,3 +802,44 @@ def test_a_variable_update_while_a_product_is_pending_reaches_every_file(tmp_dir
     out = gb._build_fill_products(h3_dir, {b: ['L4A']}, soc_source=soc_dir, version=2, tmp_dir=tmp)
     assert out['filled'] == {b: ['L4A']}
     assert _db_table(h3_dir)['agbd_se_l4a'].null_count == 0
+
+
+def test_superseded_releases_compares_listed_and_recorded(tmp_dir):
+    """Log-only: newer and older listed releases of read granules; unknown,
+    unchanged and unread ones are not reported (#47)."""
+    log = _logger_with(tmp_dir, [
+        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_02', 'L4A': '02_002_01'}},
+        {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'NO_DATA', 'releases': {'L2A': '02_003_02'}},
+        {'orbit': 3, 'granule': 1, 'track': 1, 'status': 'INDEXED'},
+        {'orbit': 4, 'granule': 1, 'track': 1, 'status': 'PENDING', 'releases': {'L2A': '02_003_02'}},
+    ])
+
+    def entry(orbit, **releases):
+        return {p: f"/soc/GEDI0{p[1]}_{p[2]}_2020100120000_O{orbit:05d}_01_T00001_{r}_V002.h5"
+                for p, r in releases.items()}
+
+    class _S3:                                                  # an EarthAccessFile-like listing value
+        path = 's3://b/GEDI02_A_2020100120000_O00002_01_T00001_02_003_01_V002.h5'
+
+    found = log.superseded_releases([
+        entry(1, L2A='02_004_01', L4A='02_002_01', L2B='02_009_09'),   # L2B: no recorded tag
+        {'L2A': _S3()},
+        entry(3, L2A='02_009_09'), entry(4, L2A='02_009_09'),
+        {'L2A': '/soc/not_a_gedi_name.h5'},
+    ])
+    assert found == {'newer': {(1, 1, 1): {'L2A': ('02_003_02', '02_004_01')}},
+                     'older': {(2, 1, 1): {'L2A': ('02_003_02', '02_003_01')}}}
+
+
+def test_superseded_warning_names_an_example(tmp_dir, caplog):
+    import logging
+    from gedih3.cli.gh3_build import _warn_superseded_granules
+    log = _logger_with(tmp_dir, [{'orbit': 7, 'granule': 2, 'track': 9, 'status': 'INDEXED',
+                                  'releases': {'L2A': '02_003_01'}}])
+    lg = logging.getLogger('test_superseded')
+    with caplog.at_level(logging.WARNING, logger='test_superseded'):
+        _warn_superseded_granules(log, [{'L2A': 'GEDI02_A_2020100120000_O00007_02_T00009_02_004_01_V002.h5'}], lg)
+    assert len(caplog.records) == 1
+    msg = caplog.records[0].getMessage()
+    assert msg.startswith('1 granule(s) were indexed from an older release') and msg.isascii()
+    assert 'O00007_02_T00009 L2A 02_003_01 -> 02_004_01' in msg
