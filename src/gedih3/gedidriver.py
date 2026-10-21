@@ -671,8 +671,10 @@ class GEDIShot(GEDIFile):
     """
     Decoder for GEDI shot numbers.
 
-    Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
-    The shot number is a 64-bit integer encoding multiple fields.
+    Extracts the orbit, beam, granule and shot index encoded in GEDI shot
+    numbers. A shot number has 18 digits, ``OOOOOBBRRGNNNNNNNN``: orbit (5),
+    beam (2), reserved (2), granule within the orbit (1), shot index (8).
+    The ground track is not encoded.
 
     Attributes
     ----------
@@ -682,8 +684,9 @@ class GEDIShot(GEDIFile):
         Orbit number
     orbit_granule : int or array
         Granule number within orbit
-    track : int or array
-        Ground track number
+    track : None
+        Not encoded in the shot number, so file globs match any track
+        (orbit and granule identify the file).
     beam : int or array
         Beam number (0-7)
     beam_str : str or list
@@ -695,22 +698,22 @@ class GEDIShot(GEDIFile):
 
     Examples
     --------
-    >>> shot = GEDIShot(12345678901234567890)
-    >>> shot.beam_str
-    'BEAM0101'
+    >>> shot = GEDIShot(19560500300012345)
+    >>> shot.orbit, shot.orbit_granule, shot.beam_str, shot.shot_index
+    (1956, 3, 'BEAM0101', 12345)
     """
 
     def __init__(self, shot: Union[int, np.ndarray], build_glob: bool = False):
         self.parse_shot(shot)
         if build_glob:
-            self.get_file_glob()
+            self.get_glob_pattern()
 
     def parse_shot(self, shot: Union[int, np.ndarray]) -> None:
         self.is_scalar = np.isscalar(shot)
         self.shot = shot
         self.orbit = shot // 10000000000000
         self.orbit_granule = shot % 1000000000 // 100000000
-        self.track = shot // 100000000000
+        self.track = None  # not encoded; ``shot // 1e11`` is the orbit and beam digits
         self.beam = shot % 10000000000000 // 100000000000
         self.power = self.beam > 3
         self.reserved  = shot % 1000000000000 // 1000000000 % 100
@@ -722,23 +725,39 @@ class GEDIShot(GEDIFile):
             self.beam_str = [f'BEAM{b:04b}' for b in self.beam]    
     
     def get_glob_pattern(self, product: int=1, level: str='B', ppds: int=2, pge:int=None, generation:int=None, version:int=None):
+        """Glob pattern(s) of the GEDI file(s) holding these shots (any track).
+
+        Returns
+        -------
+        str or list of str
+            One pattern for a scalar shot; for an array, one per distinct
+            granule, sorted. Also stored as ``file_glob_pattern``.
+        """
         if self.is_scalar:
             self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
-            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track[i], product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
-            self.file_glob_pattern - list(set(self.file_pattern))
-        
-    def search_file(self, soc_dir: str):
-        if self.is_scalar:
-            files = glob.glob(os.path.join(soc_dir, self.file_glob_pattern))
-        else:
-            files = []
-            for fp in self.file_glob_pattern:
-                files.extend(glob.glob(os.path.join(soc_dir, fp)))
-            files = list(set(files))
+            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track, product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
+            self.file_glob_pattern = sorted(set(self.file_glob_pattern))
+        return self.file_glob_pattern
 
-        return files
-            
+    def search_file(self, soc_dir: str):
+        """Files under ``soc_dir`` matching ``file_glob_pattern`` (built if absent).
+
+        Returns
+        -------
+        list of str
+            Sorted paths; empty if none match.
+        """
+        # A SOC tree is <soc>/<year>/<doy>/: walk it, as GEDIFile.search_file does
+        # (_soc_manifest.txt is write-only, so smart_glob does not apply).
+        patterns = getattr(self, 'file_glob_pattern', None) or self.get_glob_pattern()
+        if self.is_scalar:
+            patterns = [patterns]
+        files = set()
+        for fp in patterns:
+            files.update(glob.glob(os.path.join(soc_dir, '**', fp), recursive=True))
+        return sorted(files)
+
 @njit
 def wfm_pad(wave, n_bins=1420, cval=0):
     bin_diff = len(wave) - n_bins

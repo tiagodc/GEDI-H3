@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **`GEDIShot` decodes what a shot number encodes, and its file globs work.** `GEDIShot.track` was `shot // 1e11`, which is the orbit and beam digits: the ground track is not encoded in a shot number. It is now `None`, so `get_glob_pattern` and `search_file` match any track (orbit and granule identify the file) instead of a track that never exists. `get_glob_pattern` on an array of shots and `GEDIShot(..., build_glob=True)` no longer raise, and `search_file` searches the `<year>/<doy>` tree recursively. The docstring now gives the shot-number layout and a valid example.
+
 ## [0.20.6] - 2026-10-20
 
 ### Added
