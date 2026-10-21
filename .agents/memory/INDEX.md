@@ -23,6 +23,7 @@ Invariants, architecture and design priorities live in `CLAUDE.md`; this memory 
 
 ## Memory
 - [[concepts/build-log-resume-state]] — how gh3_build resumes an interrupted update: _pending_update, _pending_variable_update, update_ran
+- [[decisions/0001-granule-release-replacement]] — #47 owner calls: PPDS>PGE>GEN ranking, no downgrade, opt-in --replace-granules, basename identity
 - [[gotchas/claude-review-check-noop]] — claude-review CI check passed without reviewing until #43; how to test workflow changes
 - [[procedures/landing-prs-on-main]] — main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
 - [[procedures/testing-a-worktree]] — run the suite against a worktree: PYTHONPATH=src, env bin on PATH, known order-dependent test

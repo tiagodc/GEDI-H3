@@ -6,3 +6,4 @@
 2026-10-20T15:25:28-04:00 · claude-code/opus-5.5 · opened #49 (#46), #50+#54 (#42), #51 (#47 warning), #53 (GEDIShot), #55 (#52, filed); all blind-reviewed and fixed
 2026-10-20T22:59:03-04:00 · claude-code/opus-5.5 · merged #49 #50 #54 #55 #51 #53 after a fresh blind review each; bumped 0.20.2..0.20.7; filed #56
 2026-10-21T08:26:56-04:00 · claude-code/opus-5.5 · merged #57 (closes #56) after a blind review; bumped 0.20.8
+2026-10-21T08:31:33-04:00 · agent · #47 owner decisions recorded (Q1 ranking, Q2 opt-in, Q5 identity); phase A started on feat/granule-release-identity
