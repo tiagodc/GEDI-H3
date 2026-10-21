@@ -1,6 +1,6 @@
 # Granule re-release replacement (#47)
 > owner calls for #47: release ranking, opt-in replacement, identity in S3 mode
-updated: 2026-10-21T11:48:35-04:00
+updated: 2026-10-21T15:20:47-04:00
 
 **Status:** accepted
 
@@ -22,8 +22,10 @@ granule whose file changes. The issue left three questions to the owner (Q1, Q2,
   concurrent readers are documented, not locked (Q6).
 
 ## Consequences
-PR split: explicit ranking (#58, 0.20.9) → identity in the build log (#59, 0.20.10) → detection and doctor diagnosis →
-drop-predicate primitive → Stage 0 replace driver.
+PR split: explicit ranking (#58, 0.20.9) → identity in the build log (#59, 0.20.10) → detection and doctor diagnosis
+(#60, 0.20.11) → drop-predicate primitive (#61, 0.20.12) → Stage 0 replace driver.
+- The primitive's idempotence rests on an enforced invariant: new rows of a replaced granule must name the files in the
+  map (basenames), or the merge raises before writing, including a first merge with no destination (`replace_in=None`).
 - Identity is a compact tag per product in the build log (`releases`, `gedi_release_tag`), not a basename: log size.
 - The safety rule the reviews converged on: no path may record a release *newer* than the rows it describes. A tag is
   never replaced; an entry registered before #59 stays unknown; a merge keeps a tag only when both logs carry one (older);

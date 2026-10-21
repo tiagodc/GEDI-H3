@@ -8,3 +8,4 @@
 2026-10-21T08:26:56-04:00 · claude-code/opus-5.5 · merged #57 (closes #56) after a blind review; bumped 0.20.8
 2026-10-21T08:31:33-04:00 · agent · #47 owner decisions recorded (Q1 ranking, Q2 opt-in, Q5 identity); phase A started on feat/granule-release-identity
 2026-10-21T11:48:35-04:00 · agent · merged #58 (0.20.9) and #59 (0.20.10): #47 parts 1-2; #59 took three blind-review rounds
+2026-10-21T15:20:47-04:00 · agent · merged #60 (0.20.11) and #61 (0.20.12): #47 parts 3-4 (detection, replace_granules primitive)
