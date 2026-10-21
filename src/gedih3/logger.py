@@ -691,10 +691,10 @@ class H3BuildLogger:
         # update is merged in: gh3_build must not take its merge-only shortcut
         # over a widening nothing has read yet.
         self.requested_expansion = self.new_spatial is not None or self.new_temporal is not None
-        self._restore_pending_expansion()
+        self._restore_pending_update()
 
-    def _restore_pending_expansion(self):
-        """Resume an expansion that a previous run started but never completed (#42).
+    def _restore_pending_update(self):
+        """Resume an update that a previous run started but never completed (#42, #52).
 
         The first ``save_log`` of an expansion already stores the widened
         region/dates, so a plain resume would see no ``new_spatial`` /
@@ -706,10 +706,22 @@ class H3BuildLogger:
         run (and Stage 1's scope fingerprint matches its sentinels). An
         expansion requested by this run is combined with it: reading a superset
         of the added area costs a re-read, never rows.
+
+        The same first save stores the new products/variables in the log's
+        ``products``, so a resume would also see no ``new_product_vars``: a
+        mixed update killed in Phase 1 (or a variable update killed before
+        Stage 2 started) never ran Stage 2, and the granules already indexed
+        never got the new columns (#52). They are restored the same way, so the
+        resume is again a mixed (or variable-only) update.
         """
         pending = self.log_data.get('_pending_update')
         if not pending:
             return
+        product_vars = pending.get('product_vars')
+        if product_vars:
+            self.product_vars = merge_product_vars(self.product_vars or {}, product_vars)[0]
+            self.new_product_vars = (product_vars if self.new_product_vars is None
+                                     else merge_product_vars(self.new_product_vars, product_vars)[0])
         spatial = parse_spatial(pending.get('spatial'))
         if spatial is not None:
             self.new_spatial = (spatial if self.new_spatial is None
@@ -720,7 +732,7 @@ class H3BuildLogger:
                                  else merge_temporal(self.new_temporal, temporal)[0])
         from .logging_config import get_logger
         get_logger(__name__).debug(
-            "Build log holds an interrupted region/date expansion: its added area is read again")
+            "Build log holds an interrupted update: its added area and variables are processed again")
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
@@ -1275,19 +1287,19 @@ class H3BuildLogger:
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
 
-        # Pending until the run's stages have run; see _restore_pending_expansion.
-        # Not for a mixed update (new variables too): its first save already
-        # merged them, so a restored area alone would resume it as a
-        # spatial-only expansion (#52).
+        # Pending until the run's stages have run, or until Stage 2 starts: its
+        # own _pending_variable_update then describes all the remaining work.
+        # See _restore_pending_update.
         new_spatial = getattr(self, 'new_spatial', None)
         new_temporal = getattr(self, 'new_temporal', None)
+        new_product_vars = getattr(self, 'new_product_vars', None)
         if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
                 and not getattr(self, 'update_ran', False)
-                and not getattr(self, 'new_product_vars', None)
-                and (new_spatial is not None or new_temporal is not None)):
+                and (new_spatial is not None or new_temporal is not None or new_product_vars)):
             log_dict['_pending_update'] = {
                 'spatial': None if new_spatial is None else to_geojson(new_spatial),
                 'temporal': None if new_temporal is None else list(new_temporal),
+                'product_vars': new_product_vars or None,
             }
 
         return log_dict

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **Resuming an update whose new variables never reached Stage 2 now adds them.** The first save of an update stores the merged products and variables in the build log. Stage 2 records its own pending marker only when it starts, and for a mixed update (wider region or dates plus new variables) that happens only after Phase 1 has drained. A run killed in between resumed as a plain build: Stage 2 never ran, and granules already indexed never got the new columns, while the log listed the variables. `_pending_update` now also carries the new variables, so the resume is again a mixed or variable-only update. (#52)
+
 ## [0.20.4] - 2026-10-20
 
 ### Fixed
