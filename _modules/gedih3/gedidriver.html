@@ -898,6 +898,59 @@ window.runMermaid = runMermaid;</script>
 
 
 
+<span class="c1"># Duplicate groups soc_file_tree has already reported in this process, keyed</span>
+<span class="c1"># by (orb_track, product, file paths): a build lists the SOC tree several</span>
+<span class="c1"># times, and one warning per group is enough, while a further re-release</span>
+<span class="c1"># changes the key and is reported again. A stopgap until superseded granules</span>
+<span class="c1"># are tracked in the build log (#47).</span>
+<span class="n">_REPORTED_DUPLICATE_FILES</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_report_duplicate_granule_files</span><span class="p">(</span><span class="n">flist</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Warn once per granule product that has more than one file in a listing.</span>
+
+<span class="sd">    ``soc_file_tree`` keys files by orbit/granule/track and keeps the last</span>
+<span class="sd">    path of each product in full-path order (``aggfunc='last'``); within one</span>
+<span class="sd">    directory that ranks PPDS, then PGE, then GEN, then the suffix. A second</span>
+<span class="sd">    file is a re-release within the same GEDI version, or an internal variant</span>
+<span class="sd">    such as ``_SGS``. Nothing re-indexes a granule whose file changes: rows</span>
+<span class="sd">    already in a database stay from the file they were built from, while</span>
+<span class="sd">    variables added and products filled later are read from the file chosen</span>
+<span class="sd">    here.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    flist : pandas.DataFrame</span>
+<span class="sd">        The listing, with ``file_paths``, ``orb_track`` and ``prod`` columns.</span>
+<span class="sd">    """</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">(</span><span class="s1">'file_paths'</span><span class="p">)</span>     <span class="c1"># one path listed twice is not a second file</span>
+    <span class="n">dup</span> <span class="o">=</span> <span class="n">files</span><span class="p">[</span><span class="n">files</span><span class="o">.</span><span class="n">duplicated</span><span class="p">([</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="s1">'prod'</span><span class="p">],</span> <span class="n">keep</span><span class="o">=</span><span class="kc">False</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">dup</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">new</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">orb_track</span><span class="p">,</span> <span class="n">prod</span><span class="p">),</span> <span class="n">paths</span> <span class="ow">in</span> <span class="n">dup</span><span class="o">.</span><span class="n">groupby</span><span class="p">([</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="s1">'prod'</span><span class="p">],</span> <span class="n">sort</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="s1">'file_paths'</span><span class="p">]:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span>                       <span class="c1"># the pivot keeps the last one</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">orb_track</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">paths</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_REPORTED_DUPLICATE_FILES</span><span class="p">:</span>
+            <span class="n">_REPORTED_DUPLICATE_FILES</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">new</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">paths</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">paths</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">new</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">for</span> <span class="n">used</span><span class="p">,</span> <span class="n">others</span> <span class="ow">in</span> <span class="n">new</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Duplicate granule files: using </span><span class="si">{</span><span class="n">used</span><span class="si">}</span><span class="s2"> over </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">others</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">used</span><span class="p">,</span> <span class="n">others</span> <span class="o">=</span> <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" (and </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">new</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> more, listed at DEBUG level)"</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">new</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule product(s) have more than one file in the SOC listing (a re-release within "</span>
+        <span class="sa">f</span><span class="s2">"the same GEDI version, or an internal variant such as _SGS). The last in path order is used, "</span>
+        <span class="sa">f</span><span class="s2">"e.g. </span><span class="si">{</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">used</span><span class="p">)</span><span class="si">}</span><span class="s2"> over </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">o</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">others</span><span class="p">)</span><span class="si">}{</span><span class="n">more</span><span class="si">}</span><span class="s2">. "</span>
+        <span class="sa">f</span><span class="s2">"Rows already in a database are not re-indexed from a newer file, and variables added or "</span>
+        <span class="sa">f</span><span class="s2">"products filled later read the file used here. Remove the files you don't want, or exclude "</span>
+        <span class="sa">f</span><span class="s2">"them (exclude=, gh3_build --exclude); some listings, such as product backfills, do not apply "</span>
+        <span class="sa">f</span><span class="s2">"--exclude and may report files you already exclude."</span>
+    <span class="p">)</span>
+
+
 <div class="viewcode-block" id="soc_file_tree">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.soc_file_tree">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">soc_file_tree</span><span class="p">(</span>
@@ -1016,6 +1069,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">flist</span><span class="p">[</span><span class="s1">'prod'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'L'</span> <span class="o">+</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span> <span class="o">+</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">flist</span><span class="p">[</span><span class="s1">'orb_track'</span><span class="p">]</span> <span class="o">=</span> <span class="n">fidx</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
     <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">sort_values</span><span class="p">([</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="s1">'file_paths'</span><span class="p">,</span> <span class="s1">'prod'</span><span class="p">])</span>
+    <span class="n">_report_duplicate_granule_files</span><span class="p">(</span><span class="n">flist</span><span class="p">)</span>
     <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="s1">'orb_track'</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="s1">'prod'</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="s1">'file_links'</span><span class="p">,</span> <span class="n">aggfunc</span><span class="o">=</span><span class="s1">'last'</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">require_all</span><span class="p">:</span>
         <span class="n">flist</span> <span class="o">=</span> <span class="n">flist</span><span class="o">.</span><span class="n">dropna</span><span class="p">()</span>
