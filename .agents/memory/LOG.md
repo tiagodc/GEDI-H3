@@ -7,3 +7,4 @@
 2026-10-20T22:59:03-04:00 · claude-code/opus-5.5 · merged #49 #50 #54 #55 #51 #53 after a fresh blind review each; bumped 0.20.2..0.20.7; filed #56
 2026-10-21T08:26:56-04:00 · claude-code/opus-5.5 · merged #57 (closes #56) after a blind review; bumped 0.20.8
 2026-10-21T08:31:33-04:00 · agent · #47 owner decisions recorded (Q1 ranking, Q2 opt-in, Q5 identity); phase A started on feat/granule-release-identity
+2026-10-21T11:48:35-04:00 · agent · merged #58 (0.20.9) and #59 (0.20.10): #47 parts 1-2; #59 took three blind-review rounds
