@@ -835,3 +835,15 @@ def test_soc_file_tree_reports_a_further_rerelease_again(duplicate_warnings):
     soc_file_tree(_RERELEASE_NAMES + [third])
     assert len(duplicate_warnings) == 2
     assert os.path.basename(third) + ' over ' in duplicate_warnings[1]
+
+
+def test_soc_file_tree_summarises_several_duplicates(duplicate_warnings, monkeypatch):
+    import gedih3.gedidriver as gd
+    debug = []
+    monkeypatch.setattr(gd.logger, 'debug', lambda msg, *a, **k: debug.append(msg))
+    second = [p.replace('O01956_03_T03909', 'O01958_01_T03911') for p in _RERELEASE_NAMES[:2]]
+
+    soc_file_tree(_RERELEASE_NAMES + second)
+
+    assert duplicate_warnings[0].startswith('2 granule product(s)') and '(and 1 more' in duplicate_warnings[0]
+    assert len([m for m in debug if m.startswith('Duplicate granule files')]) == 2

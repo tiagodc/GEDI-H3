@@ -177,7 +177,8 @@ def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
         f"e.g. {os.path.basename(used)} over {', '.join(os.path.basename(o) for o in others)}{more}. "
         f"Rows already in a database are not re-indexed from a newer file, and variables added or "
         f"products filled later read the file used here. Remove the files you don't want, or exclude "
-        f"them (exclude=, gh3_build --exclude)."
+        f"them (exclude=, gh3_build --exclude); some listings, such as product backfills, do not apply "
+        f"--exclude and may report files you already exclude."
     )
 
 
