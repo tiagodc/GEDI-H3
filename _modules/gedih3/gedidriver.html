@@ -1490,8 +1490,10 @@ window.runMermaid = runMermaid;</script>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Decoder for GEDI shot numbers.</span>
 
-<span class="sd">    Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.</span>
-<span class="sd">    The shot number is a 64-bit integer encoding multiple fields.</span>
+<span class="sd">    Extracts the orbit, beam, granule and shot index encoded in GEDI shot</span>
+<span class="sd">    numbers. A shot number has 18 digits, ``OOOOOBBRRGNNNNNNNN``: orbit (5),</span>
+<span class="sd">    beam (2), reserved (2), granule within the orbit (1), shot index (8).</span>
+<span class="sd">    The ground track is not encoded.</span>
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
@@ -1501,8 +1503,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Orbit number</span>
 <span class="sd">    orbit_granule : int or array</span>
 <span class="sd">        Granule number within orbit</span>
-<span class="sd">    track : int or array</span>
-<span class="sd">        Ground track number</span>
+<span class="sd">    track : None</span>
+<span class="sd">        Not encoded in the shot number, so file globs match any track</span>
+<span class="sd">        (orbit and granule identify the file).</span>
 <span class="sd">    beam : int or array</span>
 <span class="sd">        Beam number (0-7)</span>
 <span class="sd">    beam_str : str or list</span>
@@ -1514,15 +1517,15 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; shot = GEDIShot(12345678901234567890)</span>
-<span class="sd">    &gt;&gt;&gt; shot.beam_str</span>
-<span class="sd">    'BEAM0101'</span>
+<span class="sd">    &gt;&gt;&gt; shot = GEDIShot(19560500300012345)</span>
+<span class="sd">    &gt;&gt;&gt; shot.orbit, shot.orbit_granule, shot.beam_str, shot.shot_index</span>
+<span class="sd">    (1956, 3, 'BEAM0101', 12345)</span>
 <span class="sd">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shot</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">],</span> <span class="n">build_glob</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">parse_shot</span><span class="p">(</span><span class="n">shot</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">build_glob</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">get_file_glob</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_glob_pattern</span><span class="p">()</span>
 
 <div class="viewcode-block" id="GEDIShot.parse_shot">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.parse_shot">[docs]</a>
@@ -1531,7 +1534,7 @@ window.runMermaid = runMermaid;</script>
         <span class="bp">self</span><span class="o">.</span><span class="n">shot</span> <span class="o">=</span> <span class="n">shot</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">orbit</span> <span class="o">=</span> <span class="n">shot</span> <span class="o">//</span> <span class="mi">10000000000000</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">orbit_granule</span> <span class="o">=</span> <span class="n">shot</span> <span class="o">%</span> <span class="mi">1000000000</span> <span class="o">//</span> <span class="mi">100000000</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">track</span> <span class="o">=</span> <span class="n">shot</span> <span class="o">//</span> <span class="mi">100000000000</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">track</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># not encoded; ``shot // 1e11`` is the orbit and beam digits</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">beam</span> <span class="o">=</span> <span class="n">shot</span> <span class="o">%</span> <span class="mi">10000000000000</span> <span class="o">//</span> <span class="mi">100000000000</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">power</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">beam</span> <span class="o">&gt;</span> <span class="mi">3</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reserved</span>  <span class="o">=</span> <span class="n">shot</span> <span class="o">%</span> <span class="mi">1000000000000</span> <span class="o">//</span> <span class="mi">1000000000</span> <span class="o">%</span> <span class="mi">100</span>
@@ -1546,28 +1549,44 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="GEDIShot.get_glob_pattern">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.get_glob_pattern">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_glob_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">product</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">str</span><span class="o">=</span><span class="s1">'B'</span><span class="p">,</span> <span class="n">ppds</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">pge</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">generation</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Glob pattern(s) of the GEDI file(s) holding these shots (any track).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str or list of str</span>
+<span class="sd">            One pattern for a scalar shot; for an array, one per distinct</span>
+<span class="sd">            granule, sorted. Also stored as ``file_glob_pattern``.</span>
+<span class="sd">        """</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span> <span class="o">=</span> <span class="n">gedi_file_glob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">orbit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">track</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ppds</span><span class="p">,</span> <span class="n">pge</span><span class="p">,</span> <span class="n">generation</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span> <span class="o">=</span> <span class="p">[</span><span class="n">gedi_file_glob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">orbit</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">track</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">product</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ppds</span><span class="p">,</span> <span class="n">pge</span><span class="p">,</span> <span class="n">generation</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shot</span><span class="p">))]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span> <span class="o">-</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_pattern</span><span class="p">))</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span> <span class="o">=</span> <span class="p">[</span><span class="n">gedi_file_glob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">orbit</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">orbit_granule</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">track</span><span class="p">,</span> <span class="n">product</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">ppds</span><span class="p">,</span> <span class="n">pge</span><span class="p">,</span> <span class="n">generation</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shot</span><span class="p">))]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span></div>
 
-        
+
 <div class="viewcode-block" id="GEDIShot.search_file">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.GEDIShot.search_file">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">search_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soc_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
-            <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">fp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_glob_pattern</span><span class="p">:</span>
-                <span class="n">files</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">fp</span><span class="p">)))</span>
-            <span class="n">files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">files</span><span class="p">))</span>
+<span class="w">        </span><span class="sd">"""Files under ``soc_dir`` matching ``file_glob_pattern`` (built if absent).</span>
 
-        <span class="k">return</span> <span class="n">files</span></div>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of str</span>
+<span class="sd">            Sorted paths; empty if none match.</span>
+<span class="sd">        """</span>
+        <span class="c1"># A SOC tree is &lt;soc&gt;/&lt;year&gt;/&lt;doy&gt;/: walk it, as GEDIFile.search_file does</span>
+        <span class="c1"># (_soc_manifest.txt is write-only, so smart_glob does not apply).</span>
+        <span class="n">patterns</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'file_glob_pattern'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_glob_pattern</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span><span class="n">patterns</span><span class="p">]</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">fp</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+            <span class="n">files</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_dir</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="n">fp</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">files</span><span class="p">)</span></div>
 </div>
 
-            
+
 <div class="viewcode-block" id="wfm_pad">
 <a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.wfm_pad">[docs]</a>
 <span class="nd">@njit</span>

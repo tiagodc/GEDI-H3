@@ -512,8 +512,10 @@ Module Contents
    
    Decoder for GEDI shot numbers.
 
-   Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
-   The shot number is a 64-bit integer encoding multiple fields.
+   Extracts the orbit, beam, granule and shot index encoded in GEDI shot
+   numbers. A shot number has 18 digits, ``OOOOOBBRRGNNNNNNNN``: orbit (5),
+   beam (2), reserved (2), granule within the orbit (1), shot index (8).
+   The ground track is not encoded.
 
 
    :Attributes:
@@ -527,8 +529,9 @@ Module Contents
        **orbit_granule** : int or array
            Granule number within orbit
 
-       **track** : int or array
-           Ground track number
+       **track** : None
+           Not encoded in the shot number, so file globs match any track
+           (orbit and granule identify the file).
 
        **beam** : int or array
            Beam number (0-7)
@@ -555,9 +558,9 @@ Module Contents
 
    .. rubric:: Examples
 
-   >>> shot = GEDIShot(12345678901234567890)
-   >>> shot.beam_str
-   'BEAM0101'
+   >>> shot = GEDIShot(19560500300012345)
+   >>> shot.orbit, shot.orbit_granule, shot.beam_str, shot.shot_index
+   (1956, 3, 'BEAM0101', 12345)
 
    ..
        !! processed by numpydoc !!
@@ -567,8 +570,59 @@ Module Contents
 
    .. py:method:: get_glob_pattern(product: int = 1, level: str = 'B', ppds: int = 2, pge: int = None, generation: int = None, version: int = None)
 
+      
+      Glob pattern(s) of the GEDI file(s) holding these shots (any track).
+
+
+
+
+
+      :Returns:
+
+          str or list of str
+              One pattern for a scalar shot; for an array, one per distinct
+              granule, sorted. Also stored as ``file_glob_pattern``.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
 
    .. py:method:: search_file(soc_dir: str)
+
+      
+      Files under ``soc_dir`` matching ``file_glob_pattern`` (built if absent).
+
+
+
+
+
+      :Returns:
+
+          list of str
+              Sorted paths; empty if none match.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
 
 
 .. py:function:: wfm_pad(wave, n_bins=1420, cval=0)
