@@ -1412,7 +1412,7 @@ nothing needed casting (no write).</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.utils.parquet_merge_files">
-<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ofile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_shots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_group</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_merge_files" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.utils.</span></span><span class="sig-name descname"><span class="pre">parquet_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ofile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">check_shots</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rows_per_group</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace_granules</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace_in</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/utils.html#parquet_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.utils.parquet_merge_files" title="Link to this definition">#</a></dt>
 <dd><p>Stream-merge parquet files into a single output with a bounded memory footprint.</p>
 <p>Architecture (per-file iteration, native column projection):</p>
 <ul class="simple">
@@ -1438,10 +1438,31 @@ it directly from the H3 partition geometry (no data scan).</p></li>
 <li><p>Row-group accumulator flushes BEFORE appending a batch that would
 overflow <code class="docutils literal notranslate"><span class="pre">rows_per_group</span></code>.</p></li>
 <li><p>Shot-dedup activates only when <code class="docutils literal notranslate"><span class="pre">check_shots=True</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">replace_granules</span></code> drops rows of <code class="docutils literal notranslate"><span class="pre">replace_in</span></code> (the existing
+destination) before the dedup, so the other inputs’ rows of the same
+granules take their place: the re-indexing of re-released granules
+(#47). A row a replacement already wrote names the new files and is
+kept, so the merge can be re-run at any point with the same result,
+with or without the fragments that held the new rows. That holds only
+if the new rows do name the given files, so it is enforced: a row of
+a replaced granule in any input other than <code class="docutils literal notranslate"><span class="pre">replace_in</span></code> that does
+not raises <code class="xref py py-class docutils literal notranslate"><span class="pre">GediMergeError</span></code> before the destination is touched
+(also on a first merge, with no existing destination).</p></li>
 </ul>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
+<dt><strong>replace_granules</strong><span class="classifier">dict, optional</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">{product:</span> <span class="pre">basename}}</span></code>: drop
+<code class="docutils literal notranslate"><span class="pre">replace_in</span></code> rows from these granules unless every
+<code class="docutils literal notranslate"><span class="pre">root_file_&lt;product&gt;</span></code> column it has already names the given file;
+every other input must hold only such current rows of them. Values
+are basenames, as rows store them. Requires <code class="docutils literal notranslate"><span class="pre">shot_number</span></code> and
+<code class="docutils literal notranslate"><span class="pre">root_file_l2a</span></code> columns (<code class="xref py py-class docutils literal notranslate"><span class="pre">GediMergeError</span></code> otherwise).</p>
+</dd>
+<dt><strong>replace_in</strong><span class="classifier">str, optional</span></dt><dd><p>The input, if any, that is the existing destination: the only one
+rows are dropped from. <code class="docutils literal notranslate"><span class="pre">None</span></code> (a first merge) drops nothing and
+checks every input.</p>
+</dd>
 <dt><strong>rows_per_group</strong><span class="classifier">int, default 100_000</span></dt><dd><p>Output row-group size and per-file iter batch size.</p>
 </dd>
 <dt><strong>bbox</strong><span class="classifier">list[float] or None</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">[minlon,</span> <span class="pre">minlat,</span> <span class="pre">maxlon,</span> <span class="pre">maxlat]</span></code> in EPSG:4326. When provided and

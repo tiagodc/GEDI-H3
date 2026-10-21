@@ -1220,7 +1220,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100000, bbox=None)
+.. py:function:: parquet_merge_files(ofile, flist, check_shots=False, rm_src=False, rows_per_group=100000, bbox=None, replace_granules=None, replace_in=None)
 
    
    Stream-merge parquet files into a single output with a bounded memory footprint.
@@ -1249,8 +1249,31 @@ Module Contents
    - Row-group accumulator flushes BEFORE appending a batch that would
      overflow ``rows_per_group``.
    - Shot-dedup activates only when ``check_shots=True``.
+   - ``replace_granules`` drops rows of ``replace_in`` (the existing
+     destination) before the dedup, so the other inputs' rows of the same
+     granules take their place: the re-indexing of re-released granules
+     (#47). A row a replacement already wrote names the new files and is
+     kept, so the merge can be re-run at any point with the same result,
+     with or without the fragments that held the new rows. That holds only
+     if the new rows do name the given files, so it is enforced: a row of
+     a replaced granule in any input other than ``replace_in`` that does
+     not raises :class:`GediMergeError` before the destination is touched
+     (also on a first merge, with no existing destination).
 
    :Parameters:
+
+       **replace_granules** : dict, optional
+           ``{(orbit, granule, track): {product: basename}}``: drop
+           ``replace_in`` rows from these granules unless every
+           ``root_file_<product>`` column it has already names the given file;
+           every other input must hold only such current rows of them. Values
+           are basenames, as rows store them. Requires ``shot_number`` and
+           ``root_file_l2a`` columns (:class:`GediMergeError` otherwise).
+
+       **replace_in** : str, optional
+           The input, if any, that is the existing destination: the only one
+           rows are dropped from. ``None`` (a first merge) drops nothing and
+           checks every input.
 
        **rows_per_group** : int, default 100_000
            Output row-group size and per-file iter batch size.

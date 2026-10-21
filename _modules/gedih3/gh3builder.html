@@ -1364,9 +1364,24 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to the merged metadata JSON file, or None if no metadata</span>
-<span class="sd">        files were found.</span>
+<span class="sd">        files were found. With no year parquet left, a summary from an</span>
+<span class="sd">        earlier merge is removed, and so is the partition directory when</span>
+<span class="sd">        nothing else is left in it.</span>
 <span class="sd">    """</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_subdir</span><span class="p">,</span><span class="s1">'*'</span><span class="p">,</span><span class="s1">'*.parquet'</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+        <span class="c1"># No year left (a replacement emptied them): a summary would list</span>
+        <span class="c1"># granules and shots that are gone.</span>
+        <span class="k">for</span> <span class="n">stale</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_subdir</span><span class="p">,</span> <span class="sa">f</span><span class="s1">'*</span><span class="si">{</span><span class="n">PARTITION_META_FILENAME</span><span class="si">}</span><span class="s1">'</span><span class="p">)):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">stale</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">h3_subdir</span><span class="p">)</span>  <span class="c1"># only when nothing else is left in it</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="kc">None</span>
     <span class="n">year_metadata</span> <span class="o">=</span> <span class="p">[</span><span class="n">h3_read_metadata</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">]</span>
     <span class="n">year_metadata</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">year_metadata</span> <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
     
@@ -1598,7 +1613,7 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="h3_merge_files">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.h3_merge_files">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">h3_merge_files</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">h3_merge_files</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Merge multiple parquet files for an H3 partition into a single file.</span>
 
@@ -1619,13 +1634,26 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    replace : bool, default False</span>
 <span class="sd">        If True, overwrite existing output files. If False, merge new</span>
 <span class="sd">        data into any existing output file.</span>
+<span class="sd">    replace_granules : dict, optional</span>
+<span class="sd">        ``{(orbit, granule, track): {product: basename}}``: re-index these</span>
+<span class="sd">        granules (#47). The existing file's rows from them are dropped</span>
+<span class="sd">        unless they already come from the given files, and the fragments'</span>
+<span class="sd">        rows take their place (``parquet_merge_files``). The existing file</span>
+<span class="sd">        is rewritten even when ``in_dir`` holds no fragment (the granules'</span>
+<span class="sd">        shots left this cell-year), the "already merged" skip never applies,</span>
+<span class="sd">        and a file left with no row is removed with its metadata (and its</span>
+<span class="sd">        year directory, when empty). Re-running gives the same result. An</span>
+<span class="sd">        unreadable existing file is handled as on any merge: the fragments</span>
+<span class="sd">        alone are written (without fragments, it is left as it is). Not</span>
+<span class="sd">        with ``replace=True`` (:class:`GediValidationError`).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    str or None</span>
 <span class="sd">        Path to the merged parquet file, or None if ``in_dir`` contained</span>
 <span class="sd">        no parquet files and there was no orphaned merge result to promote</span>
-<span class="sd">        (see ``_promote_orphan_merge_result``).</span>
+<span class="sd">        (see ``_promote_orphan_merge_result``), or the file was left empty</span>
+<span class="sd">        by ``replace_granules`` and removed.</span>
 <span class="sd">    """</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span><span class="s1">'*.parquet'</span><span class="p">))</span>
 
@@ -1645,7 +1673,10 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># on an empty in_dir.</span>
     <span class="n">promoted</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">replace</span> <span class="ow">and</span> <span class="n">_promote_orphan_merge_result</span><span class="p">(</span><span class="n">h3_file</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">replace_granules</span> <span class="ow">and</span> <span class="n">replace</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="s2">"h3_merge_files: replace_granules needs replace=False (it edits the existing file)"</span><span class="p">)</span>
+    <span class="n">replacing</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">replace_granules</span><span class="p">)</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">replacing</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">h3_file</span> <span class="k">if</span> <span class="n">promoted</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="c1"># Preventative: drop 0-byte source fragments before they reach</span>
@@ -1676,7 +1707,7 @@ window.runMermaid = runMermaid;</script>
             <span class="k">continue</span>
         <span class="n">_filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">_filtered</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">replacing</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">h3_file</span> <span class="k">if</span> <span class="n">promoted</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">odir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -1708,7 +1739,9 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># own metadata listing every fragment's granule (_dest_holds_fragments);</span>
     <span class="c1"># the mtime test only short-circuits that JSON read. A corrupt newer-than-</span>
     <span class="c1"># source dest must NOT short-circuit either (we'd return a broken partition).</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">replace</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_file</span><span class="p">):</span>
+    <span class="c1"># Never while replacing: the destination's metadata lists the granules</span>
+    <span class="c1"># being replaced (their old rows), which is no proof of the new ones.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">replace</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">replacing</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_file</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">out_mtime</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
             <span class="k">if</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">out_mtime</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">)</span>
@@ -1744,6 +1777,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="sa">f</span><span class="s2">"discarding it and merging tmp fragments fresh"</span>
             <span class="p">)</span>
             <span class="n">is_temp</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># treat as no dest, full overwrite</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">files</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>      <span class="c1"># replacing an unreadable destination, with no fragment to merge</span>
 
     <span class="c1"># Derive bbox from the H3 partition geometry directly (no data scan).</span>
     <span class="c1"># Buffered enough to safely contain all level-N children at any depth</span>
@@ -1760,7 +1795,24 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># merged rows were in place lost the partition-year on a kill (#46).</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="n">parquet_merge_files</span><span class="p">(</span>
         <span class="n">out_file</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">check_shots</span><span class="o">=</span><span class="n">is_temp</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="n">bbox</span><span class="p">,</span>
+        <span class="n">replace_granules</span><span class="o">=</span><span class="n">replace_granules</span><span class="p">,</span> <span class="n">replace_in</span><span class="o">=</span><span class="n">out_file</span> <span class="k">if</span> <span class="n">is_temp</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span>
+    <span class="k">if</span> <span class="n">replacing</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">stats</span><span class="p">[</span><span class="s1">'shot_count'</span><span class="p">]:</span>
+        <span class="c1"># Every row was a replaced granule's: no file, no metadata, no year.</span>
+        <span class="c1"># Metadata first: a kill in between leaves a 0-row file, which the</span>
+        <span class="c1"># next run removes, rather than metadata listing gone granules.</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="n">h3_file</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">PARTITION_META_FILENAME</span><span class="p">),</span> <span class="n">out_file</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">odir</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">if</span> <span class="n">rm_src</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
 
     <span class="c1"># Metadata before the fragment cleanup: a kill between the two leaves a</span>
     <span class="c1"># destination whose metadata lists every fragment's granule, so the next</span>

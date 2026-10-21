@@ -2802,10 +2802,56 @@ window.runMermaid = runMermaid;</script>
         <span class="k">yield</span> <span class="n">batch</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_stale_granule_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">replace_granules</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Rows of ``batch`` from a granule in ``replace_granules`` not yet re-indexed.</span>
+
+<span class="sd">    A row belongs to granule ``(orbit, granule, track)`` when its shot number</span>
+<span class="sd">    encodes the orbit and granule and its ``root_file_l2a`` names the track</span>
+<span class="sd">    (the track is not in a shot number). It is current, and kept, when every</span>
+<span class="sd">    ``root_file_&lt;product&gt;`` column the batch has names the file given for</span>
+<span class="sd">    that product. Returns a numpy bool mask, True where the row is dropped.</span>
+<span class="sd">    Only rows whose shot number matches are converted to Python objects.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="n">shot</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
+    <span class="n">orbit_granule</span> <span class="o">=</span> <span class="p">(</span><span class="n">shot</span> <span class="o">//</span> <span class="mi">10</span><span class="o">**</span><span class="mi">13</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="n">shot</span> <span class="o">%</span> <span class="mi">10</span><span class="o">**</span><span class="mi">9</span> <span class="o">//</span> <span class="mi">10</span><span class="o">**</span><span class="mi">8</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">orbit_granule</span><span class="p">,</span> <span class="p">[</span><span class="n">o</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="n">g</span> <span class="k">for</span> <span class="n">o</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">replace_granules</span><span class="p">])</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">out</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">out</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+    <span class="n">sub</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idx</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_strings</span><span class="p">(</span><span class="n">col</span><span class="p">):</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="n">sub</span><span class="p">[</span><span class="n">col</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">pa</span><span class="o">.</span><span class="n">types</span><span class="o">.</span><span class="n">is_dictionary</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">type</span><span class="p">):</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">dictionary_decode</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="n">l2a</span> <span class="o">=</span> <span class="n">_strings</span><span class="p">(</span><span class="s1">'root_file_l2a'</span><span class="p">)</span>
+    <span class="n">key_of</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">l2a</span><span class="p">):</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">'_O(\d+)_(\d</span><span class="si">{2}</span><span class="s1">)_T(\d+)_'</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)))</span>
+        <span class="n">key_of</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span> <span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">)))</span> <span class="k">if</span> <span class="n">m</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">key_of</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">l2a</span><span class="p">]</span>
+    <span class="n">hit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">k</span> <span class="ow">in</span> <span class="n">replace_granules</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">current</span> <span class="o">=</span> <span class="n">hit</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">product</span> <span class="ow">in</span> <span class="p">{</span><span class="n">p</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">replace_granules</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">files</span><span class="p">}:</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">'root_file_</span><span class="si">{</span><span class="n">product</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s1">'</span>
+        <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sub</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">want</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">replace_granules</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">product</span><span class="p">)</span> <span class="k">if</span> <span class="n">h</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">hit</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="n">current</span> <span class="o">&amp;=</span> <span class="p">(</span><span class="n">want</span> <span class="o">==</span> <span class="kc">None</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">_strings</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="o">==</span> <span class="n">want</span><span class="p">)</span>  <span class="c1"># noqa: E711 (elementwise)</span>
+    <span class="n">out</span><span class="p">[:]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">out</span><span class="p">[</span><span class="n">idx</span><span class="p">[</span><span class="n">hit</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">current</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
 <div class="viewcode-block" id="parquet_merge_files">
 <a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.parquet_merge_files">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">parquet_merge_files</span><span class="p">(</span><span class="n">ofile</span><span class="p">,</span> <span class="n">flist</span><span class="p">,</span> <span class="n">check_shots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                        <span class="n">rows_per_group</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                        <span class="n">rows_per_group</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span> <span class="n">bbox</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">replace_in</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Stream-merge parquet files into a single output with a bounded memory footprint.</span>
 
 <span class="sd">    Architecture (per-file iteration, native column projection):</span>
@@ -2832,9 +2878,30 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    - Row-group accumulator flushes BEFORE appending a batch that would</span>
 <span class="sd">      overflow ``rows_per_group``.</span>
 <span class="sd">    - Shot-dedup activates only when ``check_shots=True``.</span>
+<span class="sd">    - ``replace_granules`` drops rows of ``replace_in`` (the existing</span>
+<span class="sd">      destination) before the dedup, so the other inputs' rows of the same</span>
+<span class="sd">      granules take their place: the re-indexing of re-released granules</span>
+<span class="sd">      (#47). A row a replacement already wrote names the new files and is</span>
+<span class="sd">      kept, so the merge can be re-run at any point with the same result,</span>
+<span class="sd">      with or without the fragments that held the new rows. That holds only</span>
+<span class="sd">      if the new rows do name the given files, so it is enforced: a row of</span>
+<span class="sd">      a replaced granule in any input other than ``replace_in`` that does</span>
+<span class="sd">      not raises :class:`GediMergeError` before the destination is touched</span>
+<span class="sd">      (also on a first merge, with no existing destination).</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
+<span class="sd">    replace_granules : dict, optional</span>
+<span class="sd">        ``{(orbit, granule, track): {product: basename}}``: drop</span>
+<span class="sd">        ``replace_in`` rows from these granules unless every</span>
+<span class="sd">        ``root_file_&lt;product&gt;`` column it has already names the given file;</span>
+<span class="sd">        every other input must hold only such current rows of them. Values</span>
+<span class="sd">        are basenames, as rows store them. Requires ``shot_number`` and</span>
+<span class="sd">        ``root_file_l2a`` columns (:class:`GediMergeError` otherwise).</span>
+<span class="sd">    replace_in : str, optional</span>
+<span class="sd">        The input, if any, that is the existing destination: the only one</span>
+<span class="sd">        rows are dropped from. ``None`` (a first merge) drops nothing and</span>
+<span class="sd">        checks every input.</span>
 <span class="sd">    rows_per_group : int, default 100_000</span>
 <span class="sd">        Output row-group size and per-file iter batch size.</span>
 <span class="sd">    bbox : list[float] or None</span>
@@ -2885,6 +2952,12 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># may not have shot_number / root_file_l2a / datetime).</span>
     <span class="n">has_shot_number</span> <span class="o">=</span> <span class="s1">'shot_number'</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span>
     <span class="n">has_root_file</span> <span class="o">=</span> <span class="s1">'root_file_l2a'</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span>
+    <span class="k">if</span> <span class="n">replace_granules</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">has_shot_number</span> <span class="ow">and</span> <span class="n">has_root_file</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot replace granules in </span><span class="si">{</span><span class="n">ofile</span><span class="si">}</span><span class="s2">: it needs shot_number and root_file_l2a"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">replace_granules</span><span class="p">:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">replace_granules</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">files</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">!=</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"replace_granules takes file basenames, as rows store them; got </span><span class="si">{</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="n">has_datetime</span> <span class="o">=</span> <span class="s1">'datetime'</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span>
     <span class="n">stats</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">'shot_count'</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
@@ -2932,7 +3005,21 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">n</span><span class="p">:</span> <span class="p">(</span><span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">target_names</span>
                 <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">names</span> <span class="ow">and</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span>
             <span class="p">}</span>
+            <span class="n">drop_stale</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">replace_granules</span><span class="p">)</span> <span class="ow">and</span> <span class="n">replace_in</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">f</span> <span class="o">==</span> <span class="n">replace_in</span>
             <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">_iter_batches_with_path</span><span class="p">(</span><span class="n">batch_iter</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">replace_granules</span> <span class="ow">and</span> <span class="n">batch</span><span class="o">.</span><span class="n">num_rows</span><span class="p">:</span>
+                    <span class="n">stale</span> <span class="o">=</span> <span class="n">_stale_granule_rows</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">replace_granules</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">stale</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">drop_stale</span><span class="p">:</span>
+                        <span class="c1"># A new row a re-run would drop as stale: the map does</span>
+                        <span class="c1"># not describe what the fragments hold.</span>
+                        <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">stale</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span><span class="si">}</span><span class="s2"> row(s) of a replaced granule in </span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2"> do not come from the files "</span>
+                            <span class="sa">f</span><span class="s2">"given in replace_granules (a fragment of another release?); refusing to merge, as "</span>
+                            <span class="sa">f</span><span class="s2">"a re-run would delete them"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">stale</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+                        <span class="n">batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="o">~</span><span class="n">stale</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">batch</span><span class="o">.</span><span class="n">num_rows</span><span class="p">:</span>
+                            <span class="k">continue</span>
                 <span class="k">if</span> <span class="n">check_shots</span> <span class="ow">and</span> <span class="n">has_shot_number</span><span class="p">:</span>
                     <span class="n">arr</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">"shot_number"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">shots</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>

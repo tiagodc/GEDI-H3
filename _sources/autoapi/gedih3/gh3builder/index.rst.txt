@@ -309,7 +309,9 @@ Module Contents
 
        str or None
            Path to the merged metadata JSON file, or None if no metadata
-           files were found.
+           files were found. With no year parquet left, a summary from an
+           earlier merge is removed, and so is the partition directory when
+           nothing else is left in it.
 
 
 
@@ -411,7 +413,7 @@ Module Contents
 
 .. py:function:: dh3_merge_metadata(h3_subdir)
 
-.. py:function:: h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+.. py:function:: h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules=None)
 
    
    Merge multiple parquet files for an H3 partition into a single file.
@@ -437,6 +439,19 @@ Module Contents
            If True, overwrite existing output files. If False, merge new
            data into any existing output file.
 
+       **replace_granules** : dict, optional
+           ``{(orbit, granule, track): {product: basename}}``: re-index these
+           granules (#47). The existing file's rows from them are dropped
+           unless they already come from the given files, and the fragments'
+           rows take their place (``parquet_merge_files``). The existing file
+           is rewritten even when ``in_dir`` holds no fragment (the granules'
+           shots left this cell-year), the "already merged" skip never applies,
+           and a file left with no row is removed with its metadata (and its
+           year directory, when empty). Re-running gives the same result. An
+           unreadable existing file is handled as on any merge: the fragments
+           alone are written (without fragments, it is left as it is). Not
+           with ``replace=True`` (:class:`GediValidationError`).
+
 
 
    :Returns:
@@ -444,7 +459,8 @@ Module Contents
        str or None
            Path to the merged parquet file, or None if ``in_dir`` contained
            no parquet files and there was no orphaned merge result to promote
-           (see ``_promote_orphan_merge_result``).
+           (see ``_promote_orphan_merge_result``), or the file was left empty
+           by ``replace_granules`` and removed.
 
 
 

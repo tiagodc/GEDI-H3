@@ -536,7 +536,7 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.dh3_merge_metadata" title="gedih3.gh3builder.dh3_merge_metadata"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dh3_merge_metadata</span></code></a>(h3_subdir)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_merge_files" title="gedih3.gh3builder.h3_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_merge_files</span></code></a>(in_dir, out_dir[, rm_src, replace])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.h3_merge_files" title="gedih3.gh3builder.h3_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">h3_merge_files</span></code></a>(in_dir, out_dir[, rm_src, replace, ...])</p></td>
 <td><p>Merge multiple parquet files for an H3 partition into a single file.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.dh3_merge_files" title="gedih3.gh3builder.dh3_merge_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dh3_merge_files</span></code></a>(in_dir, out_dir[, rm_src, replace])</p></td>
@@ -758,7 +758,9 @@ containing year subdirectories with parquet and metadata files.</p>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt>str or None</dt><dd><p>Path to the merged metadata JSON file, or None if no metadata
-files were found.</p>
+files were found. With no year parquet left, a summary from an
+earlier merge is removed, and so is the partition directory when
+nothing else is left in it.</p>
 </dd>
 </dl>
 </dd>
@@ -831,7 +833,7 @@ cell’s granule data already exists in the database).</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3builder.h3_merge_files">
-<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_merge_files" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">h3_merge_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rm_src</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace_granules</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#h3_merge_files"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.h3_merge_files" title="Link to this definition">#</a></dt>
 <dd><p>Merge multiple parquet files for an H3 partition into a single file.</p>
 <p>Reads all parquet files in <code class="docutils literal notranslate"><span class="pre">in_dir</span></code>, merges them (deduplicating shots
 when appending to an existing file), writes the result to <code class="docutils literal notranslate"><span class="pre">out_dir</span></code>,
@@ -850,13 +852,26 @@ preserving the <code class="docutils literal notranslate"><span class="pre">&lt;
 <dt><strong>replace</strong><span class="classifier">bool, default False</span></dt><dd><p>If True, overwrite existing output files. If False, merge new
 data into any existing output file.</p>
 </dd>
+<dt><strong>replace_granules</strong><span class="classifier">dict, optional</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">{product:</span> <span class="pre">basename}}</span></code>: re-index these
+granules (#47). The existing file’s rows from them are dropped
+unless they already come from the given files, and the fragments’
+rows take their place (<code class="docutils literal notranslate"><span class="pre">parquet_merge_files</span></code>). The existing file
+is rewritten even when <code class="docutils literal notranslate"><span class="pre">in_dir</span></code> holds no fragment (the granules’
+shots left this cell-year), the “already merged” skip never applies,
+and a file left with no row is removed with its metadata (and its
+year directory, when empty). Re-running gives the same result. An
+unreadable existing file is handled as on any merge: the fragments
+alone are written (without fragments, it is left as it is). Not
+with <code class="docutils literal notranslate"><span class="pre">replace=True</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">GediValidationError</span></code>).</p>
+</dd>
 </dl>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><dl class="simple">
 <dt>str or None</dt><dd><p>Path to the merged parquet file, or None if <code class="docutils literal notranslate"><span class="pre">in_dir</span></code> contained
 no parquet files and there was no orphaned merge result to promote
-(see <code class="docutils literal notranslate"><span class="pre">_promote_orphan_merge_result</span></code>).</p>
+(see <code class="docutils literal notranslate"><span class="pre">_promote_orphan_merge_result</span></code>), or the file was left empty
+by <code class="docutils literal notranslate"><span class="pre">replace_granules</span></code> and removed.</p>
 </dd>
 </dl>
 </dd>
