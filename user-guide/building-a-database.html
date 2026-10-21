@@ -912,6 +912,12 @@ gh3_build<span class="w"> </span>-i<span class="w"> </span>/data/soc<span class=
 <li><p><strong>Types while a product is pending.</strong> Its columns keep the database’s types, but integer columns holding nulls read into pandas as floats until they are filled.</p></li>
 </ul>
 </section>
+<section id="re-released-granules">
+<h3>Re-released granules<a class="headerlink" href="#re-released-granules" title="Link to this heading">#</a></h3>
+<p>NASA sometimes re-releases a granule within the same GEDI version, with a new PPDS, PGE or generation in its file name, to fix faulty data. When a SOC directory holds more than one file for a granule product, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> reads the latest release (PPDS first, then PGE, then generation, then any suffix such as <code class="docutils literal notranslate"><span class="pre">_SGS</span></code>) and logs the duplicates.</p>
+<p>The build log records the release each granule was read from. When the SOC directory later holds a newer release of an indexed granule, <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> warns that its rows come from the older file. It does not re-index them yet. Until it does, variables added and products filled later read the newer file, so move it out of the SOC directory to keep the database consistent with the release its rows came from (adding variables does not apply <code class="docutils literal notranslate"><span class="pre">--exclude</span></code>). A granule whose indexed file is gone and that has only an older release listed is reported too; an older release is never applied over a newer one. That includes a granule indexed from a suffixed file such as <code class="docutils literal notranslate"><span class="pre">_SGS</span></code> that is later excluded or removed: the plain file ranks below it.</p>
+<p><code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--soc-dir</span> <span class="pre">/data/soc</span> <span class="pre">--check</span> <span class="pre">superseded_granules</span></code> lists every such granule and product. Granules indexed before gedih3 recorded releases cannot be checked and are counted separately.</p>
+</section>
 </section>
 <hr class="docutils" />
 <section id="dask-configuration-and-performance">
@@ -1310,6 +1316,7 @@ gh3_build<span class="w"> </span>--help
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-variables-to-an-existing-database">Adding variables to an existing database</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expanding-the-spatial-or-temporal-coverage">Expanding the spatial or temporal coverage</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#updating-before-every-product-is-published-phased-updates">Updating before every product is published (phased updates)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#re-released-granules">Re-released granules</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dask-configuration-and-performance">Dask Configuration and Performance</a><ul class="pst-show_toc_level nav section-nav flex-column">

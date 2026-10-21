@@ -965,7 +965,74 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_local_soc_files</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""HDF5 files of the database's GEDI release under a local SOC directory.</span>
+
+<span class="sd">    A serial glob, for the early-exit path, which has no dask Client. Files</span>
+<span class="sd">    matching an ``exclude`` pattern (``gh3_build --exclude``) are left out.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">fnmatch</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">globmod</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_file_glob</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_source</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="n">gedi_file_glob</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span> <span class="k">else</span> <span class="s1">'GEDI*.h5'</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="n">pattern</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">exclude</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">fnmatch</span><span class="o">.</span><span class="n">fnmatch</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">pat</span><span class="p">)</span> <span class="k">for</span> <span class="n">pat</span> <span class="ow">in</span> <span class="n">exclude</span><span class="p">))]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_warn_superseded_granules</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">soc_entries</span><span class="p">,</span> <span class="n">logger</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Warn about indexed granules whose source is not the listed release (#47).</span>
+
+<span class="sd">    ``soc_entries``: ``{product: path}`` dicts, see</span>
+<span class="sd">    :meth:`H3BuildLogger.superseded_releases` (log-only, against the recorded</span>
+<span class="sd">    ``releases``). Reports, never re-indexes, and never fails a build: an</span>
+<span class="sd">    error is logged at debug level.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediError</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">superseded_releases</span><span class="p">(</span><span class="n">soc_entries</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="n">GediError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Superseded-release check skipped: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_example</span><span class="p">(</span><span class="n">side</span><span class="p">):</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">found</span><span class="p">[</span><span class="n">side</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
+        <span class="n">product</span><span class="p">,</span> <span class="p">(</span><span class="n">recorded</span><span class="p">,</span> <span class="n">listed</span><span class="p">)</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">prods</span><span class="o">.</span><span class="n">items</span><span class="p">())))</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"O</span><span class="si">{</span><span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">_T</span><span class="si">{</span><span class="n">key</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">product</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">recorded</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">listed</span><span class="si">}</span><span class="s2">"</span>
+
+    <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="s1">'newer'</span><span class="p">]:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">[</span><span class="s1">'newer'</span><span class="p">])</span><span class="si">}</span><span class="s2"> granule(s) were indexed from an older release than the SOC tree now holds "</span>
+            <span class="sa">f</span><span class="s2">"(e.g. </span><span class="si">{</span><span class="n">_example</span><span class="p">(</span><span class="s1">'newer'</span><span class="p">)</span><span class="si">}</span><span class="s2">). Their rows are not re-indexed, while variables added and products "</span>
+            <span class="sa">f</span><span class="s2">"filled later read the newer file: until gh3_build can re-index them, move the newer files out "</span>
+            <span class="sa">f</span><span class="s2">"of the SOC tree. List them with gh3_doctor --check superseded_granules."</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="s1">'older'</span><span class="p">]:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">[</span><span class="s1">'older'</span><span class="p">])</span><span class="si">}</span><span class="s2"> granule(s) were indexed from a release the SOC tree no longer holds: only an "</span>
+            <span class="sa">f</span><span class="s2">"older one is listed (e.g. </span><span class="si">{</span><span class="n">_example</span><span class="p">(</span><span class="s1">'older'</span><span class="p">)</span><span class="si">}</span><span class="s2">). The indexed rows are kept and never replaced by an "</span>
+            <span class="sa">f</span><span class="s2">"older release, but variables added and products filled later would read it. Restore the file the "</span>
+            <span class="sa">f</span><span class="s2">"granule was read from."</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">found</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_soc_files_by_product</span><span class="p">(</span><span class="n">files</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""``{product: path}`` per GEDI file, for :func:`_warn_superseded_granules`."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">'GEDI0(\d)_([A-Z])_'</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="sa">f</span><span class="s2">"L</span><span class="si">{</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="si">}{</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span> <span class="n">f</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Check if SOC directory has HDF5 files not tracked in the build log,</span>
 <span class="sd">    or a product file for an indexed granule still waiting for it.</span>
 
@@ -973,13 +1040,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    another release side by side must not make a finished database look</span>
 <span class="sd">    stale (those granules can never be built into it). The granule key and</span>
 <span class="sd">    product come from the file name — no stat, no HDF5 open. Files matching an</span>
-<span class="sd">    ``exclude`` pattern (``gh3_build --exclude``) never count.</span>
+<span class="sd">    ``exclude`` pattern (``gh3_build --exclude``) never count. ``files``: a</span>
+<span class="sd">    listing already made by :func:`_local_soc_files`, to reuse.</span>
 <span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">fnmatch</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">globmod</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_file_glob</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_granule_id_from_l2a_path</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">soc_source</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">soc_source</span><span class="p">):</span>
@@ -991,10 +1056,9 @@ window.runMermaid = runMermaid;</script>
             <span class="n">tracked</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
     <span class="n">awaiting</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">pending_product_fills</span><span class="p">()</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="s1">'pending_product_fills'</span><span class="p">)</span> <span class="k">else</span> <span class="p">{}</span>
 
-    <span class="n">pattern</span> <span class="o">=</span> <span class="n">gedi_file_glob</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">)</span> <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span> <span class="k">else</span> <span class="s1">'GEDI*.h5'</span>
-    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">globmod</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="s1">'**'</span><span class="p">,</span> <span class="n">pattern</span><span class="p">),</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">exclude</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">fnmatch</span><span class="o">.</span><span class="n">fnmatch</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">f</span><span class="p">),</span> <span class="n">pat</span><span class="p">)</span> <span class="k">for</span> <span class="n">pat</span> <span class="ow">in</span> <span class="n">exclude</span><span class="p">):</span>
-            <span class="k">continue</span>
+    <span class="k">if</span> <span class="n">files</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="n">_local_soc_files</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
         <span class="n">key</span> <span class="o">=</span> <span class="n">_granule_id_from_l2a_path</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">continue</span>
@@ -1253,7 +1317,8 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># or run download_soc() to discover new NASA granules</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">s3</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">download</span><span class="p">:</span>
             <span class="c1"># Local mode: check SOC directory for new HDF5 files</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">):</span>
+            <span class="n">_local_files</span> <span class="o">=</span> <span class="n">_local_soc_files</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_has_new_local_granules</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">h3_logger</span><span class="p">,</span> <span class="n">files</span><span class="o">=</span><span class="n">_local_files</span><span class="p">):</span>
                 <span class="n">_flag_changed</span> <span class="o">=</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">allow_missing_products</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
                                  <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">allow_missing_products</span> <span class="o">!=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'allow_missing_products'</span><span class="p">)))</span>
                 <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">previous_status</span> <span class="o">!=</span> <span class="s1">'COMPLETED'</span><span class="p">:</span>
@@ -1262,6 +1327,8 @@ window.runMermaid = runMermaid;</script>
                 <span class="k">elif</span> <span class="n">_flag_changed</span><span class="p">:</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'COMPLETED'</span><span class="p">)</span>  <span class="c1"># remember --[no-]allow-missing-products</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Database is already up-to-date with requested parameters"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_local_files</span><span class="p">:</span>
+                    <span class="n">_warn_superseded_granules</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_soc_files_by_product</span><span class="p">(</span><span class="n">_local_files</span><span class="p">),</span> <span class="n">logger</span><span class="p">)</span>
                 <span class="c1"># Up-to-date DB: create the index only if it is missing</span>
                 <span class="c1"># (e.g. first run after upgrading gedih3) — the data is</span>
                 <span class="c1"># unchanged, so an existing index remains valid. No client</span>
@@ -1699,6 +1766,7 @@ window.runMermaid = runMermaid;</script>
                                          <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_build_products</span> <span class="ow">and</span> <span class="p">(</span><span class="n">t</span> <span class="o">:=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="n">f</span><span class="p">))},</span>
                         <span class="p">})</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">(</span><span class="n">_build_granules</span><span class="p">)</span>
+                    <span class="n">_warn_superseded_granules</span><span class="p">(</span><span class="n">h3_logger</span><span class="p">,</span> <span class="n">_soc_for_build</span><span class="p">,</span> <span class="n">logger</span><span class="p">)</span>
                     <span class="n">_stage1_listed</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_build_granules</span><span class="p">}</span>
 
                     <span class="c1"># Resume reconciliation: scan h3 db AND tmp/partitions for</span>

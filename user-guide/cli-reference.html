@@ -859,7 +859,7 @@ group alias:</p>
 <td><p>the default: <code class="docutils literal notranslate"><span class="pre">backfill</span></code>, <code class="docutils literal notranslate"><span class="pre">orphans</span></code>, <code class="docutils literal notranslate"><span class="pre">log_state</span></code>, <code class="docutils literal notranslate"><span class="pre">metadata</span></code>, <code class="docutils literal notranslate"><span class="pre">parquet_health</span></code>, <code class="docutils literal notranslate"><span class="pre">geoparquet_bbox</span></code>, <code class="docutils literal notranslate"><span class="pre">dtype_drift</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soc</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">soc_health</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">soc_health</span></code>, <code class="docutils literal notranslate"><span class="pre">superseded_granules</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
 <td><p>every registered diagnosis</p></td>
@@ -869,7 +869,7 @@ group alias:</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">soc_health</span></code> and <code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span></code> are <strong>not</strong> in the <code class="docutils literal notranslate"><span class="pre">db</span></code> group, so a
+<p><code class="docutils literal notranslate"><span class="pre">soc_health</span></code>, <code class="docutils literal notranslate"><span class="pre">superseded_granules</span></code> and <code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span></code> are <strong>not</strong> in the <code class="docutils literal notranslate"><span class="pre">db</span></code> group, so a
 plain <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">-i</span> <span class="pre">/db</span></code> does not run them. Ask for them by name, or use <code class="docutils literal notranslate"><span class="pre">all</span></code>.</p>
 </div>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -903,7 +903,10 @@ plain <code class="docutils literal notranslate"><span class="pre">gh3_doctor</s
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">soc_health</span></code></p></td>
 <td><p>invalid HDF5 files, and download-log drift</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">superseded_granules</span></code></p></td>
+<td><p>indexed granules whose source file has a newer release in the SOC tree (NASA re-releases within one GEDI version), or only an older one; read-only, from the build log’s recorded releases (needs <code class="docutils literal notranslate"><span class="pre">--soc-dir</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tmp_partitions_health</span></code></p></td>
 <td><p>post-build forensics on <code class="docutils literal notranslate"><span class="pre">tmp/partitions/</span></code>: merge-failure sentinels, granule-failure summaries, and progress↔manifest drift</p></td>
 </tr>
 </tbody>

@@ -1,0 +1,42 @@
+gedih3.doctor.diagnoses.superseded_granules
+===========================================
+
+.. py:module:: gedih3.doctor.diagnoses.superseded_granules
+
+.. autoapi-nested-parse::
+
+   superseded_granules diagnosis — indexed granules whose source was re-released.
+
+   Detects (read-only, no fix):
+     - ``newer_release``: the SOC tree holds a later release of a granule
+       product (PPDS, PGE, generation or suffix, ``gedi_release_rank``) than
+       the one its rows were read from. NASA re-releases granules within one
+       GEDI version to fix faulty data; gh3_build does not re-index them (#47).
+     - ``older_release``: only an older release than the one read is listed.
+       It is never applied, but variables added and products filled later read
+       the listed file.
+
+   Compares the build log's recorded ``releases`` (gh3_build >= 0.20.10) with
+   the file a listing picks now. A granule indexed earlier has no recorded
+   release and cannot be checked; it is counted, not reported.
+
+   Performance: one parallel SOC walk (``soc_file_tree``) and a log-only
+   comparison; no HDF5 or parquet is opened.
+
+   ..
+       !! processed by numpydoc !!
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   gedih3.doctor.diagnoses.superseded_granules.superseded_granules_check
+
+
+Module Contents
+---------------
+
+.. py:function:: superseded_granules_check(ctx: gedih3.doctor.report.DoctorContext) -> gedih3.doctor.report.Report
+

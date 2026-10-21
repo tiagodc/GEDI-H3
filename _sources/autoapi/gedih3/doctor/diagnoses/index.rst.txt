@@ -43,6 +43,7 @@ Submodules
    /autoapi/gedih3/doctor/diagnoses/orphans/index
    /autoapi/gedih3/doctor/diagnoses/parquet_health/index
    /autoapi/gedih3/doctor/diagnoses/soc_health/index
+   /autoapi/gedih3/doctor/diagnoses/superseded_granules/index
    /autoapi/gedih3/doctor/diagnoses/tmp_partitions_health/index
 
 

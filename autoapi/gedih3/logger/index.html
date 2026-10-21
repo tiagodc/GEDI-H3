@@ -386,6 +386,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/orphans/index.html">gedih3.doctor.diagnoses.orphans</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/parquet_health/index.html">gedih3.doctor.diagnoses.parquet_health</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/soc_health/index.html">gedih3.doctor.diagnoses.soc_health</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/superseded_granules/index.html">gedih3.doctor.diagnoses.superseded_granules</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../doctor/diagnoses/tmp_partitions_health/index.html">gedih3.doctor.diagnoses.tmp_partitions_health</a></li>
 </ul>
 </details></li>
@@ -1062,6 +1063,40 @@ repeated <a class="reference internal" href="#gedih3.logger.H3BuildLogger.mark_g
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.superseded_releases">
+<span class="sig-name descname"><span class="pre">superseded_releases</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">soc_entries</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.superseded_releases"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.superseded_releases" title="Link to this definition">#</a></dt>
+<dd><p>Indexed granules whose listed source differs from the release read.</p>
+<p>Compares each <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> or <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> granule’s recorded
+<code class="docutils literal notranslate"><span class="pre">releases</span></code> with the file a listing would read now. Log-only, no I/O.
+A product with no recorded tag is unknown and never reported. A log
+with no GEDI version reports nothing: tags carry no version, so a
+file of another release would read as a re-release.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>soc_entries</strong><span class="classifier">iterable of dict</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">path}</span></code> dicts: per granule, as <code class="docutils literal notranslate"><span class="pre">soc_file_tree(...,</span>
+<span class="pre">to_list=True)</span></code> returns them, or one per file. Where a granule
+product is listed more than once, its latest release
+(<code class="docutils literal notranslate"><span class="pre">gedi_release_rank</span></code>) is the one compared, the file a build
+reads. Only granules with a recorded tag are ranked.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>dict</dt><dd><p><code class="docutils literal notranslate"><span class="pre">{'newer':</span> <span class="pre">{key:</span> <span class="pre">{product:</span> <span class="pre">(recorded,</span> <span class="pre">listed)}},</span> <span class="pre">'older':</span> <span class="pre">{...}}</span></code>
+keyed by <code class="docutils literal notranslate"><span class="pre">(orbit,</span> <span class="pre">granule,</span> <span class="pre">track)</span></code>. <code class="docutils literal notranslate"><span class="pre">newer</span></code>: a re-release
+within the GEDI version that the rows do not come from (#47).
+<code class="docutils literal notranslate"><span class="pre">older</span></code>: only an older release than the one read is listed;
+it is never applied, but variables added and products filled
+later would read it.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.pending_product_fills">
 <span class="sig-name descname"><span class="pre">pending_product_fills</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">statuses</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(PRODUCT_STATUS_MISSING_SOURCE,)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.pending_product_fills"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.pending_product_fills" title="Link to this definition">#</a></dt>
 <dd><p>Indexed granules still waiting for products published after them.</p>
@@ -1236,6 +1271,7 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.get_product_gaps"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.get_product_gaps()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.mark_granule_product"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.mark_granule_product()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.set_product_statuses"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.set_product_statuses()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.superseded_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.superseded_releases()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.pending_product_fills"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.pending_product_fills()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_releases()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_fill_results"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_fill_results()</span></code></a></li>

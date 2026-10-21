@@ -770,7 +770,8 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">GediValidationError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">now</span><span class="p">,</span> <span class="n">json_read</span><span class="p">,</span> <span class="n">json_write</span><span class="p">,</span> <span class="n">read_vector_file</span><span class="p">,</span> <span class="n">to_geojson</span><span class="p">,</span> <span class="n">from_geojson</span><span class="p">,</span> <span class="n">parse_spatial</span><span class="p">,</span> <span class="n">merge_spatial</span><span class="p">,</span> <span class="n">parse_temporal</span><span class="p">,</span> <span class="n">get_package_version</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.h3utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">intersect_h3_geometries</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">GEDIFile</span><span class="p">,</span> <span class="n">gedi_vars_expand</span><span class="p">,</span> <span class="n">soc_file_tree</span><span class="p">,</span> <span class="n">check_soc_file_vars</span><span class="p">,</span> <span class="n">validate_soc_files</span><span class="p">,</span> <span class="n">write_soc_manifest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">GEDIFile</span><span class="p">,</span> <span class="n">gedi_vars_expand</span><span class="p">,</span> <span class="n">soc_file_tree</span><span class="p">,</span> <span class="n">check_soc_file_vars</span><span class="p">,</span> <span class="n">validate_soc_files</span><span class="p">,</span>
+                         <span class="n">write_soc_manifest</span><span class="p">,</span> <span class="n">gedi_release_rank</span><span class="p">,</span> <span class="n">gedi_release_tag</span><span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gh3_list_files</span>
 
 <span class="n">_VALID_STATUSES</span> <span class="o">=</span> <span class="p">(</span>
@@ -2294,6 +2295,64 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">statuses</span><span class="p">)</span>
                 <span class="n">n</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">statuses</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">n</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.superseded_releases">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.superseded_releases">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">superseded_releases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">soc_entries</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Indexed granules whose listed source differs from the release read.</span>
+
+<span class="sd">        Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded</span>
+<span class="sd">        ``releases`` with the file a listing would read now. Log-only, no I/O.</span>
+<span class="sd">        A product with no recorded tag is unknown and never reported. A log</span>
+<span class="sd">        with no GEDI version reports nothing: tags carry no version, so a</span>
+<span class="sd">        file of another release would read as a re-release.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        soc_entries : iterable of dict</span>
+<span class="sd">            ``{product: path}`` dicts: per granule, as ``soc_file_tree(...,</span>
+<span class="sd">            to_list=True)`` returns them, or one per file. Where a granule</span>
+<span class="sd">            product is listed more than once, its latest release</span>
+<span class="sd">            (``gedi_release_rank``) is the one compared, the file a build</span>
+<span class="sd">            reads. Only granules with a recorded tag are ranked.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            ``{'newer': {key: {product: (recorded, listed)}}, 'older': {...}}``</span>
+<span class="sd">            keyed by ``(orbit, granule, track)``. ``newer``: a re-release</span>
+<span class="sd">            within the GEDI version that the rows do not come from (#47).</span>
+<span class="sd">            ``older``: only an older release than the one read is listed;</span>
+<span class="sd">            it is never applied, but variables added and products filled</span>
+<span class="sd">            later would read it.</span>
+<span class="sd">        """</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                 <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">)}</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'newer'</span><span class="p">:</span> <span class="p">{},</span> <span class="s1">'older'</span><span class="p">:</span> <span class="p">{}}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'gedi_version'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">out</span>
+        <span class="n">latest</span> <span class="o">=</span> <span class="p">{}</span>                                             <span class="c1"># (key, product) -&gt; listed tag</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">soc_entries</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">product</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">entry</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span>
+                <span class="n">fl</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]))</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">product</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">,</span> <span class="p">{}):</span>
+                    <span class="k">continue</span>
+                <span class="n">listed</span> <span class="o">=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                <span class="n">best</span> <span class="o">=</span> <span class="n">latest</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">product</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">listed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">gedi_release_rank</span><span class="p">(</span><span class="n">listed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">gedi_release_rank</span><span class="p">(</span><span class="n">best</span><span class="p">)):</span>
+                    <span class="n">latest</span><span class="p">[(</span><span class="n">key</span><span class="p">,</span> <span class="n">product</span><span class="p">)]</span> <span class="o">=</span> <span class="n">listed</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">product</span><span class="p">),</span> <span class="n">listed</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">latest</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+            <span class="n">recorded</span> <span class="o">=</span> <span class="n">index</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">'releases'</span><span class="p">][</span><span class="n">product</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">listed</span> <span class="o">!=</span> <span class="n">recorded</span><span class="p">:</span>
+                <span class="n">side</span> <span class="o">=</span> <span class="s1">'newer'</span> <span class="k">if</span> <span class="n">gedi_release_rank</span><span class="p">(</span><span class="n">listed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">gedi_release_rank</span><span class="p">(</span><span class="n">recorded</span><span class="p">)</span> <span class="k">else</span> <span class="s1">'older'</span>
+                <span class="n">out</span><span class="p">[</span><span class="n">side</span><span class="p">]</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{})[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">recorded</span><span class="p">,</span> <span class="n">listed</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.pending_product_fills">
