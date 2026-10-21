@@ -5,7 +5,9 @@
 """log_state diagnosis — stuck recovery flags + log↔disk drift.
 
 Detects:
-  - ``_pending_variable_update`` left in the log without matching state.
+  - ``_pending_variable_update`` left on a ``COMPLETED`` log (stuck). On any
+    other status it is the resume state of a variable update killed in
+    Stage 2: reported (INFO) and left for ``gh3_build`` to finish (#56).
   - Partitions present on disk but not listed in ``h3_partition_ids``.
   - Partitions listed in the log but missing from disk.
   - Granule status drift — granules in ``granule_info`` with a non-INDEXED
@@ -15,7 +17,7 @@ Detects:
     statuses behind even though the data is already on disk.
 
 Remedies (safe):
-  - Clear the stuck flag when no work is pending.
+  - Clear the stuck flag (``COMPLETED`` log only).
   - Repopulate ``h3_partition_ids`` from disk via ``set_post_build_info``.
   - Disk-missing partitions are reported only (manual intervention).
   - Granule status drift: flip stale entries to ``INDEXED`` and save log.
@@ -39,6 +41,9 @@ from ...config import PARTITION_META_FILENAME
 from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..parallel import parallel_map
+
+_FINISH_PENDING = ("Run gh3_build on this database (no new arguments) to finish the pending variable update; "
+                   "the build log already lists its variables")
 
 
 def _granule_triples_in_partition(partition_dir: str) -> set:
@@ -88,10 +93,16 @@ def log_state_check(ctx: DoctorContext) -> Report:
     log = ctx.h3_logger
     log_data = log.log_data
 
-    # 1. Stuck _pending_variable_update flag
+    # 1. _pending_variable_update: gh3_build pops it before every final save,
+    # so it is stuck only beside COMPLETED. On any other status it is what the
+    # next gh3_build resumes Stage 2 from; clearing it would leave the listed
+    # variables missing from the partitions Stage 2 had not reached.
     pending = log_data.get('_pending_variable_update')
-    if pending:
+    stuck = bool(pending) and log_data.get('status') == 'COMPLETED'
+    if stuck:
         findings.append({'kind': 'stuck_pending_flag', 'value': pending})
+    elif pending:
+        findings.append({'kind': 'pending_variable_update', 'value': pending})
 
     # 2 & 3. Set-diff between disk partitions and logged partition ids
     disk_ids = {_partition_id_from_dir(d) for d in ctx.partition_dirs}
@@ -154,14 +165,17 @@ def log_state_check(ctx: DoctorContext) -> Report:
             'orbit': tr[0], 'granule': tr[1], 'track': tr[2],
         })
 
-    severity = Severity.WARN if findings else Severity.INFO
+    severity = Severity.WARN if any(f['kind'] != 'pending_variable_update' for f in findings) else Severity.INFO
     summary = (
-        f"{'pending flag stuck; ' if pending else ''}"
+        f"{'pending flag stuck; ' if stuck else ''}"
+        f"{'variable update pending (run gh3_build to finish it); ' if pending and not stuck else ''}"
         f"{len(on_disk_missing_log)} disk partitions not logged; "
         f"{len(in_log_missing_disk)} log partitions missing disk; "
         f"{len(drift_triples)} granule status drift"
     )
-    return Report(name='log_state', severity=severity, findings=findings, summary=summary)
+    recommendations = [_FINISH_PENDING] if pending and not stuck else []
+    return Report(name='log_state', severity=severity, findings=findings, summary=summary,
+                  recommendations=recommendations)
 
 
 def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
@@ -173,8 +187,9 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
     log = ctx.h3_logger
     actions = []
 
-    # Clear stuck flag
-    if log.log_data.pop('_pending_variable_update', None) is not None:
+    # Clear the flag only where the check found it stuck.
+    if (any(f['kind'] == 'stuck_pending_flag' for f in report.findings)
+            and log.log_data.pop('_pending_variable_update', None) is not None):
         actions.append({'kind': 'cleared_pending_flag'})
 
     # Refresh h3_partition_ids and per-product status from on-disk meta
@@ -228,14 +243,19 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
                 })
 
     n_errors = sum(1 for a in actions if a.get('kind') in ('refresh_failed', 'log_save_failed'))
+    # Left in place, so still reported: --fix must not read as "clean".
+    kept = [f for f in report.findings if f['kind'] == 'pending_variable_update']
     report.applied = True
-    report.findings = actions
+    report.findings = actions + kept
     if n_errors:
         report.severity = Severity.ERROR
         report.summary = f"applied {len(actions) - n_errors} actions; {n_errors} errors"
     else:
         report.severity = Severity.INFO if not disk_missing else Severity.WARN
         report.summary = f"applied {len(actions)} actions"
+    if kept:
+        report.summary += "; variable update pending (run gh3_build to finish it)"
+        report.recommendations = [_FINISH_PENDING]
     return report
 
 

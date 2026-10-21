@@ -11,7 +11,8 @@ resume that only read those fields would see no update at all. Three markers kee
   getter (`get_spatial`, `get_finished_granules`, `stage1_full_scope`, `is_up_to_date`) and the Stage 1 scope
   fingerprint answer as in the interrupted run. Written on every save until `COMPLETED`, `update_ran`, or Stage 2 start.
 - `_pending_variable_update` (set by `cli/gh3_build.py` when Stage 2 starts): the variables Stage 2 must still add.
-  While present the marker above is not written, and the resume skips Stage 1. Issue #56: the doctor clears it.
+  While present the marker above is not written, and the resume skips Stage 1. `gh3_doctor` treats it as stuck
+  (and clears it) only beside a `COMPLETED` log; otherwise it is an INFO finding pointing at `gh3_build` (#56).
 - `update_ran` (set by the CLI before its final saves): a final `MERGING` save after failed merges drops the marker,
   so the retry only re-merges.
 
