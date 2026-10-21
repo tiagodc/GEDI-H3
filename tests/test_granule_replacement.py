@@ -180,7 +180,7 @@ def test_a_granule_of_another_track_with_the_same_orbit_is_kept(tmp_dir):
     _write(src, _rows(100, range(2, 4), OLD, 1.0), other)
     out = os.path.join(tmp_dir, 'b.parquet')
 
-    stats = parquet_merge_files(out, [src], replace_granules={_key(100): _new_files(100)})
+    stats = parquet_merge_files(out, [src], replace_granules={_key(100): _new_files(100)}, replace_in=src)
 
     assert stats['shot_count'] == 2 and set(pq.read_table(out)['agbd_l4a'].to_pylist()) == {2.0}
 
@@ -235,7 +235,7 @@ def test_rows_without_a_gedi_source_name_are_kept(tmp_dir):
     odd['root_file_l2a'] = [None, 'custom.h5']
     _write(src, _rows(100, range(2, 4), OLD, 1.0), odd)
     out = os.path.join(tmp_dir, 'b.parquet')
-    stats = parquet_merge_files(out, [src], replace_granules={_key(100): _new_files(100)})
+    stats = parquet_merge_files(out, [src], replace_granules={_key(100): _new_files(100)}, replace_in=src)
     assert stats['shot_count'] == 2 and set(pq.read_table(out)['agbd_l4a'].to_pylist()) == {2.0}
 
 
@@ -266,3 +266,24 @@ def test_replace_granules_refuses_replace_true(layout):
     _write(dest, _rows(100, range(0, 2), OLD, 1.0))
     with pytest.raises(GediValidationError):
         h3_merge_files(in_dir, out_dir, replace=True, replace_granules={_key(100): _new_files(100)})
+
+
+def test_a_first_merge_checks_the_new_rows_too(layout):
+    """No destination yet (the granule's shots moved into this cell-year):
+    nothing to drop, but a row a re-run would delete is still refused."""
+    from gedih3.exceptions import GediMergeError
+    from gedih3.gh3builder import h3_merge_files
+    in_dir, out_dir, dest = layout
+    new = _rows(100, [0, 1], NEW, 9.0)
+    new.loc[1, 'root_file_l4a'] = None
+    _write(os.path.join(in_dir, 'O00100_G01_T01100.BEAM0000.parquet'), new)
+    with pytest.raises(GediMergeError, match='do not come from the files'):
+        h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)})
+    assert not os.path.exists(dest)
+
+    _write(os.path.join(in_dir, 'O00100_G01_T01100.BEAM0000.parquet'), _rows(100, [0, 1], NEW, 9.0))
+    h3_merge_files(in_dir, out_dir, rm_src=False, replace_granules={_key(100): _new_files(100)})
+    first = _table(dest)
+    h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)})
+    pd.testing.assert_frame_equal(_table(dest), first)
+    assert len(first) == 2

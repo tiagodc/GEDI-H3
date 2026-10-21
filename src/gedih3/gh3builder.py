@@ -1009,7 +1009,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules
     # merged rows were in place lost the partition-year on a kill (#46).
     stats = parquet_merge_files(
         out_file, files, check_shots=is_temp, rm_src=False, bbox=bbox,
-        replace_granules=replace_granules if is_temp else None,
+        replace_granules=replace_granules, replace_in=out_file if is_temp else None,
     )
     if replacing and not stats['shot_count']:
         # Every row was a replaced granule's: no file, no metadata, no year.
