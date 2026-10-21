@@ -42,6 +42,9 @@ from ..report import Report, DoctorContext, Severity
 from ..runner import register
 from ..parallel import parallel_map
 
+_FINISH_PENDING = ("Run gh3_build on this database (no new arguments) to finish the pending variable update; "
+                   "the build log already lists its variables")
+
 
 def _granule_triples_in_partition(partition_dir: str) -> set:
     """Worker: read every partition meta JSON under one partition dir
@@ -170,7 +173,9 @@ def log_state_check(ctx: DoctorContext) -> Report:
         f"{len(in_log_missing_disk)} log partitions missing disk; "
         f"{len(drift_triples)} granule status drift"
     )
-    return Report(name='log_state', severity=severity, findings=findings, summary=summary)
+    recommendations = [_FINISH_PENDING] if pending and not stuck else []
+    return Report(name='log_state', severity=severity, findings=findings, summary=summary,
+                  recommendations=recommendations)
 
 
 def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
@@ -238,14 +243,19 @@ def log_state_fix(ctx: DoctorContext, report: Report) -> Report:
                 })
 
     n_errors = sum(1 for a in actions if a.get('kind') in ('refresh_failed', 'log_save_failed'))
+    # Left in place, so still reported: --fix must not read as "clean".
+    kept = [f for f in report.findings if f['kind'] == 'pending_variable_update']
     report.applied = True
-    report.findings = actions
+    report.findings = actions + kept
     if n_errors:
         report.severity = Severity.ERROR
         report.summary = f"applied {len(actions) - n_errors} actions; {n_errors} errors"
     else:
         report.severity = Severity.INFO if not disk_missing else Severity.WARN
         report.summary = f"applied {len(actions)} actions"
+    if kept:
+        report.summary += "; variable update pending (run gh3_build to finish it)"
+        report.recommendations = [_FINISH_PENDING]
     return report
 
 
