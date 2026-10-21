@@ -1,5 +1,5 @@
 # NOW
-from: claude-code/opus-5.5 @ gsapp23 · 2026-10-20T22:59:03-04:00 · branch agents/project-memory · last commit 9c85426b
+from: claude-code/opus-5.5 @ gsapp23 · 2026-10-20T22:59:03-04:00 · branch agents/project-memory · main at 7138973f
 ## Open questions
 - #47 owner calls before the replace path: release ranking incl. `_SGS` (Q1), auto vs `--replace-granules` (Q2), S3 identity (Q5).
 - Delete the imported Claude harness memory files? Migrate CLAUDE.md -> AGENTS.md? (unanswered)

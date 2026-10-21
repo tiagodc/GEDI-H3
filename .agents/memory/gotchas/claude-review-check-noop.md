@@ -3,7 +3,7 @@
 updated: 2026-10-20T11:45:23-04:00
 
 ## Symptom
-Until PR #43 (4841d790, 2026-10-05) every `Claude Code Review` run ended after ~3–6 s, posted nothing, and went green.
+Until PR #43 (4841d790) every `Claude Code Review` run ended after ~3–6 s, posted nothing, and went green.
 The #37–#40 stack merged green; an independent review later found a silent data-loss bug in #38.
 
 ## Cause

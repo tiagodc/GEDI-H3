@@ -12,13 +12,13 @@ forward-merge stacked branches). Merge or push to main only on an explicit reque
 1. Branch off `origin/main`; one focused change per PR; Conventional Commit subject; a `## [Unreleased]` CHANGELOG entry.
 2. Before merging: sync the branch with `origin/main`, run the fast suite, push, wait for every CI check.
 3. Merge, then bump on a main worktree with the bump-version skill (micro for fixes and warnings, minor for features
-   or new flags/API; never major in 0.x), commit exactly `bump version to X.Y.Z`, push to main. One bump per PR.
+   or new flags/API; owner policy: never major while in 0.x), commit exactly `bump version to X.Y.Z`, push to main. One bump per PR.
 4. **CHANGELOG after a bump:** syncing a branch whose `[Unreleased]` shares lines with the section the bump renamed
    can merge *without conflict* and file the branch's entry under the released version. After every sync check that
    `git diff origin/main -- CHANGELOG.md` adds only a new `## [Unreleased]` block; move the entry if not.
 5. Stacked PR after its base squash-merges (and a bump landed on top): merge the final base tip into the stacked branch,
    check `git rev-parse <squash>^{tree}` equals the base tip's tree, `git merge -s ours <squash>`, then a normal
-   `git merge origin/main` for the bump; retarget with `gh pr edit N --base main`. Verified #50→#54/#55 (2026-10-20).
+   `git merge origin/main` for the bump; retarget with `gh pr edit N --base main`. Verified on #50→#54/#55.
 6. After the squash, `git rev-parse origin/main^{tree}` must equal the PR tip's tree: proof nothing else changed.
 7. Squash-merged branches need `git branch -D`.
 

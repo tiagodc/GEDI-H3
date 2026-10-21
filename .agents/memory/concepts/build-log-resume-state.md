@@ -2,7 +2,7 @@
 > how gh3_build resumes an interrupted update: _pending_update, _pending_variable_update, update_ran
 updated: 2026-10-20T22:59:21-04:00
 
-Every `gh3_build` run's first `save_log` (status `PARTITIONING`) already stores the *merged* request: the union region,
+The first `save_log` of a `gh3_build` run that goes on to extract (status `PARTITIONING`) already stores the *merged* request: the union region,
 the union dates, and the new products/variables (`to_dict` also writes them into `log_data['products']` in place). A
 resume that only read those fields would see no update at all. Three markers keep the interrupted run's intent:
 

@@ -19,5 +19,5 @@ PR branches are often checked out as sibling git worktrees. To test one without 
 
 ## Verify
 - `tests/test_merge_resume.py::test_empty_year_dir_is_skipped` fails when run alone (also on main) but passes in the full
-  fast suite and in CI: order-dependent, not a regression. Seen 2026-09-29.
+  fast suite and in CI: order-dependent, not a regression.
 - `gh` may not be on PATH on shared hosts; check the dev env's `bin/`. Auth via `GITHUB_TOKEN`.
