@@ -1449,8 +1449,11 @@ class H3BuildLogger:
         Parameters
         ----------
         soc_entries : iterable of dict
-            ``{product: path}`` per granule, as ``soc_file_tree(...,
-            to_list=True)`` returns them (each product's latest release).
+            ``{product: path}`` dicts: per granule, as ``soc_file_tree(...,
+            to_list=True)`` returns them, or one per file. Where a granule
+            product is listed more than once, its latest release
+            (``gedi_release_rank``) is the one compared, the file a build
+            reads. Only granules with a recorded tag are ranked.
 
         Returns
         -------
@@ -1467,6 +1470,7 @@ class H3BuildLogger:
         out = {'newer': {}, 'older': {}}
         if not index:
             return out
+        latest = {}                                             # (key, product) -> listed tag
         for entry in soc_entries:
             for product, path in entry.items():
                 path = str(getattr(path, 'path', path))
@@ -1475,10 +1479,15 @@ class H3BuildLogger:
                     key = (int(fl[3][1:]), int(fl[4]), int(fl[5][1:]))
                 except (IndexError, ValueError):
                     continue
-                recorded = (index.get(key) or {}).get('releases', {}).get(product)
-                listed = gedi_release_tag(path)
-                if recorded is None or listed is None or listed == recorded:
+                if product not in (index.get(key) or {}).get('releases', {}):
                     continue
+                listed = gedi_release_tag(path)
+                best = latest.get((key, product))
+                if listed is not None and (best is None or gedi_release_rank(listed) > gedi_release_rank(best)):
+                    latest[(key, product)] = listed
+        for (key, product), listed in sorted(latest.items()):
+            recorded = index[key]['releases'][product]
+            if listed != recorded:
                 side = 'newer' if gedi_release_rank(listed) > gedi_release_rank(recorded) else 'older'
                 out[side].setdefault(key, {})[product] = (recorded, listed)
         return out

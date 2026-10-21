@@ -843,3 +843,22 @@ def test_superseded_warning_names_an_example(tmp_dir, caplog):
     msg = caplog.records[0].getMessage()
     assert msg.startswith('1 granule(s) were indexed from an older release') and msg.isascii()
     assert 'O00007_02_T00009 L2A 02_003_01 -> 02_004_01' in msg
+
+
+def test_superseded_releases_compares_the_latest_of_files_listed_one_by_one(tmp_dir):
+    """One entry per file (the early-exit listing): each granule product's
+    latest listed release is compared, as a build would read it."""
+    from gedih3.cli.gh3_build import _soc_files_by_product
+    log = _logger_with(tmp_dir, [
+        {'orbit': o, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_02'}} for o in (1, 2)
+    ] + [{'orbit': 3, 'granule': 1, 'track': 1, 'status': 'INDEXED'}])
+
+    def f(orbit, release, version='V002'):
+        return f"/soc/2020/100/GEDI02_A_2020100120000_O{orbit:05d}_01_T00001_{release}_{version}.h5"
+
+    files = [f(1, '02_003_02'), f(1, '02_004_01'), f(1, '02_003_01'),    # a newer one is listed
+             f(2, '02_003_02'), f(2, '02_003_01'),                       # the read one is still listed
+             f(3, '02_009_09'), f(3, '02_003_02', 'V003'),               # unknown: never ranked
+             '/soc/README.h5']
+    assert log.superseded_releases(_soc_files_by_product(files)) == \
+        {'newer': {(1, 1, 1): {'L2A': ('02_003_02', '02_004_01')}}, 'older': {}}

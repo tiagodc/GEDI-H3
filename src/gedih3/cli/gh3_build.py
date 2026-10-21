@@ -214,11 +214,17 @@ def _local_soc_files(soc_source, h3_logger, exclude=None):
 def _warn_superseded_granules(h3_logger, soc_entries, logger):
     """Warn about indexed granules whose source is not the listed release (#47).
 
-    ``soc_entries`` are ``soc_file_tree(..., to_list=True)`` entries. Log-only
-    comparison against the build log's recorded ``releases``; reports, never
-    re-indexes.
+    ``soc_entries``: ``{product: path}`` dicts, see
+    :meth:`H3BuildLogger.superseded_releases` (log-only, against the recorded
+    ``releases``). Reports, never re-indexes, and never fails a build: an
+    error is logged at debug level.
     """
-    found = h3_logger.superseded_releases(soc_entries)
+    from gedih3.exceptions import GediError
+    try:
+        found = h3_logger.superseded_releases(soc_entries)
+    except (GediError, ValueError, OSError) as e:
+        logger.debug(f"Superseded-release check skipped: {type(e).__name__}: {e}")
+        return None
 
     def _example(side):
         key, prods = next(iter(sorted(found[side].items())))
@@ -229,16 +235,29 @@ def _warn_superseded_granules(h3_logger, soc_entries, logger):
         logger.warning(
             f"{len(found['newer'])} granule(s) were indexed from an older release than the SOC tree now holds "
             f"(e.g. {_example('newer')}). Their rows are not re-indexed, while variables added and products "
-            f"filled later read the newer file. List them with gh3_doctor --check superseded_granules."
+            f"filled later read the newer file: until gh3_build can re-index them, move the newer files out "
+            f"of the SOC tree. List them with gh3_doctor --check superseded_granules."
         )
     if found['older']:
         logger.warning(
             f"{len(found['older'])} granule(s) were indexed from a release the SOC tree no longer holds: only an "
             f"older one is listed (e.g. {_example('older')}). The indexed rows are kept and never replaced by an "
             f"older release, but variables added and products filled later would read it. Restore the file the "
-            f"granule was read from, or exclude the older one (--exclude)."
+            f"granule was read from."
         )
     return found
+
+
+def _soc_files_by_product(files):
+    """``{product: path}`` per GEDI file, for :func:`_warn_superseded_granules`."""
+    import os
+    import re
+    out = []
+    for f in files:
+        m = re.match(r'GEDI0(\d)_([A-Z])_', os.path.basename(f))
+        if m:
+            out.append({f"L{m.group(1)}{m.group(2)}": f})
+    return out
 
 
 def _has_new_local_granules(soc_source, h3_logger, exclude=None, files=None):
@@ -535,8 +554,7 @@ def main():
                     h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products
                 logger.info("Database is already up-to-date with requested parameters")
                 if _local_files:
-                    _warn_superseded_granules(
-                        h3_logger, soc_file_tree(_local_files, to_list=True, require_all=False), logger)
+                    _warn_superseded_granules(h3_logger, _soc_files_by_product(_local_files), logger)
                 # Up-to-date DB: create the index only if it is missing
                 # (e.g. first run after upgrading gedih3) — the data is
                 # unchanged, so an existing index remains valid. No client

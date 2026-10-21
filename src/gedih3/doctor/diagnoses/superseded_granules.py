@@ -30,9 +30,12 @@ from ..runner import register
 
 
 def superseded_granules_check(ctx: DoctorContext) -> Report:
-    if not ctx.soc_dir or not os.path.isdir(ctx.soc_dir):
+    if not ctx.soc_dir:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary='no SOC directory configured; skipping')
+    if not os.path.isdir(ctx.soc_dir):
+        return Report(name='superseded_granules', severity=Severity.INFO,
+                      summary=f"{ctx.soc_dir} is not a local directory; detection covers local SOC trees only")
     log = ctx.h3_logger
     granules = getattr(log, 'granule_info', None) or []
     checked = [g for g in granules if g.get('status') in ('INDEXED', 'NO_DATA')]
@@ -65,12 +68,12 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if n_newer:
         recommendations.append(
             "Rows of these granules come from the older release and gh3_build does not re-index them yet. "
-            "Until it does, exclude the newer files (gh3_build --exclude) so variables added and products "
-            "filled later read the release the rows came from")
+            "Until it does, move the newer files out of the SOC tree, so variables added and products filled "
+            "later read the release the rows came from (adding variables does not apply --exclude, and this "
+            "check does not either)")
     if n_older:
         recommendations.append(
-            "Restore the release these granules were indexed from, or exclude the older file "
-            "(gh3_build --exclude), before adding variables or filling products")
+            "Restore the release these granules were indexed from before adding variables or filling products")
     return Report(name='superseded_granules', severity=Severity.WARN if findings else Severity.INFO,
                   findings=findings, summary=summary, recommendations=recommendations)
 

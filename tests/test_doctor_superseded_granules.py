@@ -70,6 +70,14 @@ def test_is_info_without_a_soc_dir_or_recorded_releases(tmp_path):
         assert report.severity == Severity.INFO and not report.findings
 
 
+def test_an_s3_soc_dir_says_detection_is_local_only(tmp_path):
+    h3_dir = str(tmp_path / 'db')
+    os.makedirs(h3_dir)
+    _make_build_log(h3_dir)
+    report = _check(_ctx(h3_dir, soc_dir='s3://bucket/soc'))
+    assert report.severity == Severity.INFO and 'local SOC trees only' in report.summary
+
+
 def test_runs_with_the_soc_group():
     assert 'superseded_granules' in ALIAS_GROUPS['soc']
     assert 'superseded_granules' not in ALIAS_GROUPS['db']
