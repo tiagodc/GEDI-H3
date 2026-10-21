@@ -573,6 +573,9 @@ class H3BuildLogger:
         if product_vars:
             product_vars = gedi_vars_expand(product_vars, version=effective_version)
         self.updating = False
+        # Set by gh3_build once every stage ran under this run's update: its
+        # final save (MERGING when merges failed) must not keep it pending.
+        self.update_ran = False
         self.source_mode = source_mode
         self.build_start_time = datetime.now(timezone.utc)
         self.previous_status = self.log_data.get('status')
@@ -594,6 +597,7 @@ class H3BuildLogger:
             self.new_spatial = None
             self.new_temporal = None
             self.new_product_vars = None
+            self.requested_expansion = False
             return
 
         self._load_filters_from_log()
@@ -645,9 +649,23 @@ class H3BuildLogger:
         widened = False
         if self.new_spatial is not None and prev_spatial is not None:
             try:
-                widened = self.spatial.union_all().difference(prev_spatial.union_all()).area > 0
+                added = self.spatial.union_all().difference(prev_spatial.union_all())
+                widened = added.area > 0
             except Exception:
-                widened = True  # cannot tell: reopen (costs a re-read)
+                added, widened = None, True  # cannot tell: reopen, keep the symmetric difference (a superset)
+            if not widened:
+                # A narrower or identical region adds nothing (a database's
+                # scope never shrinks): this is a plain update over the stored
+                # region. Left set, the symmetric difference made it a
+                # "spatial-only expansion" over stored-minus-requested, and a
+                # granule new to the database lost its rows outside that (#42).
+                self.new_spatial = None
+            elif added is not None:
+                # Only the area the request adds: the symmetric difference also
+                # holds the stored region outside the request (all of it, for a
+                # disjoint request), which Stage 1 then re-read for nothing.
+                import geopandas as gpd
+                self.new_spatial = gpd.GeoDataFrame(geometry=[added], crs=self.spatial.crs)
         elif self.new_spatial is not None:
             widened = True
         if self.new_temporal is not None and not widened:
@@ -668,6 +686,53 @@ class H3BuildLogger:
                 get_logger(__name__).info(
                     f"{n_reopen} NO_DATA granule(s) reopened: the requested region/dates widen the "
                     f"scope they were recorded under")
+
+        # What this run itself asks to add, before an interrupted run's pending
+        # update is merged in: gh3_build must not take its merge-only shortcut
+        # over a widening nothing has read yet.
+        self.requested_expansion = self.new_spatial is not None or self.new_temporal is not None
+        self._restore_pending_update()
+
+    def _restore_pending_update(self):
+        """Resume an update that a previous run started but never completed (#42, #52).
+
+        The first ``save_log`` of an expansion already stores the widened
+        region/dates, so a plain resume would see no ``new_spatial`` /
+        ``new_temporal``: Stage 1 would read the whole scope while skipping
+        every INDEXED granule, and their rows in the added area would never be
+        extracted. ``to_dict`` persists the added area as ``_pending_update``
+        until Stage 1 has run under it; this puts it back into ``new_spatial`` /
+        ``new_temporal``, so every getter answers as it did in the interrupted
+        run (and Stage 1's scope fingerprint matches its sentinels). An
+        expansion requested by this run is combined with it: reading a superset
+        of the added area costs a re-read, never rows.
+
+        The same first save stores the new products/variables in the log's
+        ``products``, so a resume would also see no ``new_product_vars``: a
+        mixed update killed in Phase 1 (or a variable update killed before
+        Stage 2 started) never ran Stage 2, and the granules already indexed
+        never got the new columns (#52). They are restored the same way, so the
+        resume is again a mixed (or variable-only) update.
+        """
+        pending = self.log_data.get('_pending_update')
+        if not pending:
+            return
+        product_vars = pending.get('product_vars')
+        if product_vars:
+            self.product_vars = merge_product_vars(self.product_vars or {}, product_vars)[0]
+            self.new_product_vars = (product_vars if self.new_product_vars is None
+                                     else merge_product_vars(self.new_product_vars, product_vars)[0])
+        spatial = parse_spatial(pending.get('spatial'))
+        if spatial is not None:
+            self.new_spatial = (spatial if self.new_spatial is None
+                                else merge_spatial(self.new_spatial, spatial)[0])
+        temporal = parse_temporal(pending.get('temporal'))
+        if temporal is not None:
+            self.new_temporal = (temporal if self.new_temporal is None
+                                 else merge_temporal(self.new_temporal, temporal)[0])
+        from .logging_config import get_logger
+        get_logger(__name__).debug(
+            "Build log holds an interrupted update: its added area and variables are processed again")
 
     def _load_filters_from_log(self):
         self.product_vars = self.log_data.get('products', {})
@@ -804,20 +869,52 @@ class H3BuildLogger:
         requested region or dates widen the stored ones, by any area, before
         this is consulted.
         """
-        # Keys not part of the original granule identity. ``products`` was
-        # added by the per-product status extension; both must be stripped so
-        # _filter_granules' dict equality keeps matching legacy entries.
-        _strip = {'status', 'products'}
         if (hasattr(self, 'granule_info')
                 and getattr(self, 'new_product_vars', None) is None
                 and getattr(self, 'new_temporal', None) is None
                 and not self._adding_h3_parts()):
-            return [
-                {k: v for k, v in g.items() if k not in _strip}
-                for g in self.granule_info
-                if g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
-            ]
+            return self._finished_granule_list()
         return None
+
+    def _finished_granule_list(self):
+        # Keys not part of the original granule identity. ``products`` was
+        # added by the per-product status extension; both must be stripped so
+        # _filter_granules' dict equality keeps matching legacy entries.
+        _strip = {'status', 'products'}
+        return [
+            {k: v for k, v in g.items() if k not in _strip}
+            for g in getattr(self, 'granule_info', None) or []
+            if g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA, None)
+        ]
+
+    def reads_added_area_only(self):
+        """True when Stage 1 reads only the region this update adds (a spatial-only expansion)."""
+        return (getattr(self, 'updating', False)
+                and getattr(self, 'new_spatial', None) is not None
+                and getattr(self, 'new_product_vars', None) is None
+                and getattr(self, 'new_temporal', None) is None)
+
+    def stage1_only_granules(self):
+        """Granules Stage 1 may read in this run, or None when it may read any.
+
+        A spatial-only expansion hands Stage 1 only the added region
+        (:meth:`get_spatial`). That is exactly what a granule finished under
+        the stored region still needs. Any other granule (new to the database,
+        ``PENDING``, ``FAILED``, a ``NO_DATA`` reopened by the widening) would
+        have its rows outside the added region dropped, while its rows inside
+        made it ``INDEXED`` and kept later builds from ever reading the rest
+        (#42). Such granules are left as they are for the next build, which
+        reads them over the whole region.
+
+        Returns
+        -------
+        list of dict or None
+            ``{'orbit', 'granule', 'track'}`` dicts, as for
+            :meth:`get_finished_granules`.
+        """
+        if not self.reads_added_area_only():
+            return None
+        return self._finished_granule_list()
 
     def is_up_to_date(self):
         """Check if database already matches requested parameters.
@@ -1059,11 +1156,9 @@ class H3BuildLogger:
         if not getattr(self, 'updating', False):
             return True
         no_prod = getattr(self, 'new_product_vars', None) is None
-        new_sp = getattr(self, 'new_spatial', None)
-        new_tm = getattr(self, 'new_temporal', None)
-        spatial_only = new_sp is not None and no_prod and new_tm is None
-        temporal_only = new_tm is not None and no_prod and new_sp is None
-        return not (spatial_only or temporal_only)
+        temporal_only = (getattr(self, 'new_temporal', None) is not None and no_prod
+                         and getattr(self, 'new_spatial', None) is None)
+        return not (self.reads_added_area_only() or temporal_only)
 
     def mark_no_data(self, listed_keys, incomplete_keys, empty_keys):
         """Record granules Stage 1 read in full that hold no rows as ``NO_DATA``.
@@ -1191,6 +1286,21 @@ class H3BuildLogger:
         # Preserve pending variable update state for crash recovery (P0-B)
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
+
+        # Pending until the run's stages have run, or until Stage 2 starts: its
+        # own _pending_variable_update then describes all the remaining work.
+        # See _restore_pending_update.
+        new_spatial = getattr(self, 'new_spatial', None)
+        new_temporal = getattr(self, 'new_temporal', None)
+        new_product_vars = getattr(self, 'new_product_vars', None)
+        if (status != 'COMPLETED' and '_pending_variable_update' not in log_dict
+                and not getattr(self, 'update_ran', False)
+                and (new_spatial is not None or new_temporal is not None or new_product_vars)):
+            log_dict['_pending_update'] = {
+                'spatial': None if new_spatial is None else to_geojson(new_spatial),
+                'temporal': None if new_temporal is None else list(new_temporal),
+                'product_vars': new_product_vars or None,
+            }
 
         return log_dict
 

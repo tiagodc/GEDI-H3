@@ -19,6 +19,8 @@ added, regardless of whether the attribute was persisted.
 import json
 import os
 
+import pytest
+
 from gedih3.logger import H3BuildLogger
 
 
@@ -134,3 +136,109 @@ class TestGetFinishedGranulesAfterKilledFirstWrite:
         h3_logger.new_product_vars = None
 
         assert h3_logger.get_finished_granules() is None
+
+
+def _box(x0, y0, x1, y1):
+    return json.dumps({"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {},
+                       "geometry": {"type": "Polygon",
+                                    "coordinates": [[[x0, y0], [x0, y1], [x1, y1], [x1, y0], [x0, y0]]]}}]})
+
+
+class TestInterruptedExpansionResume:
+    """#42 case 2: the first save_log of an expansion stores the union region,
+    so a plain resume after a kill used to see no expansion at all: Stage 1
+    read the whole scope while skipping every INDEXED granule, whose rows in
+    the added area were then never extracted."""
+    A = _box(-51, 0, -50, 1)
+    B = _box(-51, 0, -44, 1)        # A widened eastwards: adds partitions
+
+    def _db(self, tmp_dir):
+        from conftest import make_build_log
+        from gedih3.h3utils import intersect_h3_geometries
+        from gedih3.utils import parse_spatial
+        make_build_log(tmp_dir, granules=[{'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED'}],
+                       spatial=self.A,
+                       h3_partition_ids=sorted(set(intersect_h3_geometries(parse_spatial(self.A), res=3))))
+
+    def _interrupted(self, tmp_dir, status='PARTITIONING', **request):
+        self._db(tmp_dir)
+        run = H3BuildLogger(product_vars=None, dir=tmp_dir, **request)
+        assert run.get_finished_granules() is None and not run.stage1_full_scope()
+        run.save_log(status)      # the run dies after this save
+        return run
+
+    def test_plain_resume_keeps_the_added_area(self, tmp_dir):
+        run = self._interrupted(tmp_dir, spatial=self.B)
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        added = run.get_spatial().union_all()
+        assert added.area == pytest.approx(6.0)                # the added area, not the union
+        assert resume.get_spatial().union_all().equals(added)
+        assert resume.get_finished_granules() is None          # INDEXED granules are read in B
+        assert not resume.stage1_full_scope()                  # so no NO_DATA proof either
+        assert not resume.is_up_to_date()
+
+    def test_marker_survives_failed_and_interrupted_saves(self, tmp_dir):
+        for status in ('FAILED', 'INTERRUPTED', 'MERGING'):
+            run = self._interrupted(os.path.join(tmp_dir, status), status=status, spatial=self.B)
+            resume = H3BuildLogger(product_vars=None, dir=run._PARENT_DIR)
+            assert resume.get_finished_granules() is None, status
+
+    def test_completed_save_clears_the_marker(self, tmp_dir):
+        self._interrupted(tmp_dir, spatial=self.B)
+        H3BuildLogger(product_vars=None, dir=tmp_dir).save_log('COMPLETED')
+
+        after = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert after.new_spatial is None
+        assert after.get_finished_granules() == [{'orbit': 1, 'granule': 1, 'track': 1}]
+        with open(after.log_file) as f:
+            assert '_pending_update' not in json.load(f)
+
+    def test_a_new_widening_combines_with_the_pending_one(self, tmp_dir):
+        from shapely.geometry import box
+        self._interrupted(tmp_dir, spatial=self.B)
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir, spatial=_box(-51, 0, -39, 1))
+
+        added = resume.get_spatial().union_all()
+        assert added.contains(box(-49.9, 0.1, -44.1, 0.9))     # the interrupted run's area
+        assert added.contains(box(-43.9, 0.1, -39.1, 0.9))     # and this run's
+        assert not added.contains(box(-50.9, 0.1, -50.1, 0.9))  # never the stored region
+
+    def test_temporal_expansion_is_restored_too(self, tmp_dir):
+        run = self._interrupted(tmp_dir, temporal=['2020-01-01', '2020-06-30'])
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert resume.new_temporal == run.new_temporal
+        assert resume.get_temporal() == run.get_temporal()
+        assert resume.get_finished_granules() is None
+
+
+    def test_resumed_mixed_update_phase_2_gets_the_whole_region(self, tmp_dir):
+        """Phase 2 of a mixed update starts once Phase 1 drained; a resume of it
+        must not narrow Stage 2 (in S3 mode, its download) to the added area."""
+        self._db(tmp_dir)
+        run = H3BuildLogger(product_vars={'L2B': ['cover']}, dir=tmp_dir, spatial=self.B)
+        whole = run.get_spatial().union_all()
+        run.log_data['_pending_variable_update'] = {'product_vars': dict(run.new_product_vars)}
+        run.save_log('PROCESSING')       # killed in Phase 2
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert resume.new_spatial is None
+        assert resume.get_spatial().union_all().equals(whole)
+
+
+    def test_final_save_after_failed_merges_does_not_keep_it_pending(self, tmp_dir):
+        """Every stage ran; only merges are left to retry, which must not re-read the added area."""
+        run = self._interrupted(tmp_dir, spatial=self.B)
+        run.update_ran = True
+        run.save_log('MERGING')
+
+        resume = H3BuildLogger(product_vars=None, dir=tmp_dir)
+
+        assert resume.new_spatial is None
+        assert resume.get_finished_granules() == [{'orbit': 1, 'granule': 1, 'track': 1}]

@@ -642,3 +642,102 @@ class TestMergeSkipNeedsGranuleProof:
         assert not _dest_holds_fragments(dest, [legacy])
         assert not _dest_holds_fragments(dest, [])
         assert not _dest_holds_fragments(dest + '.missing', [frag])
+
+
+class TestMergeKillBeforePromote:
+    """#46: a kill between writing the merged ``<dest>.tmp`` and promoting it
+    must not lose the destination's rows or the fragments'."""
+    FRAG = 'O00088_G01_T00011.BEAM0000.parquet'
+
+    def _setup(self, tmp_dir):
+        in_dir = os.path.join(tmp_dir, 'tmp', 'h3_03=830001fffffffff', 'year=2020') + '/'
+        out_dir = os.path.join(tmp_dir, 'database')
+        dest = os.path.join(out_dir, 'h3_03=830001fffffffff', 'year=2020', '830001fffffffff.2020.0.parquet')
+        _write_part(dest, 'uint8', [10, 20], [1, 2])
+        _write_part(os.path.join(in_dir, self.FRAG), 'uint8', [30, 40, 50], [3, 4, 5])
+        return in_dir, out_dir, dest
+
+    def test_kill_before_promote_keeps_inputs_and_resume_merges(self, tmp_dir, monkeypatch):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._setup(tmp_dir)
+        real_replace = os.replace
+
+        def killed_on_promote(src, dst, *a, **kw):
+            if dst == dest:
+                raise KeyboardInterrupt('simulated kill before promote')
+            return real_replace(src, dst, *a, **kw)
+
+        monkeypatch.setattr(os, 'replace', killed_on_promote)
+        with pytest.raises(KeyboardInterrupt):
+            h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+        monkeypatch.setattr(os, 'replace', real_replace)
+
+        assert pq.ParquetFile(dest).metadata.num_rows == 2      # destination survives the kill
+        assert os.listdir(in_dir) == [self.FRAG]                  # and so do the fragments
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert sorted(pq.read_table(dest)['shot_number'].to_pylist()) == [1, 2, 3, 4, 5]
+        assert not os.path.exists(in_dir)
+        assert not any(n.endswith('.tmp') for n in os.listdir(os.path.dirname(dest)))
+
+    def _orphan(self, tmp_dir):
+        """The state a pre-#46 kill left: inputs deleted, only ``<dest>.tmp``."""
+        in_dir, out_dir, dest = self._setup(tmp_dir)
+        _write_part(dest + '.tmp', 'uint8', [10, 20, 30, 40, 50], [1, 2, 3, 4, 5])
+        os.unlink(dest)
+        os.unlink(os.path.join(in_dir, self.FRAG))
+        return in_dir, out_dir, dest
+
+    def test_orphan_is_promoted_on_an_empty_resume(self, tmp_dir):
+        from gedih3.config import PARTITION_META_FILENAME
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._orphan(tmp_dir)
+
+        assert h3_merge_files(in_dir, out_dir, rm_src=True, replace=False) == dest
+
+        assert pq.ParquetFile(dest).metadata.num_rows == 5
+        assert not os.path.exists(dest + '.tmp')
+        # Its metadata, which the kill skipped, is rewritten from the promoted file.
+        with open(dest.replace('.parquet', PARTITION_META_FILENAME)) as f:
+            meta = json.load(f)
+        assert meta['shot_count'] == 5
+
+    def test_orphan_is_promoted_before_new_fragments_merge(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._orphan(tmp_dir)
+        _write_part(os.path.join(in_dir, 'O00099_G01_T00022.BEAM0000.parquet'), 'uint8', [60], [6])
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert sorted(pq.read_table(dest)['shot_number'].to_pylist()) == [1, 2, 3, 4, 5, 6]
+        assert not os.path.exists(dest + '.tmp')
+
+    def test_kill_after_the_merge_before_its_metadata_resumes_without_duplicates(self, tmp_dir, monkeypatch):
+        import gedih3.gh3builder as gb
+        in_dir, out_dir, dest = self._setup(tmp_dir)
+        real_write = gb.h3_write_metadata
+
+        def killed(*a, **kw):
+            raise KeyboardInterrupt('simulated kill before the metadata write')
+
+        monkeypatch.setattr(gb, 'h3_write_metadata', killed)
+        with pytest.raises(KeyboardInterrupt):
+            gb.h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+        monkeypatch.setattr(gb, 'h3_write_metadata', real_write)
+        assert os.listdir(in_dir) == [self.FRAG]                # fragments kept until the metadata
+
+        gb.h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert pq.read_table(dest)['shot_number'].to_pylist() == [1, 2, 3, 4, 5]
+        assert not os.path.exists(in_dir)
+
+    def test_tmp_beside_a_destination_is_swept_not_promoted(self, tmp_dir):
+        from gedih3.gh3builder import h3_merge_files
+        in_dir, out_dir, dest = self._setup(tmp_dir)
+        _write_part(dest + '.tmp', 'uint8', [99], [99])     # stale: dest + fragments are authoritative
+
+        h3_merge_files(in_dir, out_dir, rm_src=True, replace=False)
+
+        assert sorted(pq.read_table(dest)['shot_number'].to_pylist()) == [1, 2, 3, 4, 5]
+        assert not os.path.exists(dest + '.tmp')
