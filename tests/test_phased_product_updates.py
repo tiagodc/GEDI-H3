@@ -862,3 +862,7 @@ def test_superseded_releases_compares_the_latest_of_files_listed_one_by_one(tmp_
              '/soc/README.h5']
     assert log.superseded_releases(_soc_files_by_product(files)) == \
         {'newer': {(1, 1, 1): {'L2A': ('02_003_02', '02_004_01')}}, 'older': {}}
+    # With no GEDI version a V003 file would read as a re-release: nothing is reported.
+    log.gedi_version = None
+    assert log.superseded_releases(_soc_files_by_product([f(1, '02_004_01', 'V003')])) == \
+        {'newer': {}, 'older': {}}

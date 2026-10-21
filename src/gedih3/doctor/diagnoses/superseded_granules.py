@@ -37,6 +37,10 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary=f"{ctx.soc_dir} is not a local directory; detection covers local SOC trees only")
     log = ctx.h3_logger
+    version = getattr(log, 'gedi_version', None)
+    if not version:
+        return Report(name='superseded_granules', severity=Severity.INFO,
+                      summary='the build log records no GEDI version; skipping')
     granules = getattr(log, 'granule_info', None) or []
     checked = [g for g in granules if g.get('status') in ('INDEXED', 'NO_DATA')]
     n_unknown = sum(1 for g in checked if not g.get('releases'))
@@ -46,9 +50,7 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
                               f"gedih3 recorded them)")
 
     from ...gedidriver import soc_file_tree
-    version = getattr(log, 'gedi_version', None)
-    entries = soc_file_tree(ctx.soc_dir, to_list=True, require_all=False,
-                            glob_kwargs={'version': version} if version else None)
+    entries = soc_file_tree(ctx.soc_dir, to_list=True, require_all=False, glob_kwargs={'version': version})
     found = log.superseded_releases(entries)
 
     findings = []

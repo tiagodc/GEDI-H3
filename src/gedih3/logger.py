@@ -1444,7 +1444,9 @@ class H3BuildLogger:
 
         Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded
         ``releases`` with the file a listing would read now. Log-only, no I/O.
-        A product with no recorded tag is unknown and never reported.
+        A product with no recorded tag is unknown and never reported. A log
+        with no GEDI version reports nothing: tags carry no version, so a
+        file of another release would read as a re-release.
 
         Parameters
         ----------
@@ -1468,7 +1470,7 @@ class H3BuildLogger:
         index = {(g['orbit'], g['granule'], g['track']): g for g in getattr(self, 'granule_info', None) or []
                  if g.get('releases') and g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA)}
         out = {'newer': {}, 'older': {}}
-        if not index:
+        if not index or not getattr(self, 'gedi_version', None):
             return out
         latest = {}                                             # (key, product) -> listed tag
         for entry in soc_entries:
