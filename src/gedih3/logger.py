@@ -1465,9 +1465,11 @@ class H3BuildLogger:
         releases : dict
             ``{(orbit, granule, track): {product: tag}}`` (tags from
             ``gedi_release_tag``), e.g. from ``_build_fill_products``'
-            ``releases_callback`` before it writes. A product that has a tag
-            keeps it, as in :meth:`register_pending_granules`: rows already
-            written may come from that release.
+            ``releases_callback`` before it writes. As in
+            :meth:`register_pending_granules`, a product that has a tag keeps
+            it (rows already written may come from that release), and an
+            entry recorded before tags existed (no ``releases`` key) stays
+            unknown: its other products' rows may come from any file.
 
         Returns
         -------
@@ -1477,8 +1479,8 @@ class H3BuildLogger:
         n = 0
         for g in getattr(self, 'granule_info', None) or []:
             tags = releases.get((g['orbit'], g['granule'], g['track']))
-            if tags:
-                known = g.setdefault('releases', {})
+            if tags and 'releases' in g:
+                known = g['releases']
                 for product, tag in tags.items():
                     if product not in known:
                         known[product] = tag

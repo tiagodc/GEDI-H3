@@ -536,18 +536,19 @@ def test_fill_results_are_recorded_and_given_up_on(tmp_dir):
 def test_recorded_releases_are_never_replaced(tmp_dir):
     """A fill records the releases it reads before writing; one recorded
     earlier stays: rows a killed fill committed may come from it (#47)."""
+    fill = {'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}, 'status': 'INDEXED', 'granule': 1, 'track': 1}
     log = _logger_with(tmp_dir, [
-        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_01', 'L4A': '02_001_01'},
-         'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
-        {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'INDEXED',
-         'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
+        {**fill, 'orbit': 1, 'releases': {'L2A': '02_003_01'}},
+        {**fill, 'orbit': 2, 'releases': {'L2A': '02_003_01', 'L4A': '02_001_01'}},
+        {**fill, 'orbit': 3},                                    # recorded before tags existed
     ])
-    a, b, c = (1, 1, 1), (2, 1, 1), (3, 1, 1)
-    assert log.record_releases({a: {'L4A': '02_002_01'}, b: {'L4A': '02_002_01'}, c: {'L4A': '02_002_01'}}) == 1
+    tag = {'L4A': '02_002_01'}
+    assert log.record_releases({(o, 1, 1): tag for o in (1, 2, 3, 4)}) == 1
     g = {x['orbit']: x for x in log.granule_info}
-    assert g[1]['releases'] == {'L2A': '02_003_01', 'L4A': '02_001_01'}
-    assert g[2]['releases'] == {'L4A': '02_002_01'}            # L2A stays unknown
-    assert 3 not in g                                           # no entry is invented
+    assert g[1]['releases'] == {'L2A': '02_003_01', 'L4A': '02_002_01'}
+    assert g[2]['releases'] == {'L2A': '02_003_01', 'L4A': '02_001_01'}
+    assert 'releases' not in g[3]                               # stays unknown, so registration never extends it
+    assert 4 not in g                                           # no entry is invented
 
 
 def test_registration_never_replaces_a_recorded_release(tmp_dir):
