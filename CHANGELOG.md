@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **A merge can replace a granule's rows.** `h3_merge_files` and `parquet_merge_files` take `replace_granules={(orbit, granule, track): {product: basename}}`. The destination's rows from those granules are dropped unless every `root_file_<product>` column already names the given file, and the fragments' rows take their place. Rows a replacement already wrote are therefore kept, so the merge gives the same result when re-run at any point, with or without the fragments. The destination is rewritten even with no fragment (the granule's shots left that cell-year). The "already merged" skip never applies, and a file left with no row is removed with its metadata and empty year directory. No command uses it yet: it is the building block for re-indexing re-released granules. (#47)
+
+### Fixed
+- **`h3_merge_metadata` no longer keeps a stale cell summary.** With no year file left in a partition, it now removes the partition's summary metadata, which would otherwise list granules and shots that are gone.
+
 ## [0.20.11] - 2026-10-21
 
 ### Added
