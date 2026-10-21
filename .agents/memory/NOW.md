@@ -1,5 +1,5 @@
 # NOW
-from: claude-code/opus-5.5 @ gsapp23 · 2026-10-21T17:51:50-04:00 · branch chore/agents-md · main at 3da94c04
+from: claude-code/opus-5.5 @ gsapp23 · 2026-10-21T18:42:10-04:00 · branch main · main at aaa89339
 ## Open questions
 - Delete the merged PR branches on GitHub (origin/fix/*, origin/feat/*)? Not asked yet.
 ## Next steps
@@ -7,7 +7,7 @@ from: claude-code/opus-5.5 @ gsapp23 · 2026-10-21T17:51:50-04:00 · branch chor
 2. Possible follow-ups to #47, not filed: automatic replacement mode (Q2 later), S3/CMR detection (Q5 later).
 ## Files touched
 - Merged this round: #57 0.20.8, #58 0.20.9, #59 0.20.10, #60 0.20.11, #61 0.20.12, #62 0.21.0.
-- Worktrees and local branches of merged PRs removed. CLAUDE.md moved to AGENTS.md (CLAUDE.md imports it).
+- Worktrees and local branches of merged PRs removed. #63 moved CLAUDE.md to AGENTS.md (CLAUDE.md imports it).
 ## State
 main is at 0.21.0; no PR or issue open. #47 done in five PRs (#58-#62): ranking, release tags, detection,
 replace_granules merge primitive, gh3_build --replace-granules. See [[decisions/0001-granule-release-replacement]].

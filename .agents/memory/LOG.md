@@ -11,3 +11,4 @@
 2026-10-21T15:20:47-04:00 · agent · merged #60 (0.20.11) and #61 (0.20.12): #47 parts 3-4 (detection, replace_granules primitive)
 2026-10-21T17:27:40-04:00 · agent · merged #62 (0.21.0): #47 part 5, gh3_build --replace-granules; #47 closed, no PR or issue open
 2026-10-21T17:51:50-04:00 · agent · CLAUDE.md moved to AGENTS.md (CLAUDE.md = @AGENTS.md), protocol v3; harness-local memory deleted after import
+2026-10-21T18:42:10-04:00 · agent · merged #63 (AGENTS.md migration), no bump: agent files only
