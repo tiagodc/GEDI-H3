@@ -822,16 +822,26 @@ class H3BuildLogger:
         Parameters
         ----------
         granule_list : list of dict
-            Each dict must have 'orbit', 'granule', 'track' keys.
+            Each dict must have 'orbit', 'granule', 'track' keys, and may have
+            ``files``: ``{product: basename}`` of the source files the build
+            reads for the granule. A granule not indexed yet takes the files
+            of this listing. One already ``INDEXED`` or ``NO_DATA`` keeps the
+            files it was read from: a newer release is detected against them
+            (#47). No ``files`` means the source is unknown: an older log, a
+            product added by a variable update, or an S3-sourced build (which
+            registers no granules).
         """
         if not hasattr(self, 'granule_info'):
             self.granule_info = []
-        existing = {(g['orbit'], g['granule'], g['track']) for g in self.granule_info}
+        index = {(g['orbit'], g['granule'], g['track']): g for g in self.granule_info}
         for g in granule_list:
             key = (g['orbit'], g['granule'], g['track'])
-            if key not in existing:
-                self.granule_info.append({**g, 'status': 'PENDING'})
-                existing.add(key)
+            entry = index.get(key)
+            if entry is None:
+                index[key] = {**g, 'status': 'PENDING'}
+                self.granule_info.append(index[key])
+            elif g.get('files') and entry.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA, None):
+                entry['files'] = dict(g['files'])
 
     def update_granule_status(self, gran_key, status):
         """Update status of a single granule (does NOT auto-save).
@@ -877,10 +887,10 @@ class H3BuildLogger:
         return None
 
     def _finished_granule_list(self):
-        # Keys not part of the original granule identity. ``products`` was
-        # added by the per-product status extension; both must be stripped so
-        # _filter_granules' dict equality keeps matching legacy entries.
-        _strip = {'status', 'products'}
+        # Keys not part of the original granule identity (``products``: the
+        # per-product statuses; ``files``: the source files). Callers get bare
+        # {'orbit', 'granule', 'track'} dicts, the form legacy logs hold.
+        _strip = {'status', 'products', 'files'}
         return [
             {k: v for k, v in g.items() if k not in _strip}
             for g in getattr(self, 'granule_info', None) or []
@@ -1441,7 +1451,9 @@ class H3BuildLogger:
     def record_fill_results(self, result, max_attempts=3, count_failures=True):
         """Apply a ``_build_fill_products`` result to per-product statuses.
 
-        * ``filled`` → ``INDEXED`` (attempt count cleared);
+        * ``filled`` → ``INDEXED`` (attempt count cleared), and the file each
+          product was filled from (``result['files']``) is recorded in the
+          granule's ``files``;
         * ``unlocated`` (the product file exists but no database file lists the
           granule, so it can never fill) → ``FAILED`` at once;
         * ``failed`` (read or merge error, or no row matched) → retried by the
@@ -1458,9 +1470,12 @@ class H3BuildLogger:
             g = index.get(tuple(key))
             if g is None:
                 continue
+            sources = (result.get('files') or {}).get(tuple(key)) or {}
             for p in prods:
                 g.setdefault('products', {})[p] = PRODUCT_STATUS_INDEXED
                 (g.get('fill_attempts') or {}).pop(p, None)
+                if p in sources:
+                    g.setdefault('files', {})[p] = sources[p]
             if 'fill_attempts' in g and not g['fill_attempts']:
                 del g['fill_attempts']
         for key, prods in (result.get('unlocated') or {}).items():

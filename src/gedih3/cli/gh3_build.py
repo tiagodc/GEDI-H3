@@ -910,6 +910,9 @@ def main():
                     # Parse orbit/granule/track from the basename directly — no
                     # GEDIFile() so we skip the unused os.path.getsize call per
                     # granule (matters on network filesystems).
+                    # Each granule's source files for the products built,
+                    # so a later re-release can be detected (#47).
+                    _build_products = set(h3_logger.get_product_vars() or {})
                     _build_granules = []
                     for _soc in _soc_for_build:
                         fl = os.path.basename(list(_soc.values())[0]).split('_')
@@ -917,6 +920,7 @@ def main():
                             'orbit': int(fl[3][1:]),
                             'granule': int(fl[4]),
                             'track': int(fl[5][1:]),
+                            'files': {p: os.path.basename(f) for p, f in _soc.items() if p in _build_products},
                         })
                     h3_logger.register_pending_granules(_build_granules)
                     _stage1_listed = {(g['orbit'], g['granule'], g['track']) for g in _build_granules}

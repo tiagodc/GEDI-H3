@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.20.9] - 2026-10-21
 
+### Added
+- **The build log records each granule's source files.** Every granule entry now carries `files`, the basename of the file each built product was read from: taken from the SOC listing while the granule is not indexed yet, and kept once it is (`INDEXED` or `NO_DATA`). A product backfill records the file it filled from. A later re-release within the same GEDI version can then be told apart from the file the rows came from. Older logs and S3-sourced builds have no `files`, which means unknown. (#47)
+
 ### Changed
 - **The SOC listing picks a granule's latest release by its file-name fields, not by path order.** When a granule product has more than one file (a re-release within one GEDI version), `soc_file_tree` now ranks them with the new `gedidriver.gedi_release_rank`: PPDS, then PGE, then generation, then the suffix, where a suffixed file such as `_SGS` beats the plain file. For names that follow the GEDI convention, within one directory, this is the file the listing already used. Files of one granule in different directories no longer lose to an older copy in a later path. `GEDIFile.search_file` uses the same ranking; it used to rank generation before PGE. (#47)
 

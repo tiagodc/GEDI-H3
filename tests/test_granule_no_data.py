@@ -454,7 +454,7 @@ def test_empty_granule_is_recorded_no_data_and_never_re_read(tmp_dir):
     (a re-read would show as a second granule in its task count)."""
     import subprocess
     import sys
-    from test_phased_product_updates import _write_granule
+    from test_phased_product_updates import _write_granule, _gedi_name
 
     soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
 
@@ -477,6 +477,10 @@ def test_empty_granule_is_recorded_no_data_and_never_re_read(tmp_dir):
     out = gh3_build()
     assert 'recorded as NO_DATA' in out
     assert statuses() == {inside: 'INDEXED', outside: 'NO_DATA'}
+    # Each granule records the source files it was read from (#47).
+    files = {g['orbit']: g.get('files') for g in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}
+    assert files == {k[0]: {'L2A': _gedi_name('02_A', '2020100', *k), 'L4A': _gedi_name('04_A', '2020100', *k)}
+                     for k in (inside, outside)}
 
     assert 'up-to-date' in gh3_build()
 

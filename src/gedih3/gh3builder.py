@@ -5096,16 +5096,18 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     dict
         ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
         'unlocated': {key: [products]}, 'failed': {key: [products]},
-        'updated_files': [paths]}`` — ``unavailable``: no product file yet;
-        ``unlocated``: the file exists but no database file lists the granule
-        (it cannot be filled); ``failed``: a read or merge error, or no row
-        matched (retry). See :meth:`H3BuildLogger.record_fill_results`.
+        'updated_files': [paths], 'files': {key: {product: basename}}}`` —
+        ``unavailable``: no product file yet; ``unlocated``: the file exists
+        but no database file lists the granule (it cannot be filled);
+        ``failed``: a read or merge error, or no row matched (retry);
+        ``files``: the source file of each filled product. See
+        :meth:`H3BuildLogger.record_fill_results`.
     """
     client = get_dask_client()
     if client is None:
         raise GediError("_build_fill_products requires a registered dask Client")
     targets = {tuple(k): set(v) for k, v in targets.items() if v}
-    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': []}
+    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': [], 'files': {}}
     if not targets:
         return out
     tmp_dir = os.path.join(tmp_dir or os.path.join(h3_dir, '.tmp'), _PRODUCT_FILL_DIRNAME)
@@ -5214,6 +5216,9 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
         for bucket, prods in (('failed', failed), ('filled', set(h5) - failed)):
             if prods:
                 out[bucket][by_str[ot]] = sorted(prods)
+        if set(h5) - failed:
+            out['files'][by_str[ot]] = {p: os.path.basename(str(getattr(h5[p], 'path', h5[p])))
+                                        for p in set(h5) - failed}
     out['updated_files'] = res['updated_files']
     logger.info(
         f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
