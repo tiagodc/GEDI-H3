@@ -129,6 +129,59 @@ def write_soc_manifest(soc_dir: str, files=None) -> int:
     return len(files)
 
 
+# Duplicate groups soc_file_tree has already reported in this process, keyed
+# by (orb_track, product, file paths): a build lists the SOC tree several
+# times, and one warning per group is enough, while a further re-release
+# changes the key and is reported again. A stopgap until superseded granules
+# are tracked in the build log (#47).
+_REPORTED_DUPLICATE_FILES = set()
+
+
+def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
+    """Warn once per granule product that has more than one file in a listing.
+
+    ``soc_file_tree`` keys files by orbit/granule/track and keeps the last
+    path of each product in full-path order (``aggfunc='last'``); within one
+    directory that ranks PPDS, then PGE, then GEN, then the suffix. A second
+    file is a re-release within the same GEDI version, or an internal variant
+    such as ``_SGS``. Nothing re-indexes a granule whose file changes: rows
+    already in a database stay from the file they were built from, while
+    variables added and products filled later are read from the file chosen
+    here.
+
+    Parameters
+    ----------
+    flist : pandas.DataFrame
+        The listing, with ``file_paths``, ``orb_track`` and ``prod`` columns.
+    """
+    files = flist.drop_duplicates('file_paths')     # one path listed twice is not a second file
+    dup = files[files.duplicated(['orb_track', 'prod'], keep=False)]
+    if dup.empty:
+        return
+    new = []
+    for (orb_track, prod), paths in dup.groupby(['orb_track', 'prod'], sort=True)['file_paths']:
+        paths = sorted(paths)                       # the pivot keeps the last one
+        key = (orb_track, prod, tuple(paths))
+        if key not in _REPORTED_DUPLICATE_FILES:
+            _REPORTED_DUPLICATE_FILES.add(key)
+            new.append((paths[-1], paths[:-1]))
+    if not new:
+        return
+    for used, others in new:
+        logger.debug(f"Duplicate granule files: using {used} over {', '.join(others)}")
+    used, others = new[0]
+    more = f" (and {len(new) - 1} more, listed at DEBUG level)" if len(new) > 1 else ""
+    logger.warning(
+        f"{len(new)} granule product(s) have more than one file in the SOC listing (a re-release within "
+        f"the same GEDI version, or an internal variant such as _SGS). The last in path order is used, "
+        f"e.g. {os.path.basename(used)} over {', '.join(os.path.basename(o) for o in others)}{more}. "
+        f"Rows already in a database are not re-indexed from a newer file, and variables added or "
+        f"products filled later read the file used here. Remove the files you don't want, or exclude "
+        f"them (exclude=, gh3_build --exclude); some listings, such as product backfills, do not apply "
+        f"--exclude and may report files you already exclude."
+    )
+
+
 def soc_file_tree(
     file_struct: Union[str, List[str], List[EarthAccessFile]],
     to_list: bool = False,
@@ -245,6 +298,7 @@ def soc_file_tree(
     flist['prod'] = 'L' + fidx[0].astype(int).astype(str) + fidx[1]
     flist['orb_track'] = fidx[2]
     flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
+    _report_duplicate_granule_files(flist)
     flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
     if require_all:
         flist = flist.dropna()
@@ -617,8 +671,10 @@ class GEDIShot(GEDIFile):
     """
     Decoder for GEDI shot numbers.
 
-    Extracts orbit, beam, track, and other metadata encoded in GEDI shot numbers.
-    The shot number is a 64-bit integer encoding multiple fields.
+    Extracts the orbit, beam, granule and shot index encoded in GEDI shot
+    numbers. A shot number has 18 digits, ``OOOOOBBRRGNNNNNNNN``: orbit (5),
+    beam (2), reserved (2), granule within the orbit (1), shot index (8).
+    The ground track is not encoded.
 
     Attributes
     ----------
@@ -628,8 +684,9 @@ class GEDIShot(GEDIFile):
         Orbit number
     orbit_granule : int or array
         Granule number within orbit
-    track : int or array
-        Ground track number
+    track : None
+        Not encoded in the shot number, so file globs match any track
+        (orbit and granule identify the file).
     beam : int or array
         Beam number (0-7)
     beam_str : str or list
@@ -641,22 +698,22 @@ class GEDIShot(GEDIFile):
 
     Examples
     --------
-    >>> shot = GEDIShot(12345678901234567890)
-    >>> shot.beam_str
-    'BEAM0101'
+    >>> shot = GEDIShot(19560500300012345)
+    >>> shot.orbit, shot.orbit_granule, shot.beam_str, shot.shot_index
+    (1956, 3, 'BEAM0101', 12345)
     """
 
     def __init__(self, shot: Union[int, np.ndarray], build_glob: bool = False):
         self.parse_shot(shot)
         if build_glob:
-            self.get_file_glob()
+            self.get_glob_pattern()
 
     def parse_shot(self, shot: Union[int, np.ndarray]) -> None:
         self.is_scalar = np.isscalar(shot)
         self.shot = shot
         self.orbit = shot // 10000000000000
         self.orbit_granule = shot % 1000000000 // 100000000
-        self.track = shot // 100000000000
+        self.track = None  # not encoded; ``shot // 1e11`` is the orbit and beam digits
         self.beam = shot % 10000000000000 // 100000000000
         self.power = self.beam > 3
         self.reserved  = shot % 1000000000000 // 1000000000 % 100
@@ -668,23 +725,39 @@ class GEDIShot(GEDIFile):
             self.beam_str = [f'BEAM{b:04b}' for b in self.beam]    
     
     def get_glob_pattern(self, product: int=1, level: str='B', ppds: int=2, pge:int=None, generation:int=None, version:int=None):
+        """Glob pattern(s) of the GEDI file(s) holding these shots (any track).
+
+        Returns
+        -------
+        str or list of str
+            One pattern for a scalar shot; for an array, one per distinct
+            granule, sorted. Also stored as ``file_glob_pattern``.
+        """
         if self.is_scalar:
             self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
-            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track[i], product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
-            self.file_glob_pattern - list(set(self.file_pattern))
-        
-    def search_file(self, soc_dir: str):
-        if self.is_scalar:
-            files = glob.glob(os.path.join(soc_dir, self.file_glob_pattern))
-        else:
-            files = []
-            for fp in self.file_glob_pattern:
-                files.extend(glob.glob(os.path.join(soc_dir, fp)))
-            files = list(set(files))
+            self.file_glob_pattern = [gedi_file_glob(self.orbit[i], self.orbit_granule[i], self.track, product, level, ppds, pge, generation, version) for i in range(len(self.shot))]
+            self.file_glob_pattern = sorted(set(self.file_glob_pattern))
+        return self.file_glob_pattern
 
-        return files
-            
+    def search_file(self, soc_dir: str):
+        """Files under ``soc_dir`` matching ``file_glob_pattern`` (built if absent).
+
+        Returns
+        -------
+        list of str
+            Sorted paths; empty if none match.
+        """
+        # A SOC tree is <soc>/<year>/<doy>/: walk it, as GEDIFile.search_file does
+        # (_soc_manifest.txt is write-only, so smart_glob does not apply).
+        patterns = getattr(self, 'file_glob_pattern', None) or self.get_glob_pattern()
+        if self.is_scalar:
+            patterns = [patterns]
+        files = set()
+        for fp in patterns:
+            files.update(glob.glob(os.path.join(soc_dir, '**', fp), recursive=True))
+        return sorted(files)
+
 @njit
 def wfm_pad(wave, n_bins=1420, cval=0):
     bin_diff = len(wave) - n_bins
