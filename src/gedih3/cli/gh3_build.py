@@ -724,7 +724,8 @@ def main():
                                 # and let download_soc() resume idempotently.
                                 needs_download = True
                                 logger.info("New variables requested — downloading missing granules (idempotent resume)")
-                        elif not h3_logger.new_spatial and not h3_logger.new_temporal and not h3_logger.new_product_vars:
+                        elif (h3_logger.new_spatial is None and h3_logger.new_temporal is None
+                              and not h3_logger.new_product_vars):
                             # Same parameters — still run download to discover new NASA granules.
                             # download_soc() is idempotent: existing files are skipped via resume=True.
                             needs_download = True
@@ -809,9 +810,11 @@ def main():
             # up; gh3_doctor can flag/fix this if needed.)
             #
             # has_pending_new_work vetoes both signals whenever this
-            # invocation is a variable-only update, a mixed update's Phase 2,
-            # or a crash-recovered pending variable update: neither signal
-            # proves anything about product/variable work that has never
+            # invocation widens the region or dates: the shortcut would save
+            # the union as COMPLETED without reading the added area (#42).
+            # It also vetoes them for a variable-only update, a mixed update's
+            # Phase 2, or a crash-recovered pending variable update: neither
+            # signal proves anything about product/variable work that has never
             # been through Stage 1/2, and a stale _merge_progress.txt left
             # over from an earlier, already-completed build in the same tmp
             # directory would otherwise be misread as "this request's merge
@@ -831,6 +834,7 @@ def main():
                 h3_logger, _parquet_dir,
                 has_pending_new_work=bool(
                     is_variable_only_update or is_mixed_update or pending_var_update
+                    or h3_logger.requested_expansion
                 ),
             )
             if _merge_signal:
@@ -858,6 +862,7 @@ def main():
                     )
                 h3_logger.set_post_build_info()
                 h3_logger.log_data.pop('_pending_variable_update', None)
+                h3_logger.update_ran = True     # a MERGING save retries merges only
                 _n_merge_failed = _count_merge_failures(_parquet_dir)
                 h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
                 build_completed = not _n_merge_failed
@@ -966,6 +971,8 @@ def main():
                     else:
                         stage1_products = h3_logger.get_product_vars()
                         stage1_skip = h3_logger.get_finished_granules()
+                    # None except on a spatial-only expansion (#42): see stage1_only_granules.
+                    stage1_only = None if is_mixed_update else h3_logger.stage1_only_granules()
 
                     def _record_granule_products(processed):
                         # Persisted before Stage 1 writes anything: a granule
@@ -998,6 +1005,7 @@ def main():
                         product_vars=stage1_products,
                         soc_source=soc_source,
                         skip_granules=stage1_skip,
+                        only_granules=stage1_only,
                         variable_only_update=False,
                         allow_missing_products=allow_missing,
                         granule_products_callback=_record_granule_products,
@@ -1008,7 +1016,12 @@ def main():
                     # reopened the lost tasks, so every listed one was re-extracted
                     # and merged: PENDING lets set_post_build_info index it, and
                     # the fold below re-flags any whose merge failed again.
-                    _release_merge_failed(h3_logger, listed=_stage1_listed)
+                    # A spatial-only expansion admits only finished granules, so it
+                    # re-extracted no MERGE_FAILED one: each keeps its flag for the
+                    # next build (released, it would be marked INDEXED from the
+                    # partition metadata with its lost fragments never redone).
+                    if stage1_only is None:
+                        _release_merge_failed(h3_logger, listed=_stage1_listed)
 
                 # ── Stage 2: Variable update ─────────────────────────────
                 # Runs for: variable-only update, mixed update Phase 2,
@@ -1155,6 +1168,9 @@ def main():
                 # Crash safety: if crash between pop and save, disk still has
                 # PROCESSING status with the flag → next run resumes correctly.
                 h3_logger.log_data.pop('_pending_variable_update', None)
+                # Every stage ran under the update: a MERGING save (merges to
+                # retry) must not keep it pending, or the retry re-reads it all.
+                h3_logger.update_ran = True
                 h3_logger.save_log('MERGING' if _n_merge_failed else 'COMPLETED')
                 build_completed = not _n_merge_failed
 

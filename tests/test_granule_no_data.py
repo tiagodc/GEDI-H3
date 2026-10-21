@@ -568,9 +568,16 @@ class TestScopeWideningReopensNoData:
         assert _statuses(h)[K2] == 'PENDING' and _statuses(h)[K1] == 'INDEXED'
         h.save_log('PARTITIONING')                       # the run is then killed before Stage 1 ends
         plain = H3BuildLogger(product_vars=None, dir=tmp_dir)
-        assert plain.new_spatial is None and plain.new_temporal is None
         assert _statuses(plain)[K2] == 'PENDING'
-        assert [(g['orbit']) for g in plain.get_finished_granules()] == [1]
+        # The plain resume keeps the interrupted expansion (#42), so it skips
+        # no granule, exactly like the run it resumes.
+        assert plain.get_finished_granules() is None and h.get_finished_granules() is None
+        assert (h.new_spatial is None) == ('spatial' not in kw)
+        if 'spatial' in kw:
+            assert plain.new_spatial.union_all().equals(h.new_spatial.union_all())
+        else:
+            assert plain.new_spatial is None
+        assert plain.new_temporal == h.new_temporal
 
     def test_no_widening_keeps_no_data(self, tmp_dir):
         h = self._widened(tmp_dir)
