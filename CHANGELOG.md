@@ -4,10 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.20.9] - 2026-10-21
+## [Unreleased]
 
 ### Added
 - **The build log records each granule's source releases.** Every granule entry now carries `releases`, a compact tag per built product (`PP_PGE_GG`, plus any suffix, from the new `gedidriver.gedi_release_tag`) of the file it was read from. With the granule key, product and GEDI version, the tag names the file at a fraction of a basename's size. Tags come from the SOC listing at registration, and a recorded tag is never replaced: a resume after a re-download keeps the release the rows on disk were read from. A product backfill records the release it filled from. `merge_build_logs` folds entries that differ only in their tags into one, keeping each product's older release. `gedi_release_rank` ranks tags as it ranks file names. A later re-release within the same GEDI version can then be told apart from the file the rows came from. Older logs and S3-sourced builds have no `releases`, which means unknown. (#47)
+
+## [0.20.9] - 2026-10-21
 
 ### Changed
 - **The SOC listing picks a granule's latest release by its file-name fields, not by path order.** When a granule product has more than one file (a re-release within one GEDI version), `soc_file_tree` now ranks them with the new `gedidriver.gedi_release_rank`: PPDS, then PGE, then generation, then the suffix, where a suffixed file such as `_SGS` beats the plain file. For names that follow the GEDI convention, within one directory, this is the file the listing already used. Files of one granule in different directories no longer lose to an older copy in a later path. `GEDIFile.search_file` uses the same ranking; it used to rank generation before PGE. (#47)
