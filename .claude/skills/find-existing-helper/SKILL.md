@@ -17,7 +17,7 @@ don't build a second one. The second column is the module; it is machine-checked
 |---|---|---|
 | `AtomicFileWriter` | `utils.py` | Every output write. `.tmp` + `os.replace`, cleanup on exception. |
 | `h5_is_valid` | `utils.py` | "Is this HDF5 readable" — cheap header open, the resume-safety gate. |
-| `parquet_merge_files` | `utils.py` | Streaming per-file merge with bounded memory, GeoParquet bbox, inline stats capture. |
+| `parquet_merge_files` | `utils.py` | Streaming per-file merge with bounded memory, GeoParquet bbox, inline stats capture; `replace_granules=` drops the destination's stale rows of re-released granules (idempotent). |
 | `parquet_schema_add_bbox` | `utils.py` | Embed GeoParquet `bbox` metadata into a finalized parquet. |
 | `parquet_join_columns` | `utils.py` | Add columns to an existing parquet via `.join.tmp` + `os.replace`, skipping columns already present. |
 | `parquet_fill_columns` | `utils.py` | Fill null/NaN cells of an existing parquet from patch files by key, never overwriting a value; pure Arrow, rowgroup-wise, atomic. |

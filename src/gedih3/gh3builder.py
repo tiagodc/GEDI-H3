@@ -587,9 +587,24 @@ def h3_merge_metadata(h3_subdir):
     -------
     str or None
         Path to the merged metadata JSON file, or None if no metadata
-        files were found.
+        files were found. With no year parquet left, a summary from an
+        earlier merge is removed, and so is the partition directory when
+        nothing else is left in it.
     """
     files = glob.glob(os.path.join(h3_subdir,'*','*.parquet'))
+    if not files:
+        # No year left (a replacement emptied them): a summary would list
+        # granules and shots that are gone.
+        for stale in glob.glob(os.path.join(h3_subdir, f'*{PARTITION_META_FILENAME}')):
+            try:
+                os.unlink(stale)
+            except OSError:
+                pass
+        try:
+            os.rmdir(h3_subdir)  # only when nothing else is left in it
+        except OSError:
+            pass
+        return None
     year_metadata = [h3_read_metadata(f) for f in files]
     year_metadata = [m for m in year_metadata if m is not None]
     
@@ -812,7 +827,7 @@ def _promote_orphan_merge_result(h3_file):
     return True
 
 
-def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
+def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules=None):
     """
     Merge multiple parquet files for an H3 partition into a single file.
 
@@ -833,13 +848,26 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     replace : bool, default False
         If True, overwrite existing output files. If False, merge new
         data into any existing output file.
+    replace_granules : dict, optional
+        ``{(orbit, granule, track): {product: basename}}``: re-index these
+        granules (#47). The existing file's rows from them are dropped
+        unless they already come from the given files, and the fragments'
+        rows take their place (``parquet_merge_files``). The existing file
+        is rewritten even when ``in_dir`` holds no fragment (the granules'
+        shots left this cell-year), the "already merged" skip never applies,
+        and a file left with no row is removed with its metadata (and its
+        year directory, when empty). Re-running gives the same result. An
+        unreadable existing file is handled as on any merge: the fragments
+        alone are written (without fragments, it is left as it is). Not
+        with ``replace=True`` (:class:`GediValidationError`).
 
     Returns
     -------
     str or None
         Path to the merged parquet file, or None if ``in_dir`` contained
         no parquet files and there was no orphaned merge result to promote
-        (see ``_promote_orphan_merge_result``).
+        (see ``_promote_orphan_merge_result``), or the file was left empty
+        by ``replace_granules`` and removed.
     """
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
 
@@ -859,7 +887,10 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # on an empty in_dir.
     promoted = not replace and _promote_orphan_merge_result(h3_file)
 
-    if len(files) == 0:
+    if replace_granules and replace:
+        raise GediValidationError("h3_merge_files: replace_granules needs replace=False (it edits the existing file)")
+    replacing = bool(replace_granules) and os.path.exists(out_file)
+    if len(files) == 0 and not replacing:
         return h3_file if promoted else None
 
     # Preventative: drop 0-byte source fragments before they reach
@@ -890,7 +921,7 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
             continue
         _filtered.append(f)
     files = _filtered
-    if len(files) == 0:
+    if len(files) == 0 and not replacing:
         return h3_file if promoted else None
 
     os.makedirs(odir, exist_ok=True)
@@ -922,7 +953,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # own metadata listing every fragment's granule (_dest_holds_fragments);
     # the mtime test only short-circuits that JSON read. A corrupt newer-than-
     # source dest must NOT short-circuit either (we'd return a broken partition).
-    if not replace and os.path.exists(out_file):
+    # Never while replacing: the destination's metadata lists the granules
+    # being replaced (their old rows), which is no proof of the new ones.
+    if not replace and not replacing and os.path.exists(out_file):
         try:
             out_mtime = os.path.getmtime(out_file)
             if (all(os.path.getmtime(f) <= out_mtime for f in files)
@@ -958,6 +991,8 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
                 f"discarding it and merging tmp fragments fresh"
             )
             is_temp = False  # treat as no dest, full overwrite
+    if not files:
+        return None      # replacing an unreadable destination, with no fragment to merge
 
     # Derive bbox from the H3 partition geometry directly (no data scan).
     # Buffered enough to safely contain all level-N children at any depth
@@ -974,7 +1009,24 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False):
     # merged rows were in place lost the partition-year on a kill (#46).
     stats = parquet_merge_files(
         out_file, files, check_shots=is_temp, rm_src=False, bbox=bbox,
+        replace_granules=replace_granules, replace_in=out_file if is_temp else None,
     )
+    if replacing and not stats['shot_count']:
+        # Every row was a replaced granule's: no file, no metadata, no year.
+        # Metadata first: a kill in between leaves a 0-row file, which the
+        # next run removes, rather than metadata listing gone granules.
+        for path in (h3_file.replace('.parquet', PARTITION_META_FILENAME), out_file):
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        try:
+            os.rmdir(odir)
+        except OSError:
+            pass
+        if rm_src:
+            shutil.rmtree(in_dir, ignore_errors=True)
+        return None
 
     # Metadata before the fragment cleanup: a kill between the two leaves a
     # destination whose metadata lists every fragment's granule, so the next

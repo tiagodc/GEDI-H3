@@ -1898,8 +1898,54 @@ def _iter_batches_with_path(batch_iter, path):
         yield batch
 
 
+def _stale_granule_rows(batch, replace_granules):
+    """Rows of ``batch`` from a granule in ``replace_granules`` not yet re-indexed.
+
+    A row belongs to granule ``(orbit, granule, track)`` when its shot number
+    encodes the orbit and granule and its ``root_file_l2a`` names the track
+    (the track is not in a shot number). It is current, and kept, when every
+    ``root_file_<product>`` column the batch has names the file given for
+    that product. Returns a numpy bool mask, True where the row is dropped.
+    Only rows whose shot number matches are converted to Python objects.
+    """
+    import numpy as np
+    import pyarrow as pa
+
+    shot = batch['shot_number'].to_numpy().astype(np.int64)
+    orbit_granule = (shot // 10**13) * 10 + shot % 10**9 // 10**8
+    out = np.isin(orbit_granule, [o * 10 + g for o, g, _ in replace_granules])
+    if not out.any():
+        return out
+    idx = np.flatnonzero(out)
+    sub = batch.take(pa.array(idx))
+
+    def _strings(col):
+        arr = sub[col]
+        if pa.types.is_dictionary(arr.type):
+            arr = arr.dictionary_decode()
+        return np.asarray(arr.to_pylist(), dtype=object)
+
+    l2a = _strings('root_file_l2a')
+    key_of = {}
+    for name in set(l2a):
+        m = re.search(r'_O(\d+)_(\d{2})_T(\d+)_', os.path.basename(str(name)))
+        key_of[name] = (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
+    keys = [key_of[r] for r in l2a]
+    hit = np.array([k in replace_granules for k in keys], dtype=bool)
+    current = hit.copy()
+    for product in {p for files in replace_granules.values() for p in files}:
+        col = f'root_file_{product.lower()}'
+        if col not in sub.schema.names:
+            continue
+        want = np.array([replace_granules[k].get(product) if h else None for k, h in zip(keys, hit)], dtype=object)
+        current &= (want == None) | (_strings(col) == want)  # noqa: E711 (elementwise)
+    out[:] = False
+    out[idx[hit & ~current]] = True
+    return out
+
+
 def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
-                        rows_per_group=100_000, bbox=None):
+                        rows_per_group=100_000, bbox=None, replace_granules=None, replace_in=None):
     """Stream-merge parquet files into a single output with a bounded memory footprint.
 
     Architecture (per-file iteration, native column projection):
@@ -1926,9 +1972,30 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     - Row-group accumulator flushes BEFORE appending a batch that would
       overflow ``rows_per_group``.
     - Shot-dedup activates only when ``check_shots=True``.
+    - ``replace_granules`` drops rows of ``replace_in`` (the existing
+      destination) before the dedup, so the other inputs' rows of the same
+      granules take their place: the re-indexing of re-released granules
+      (#47). A row a replacement already wrote names the new files and is
+      kept, so the merge can be re-run at any point with the same result,
+      with or without the fragments that held the new rows. That holds only
+      if the new rows do name the given files, so it is enforced: a row of
+      a replaced granule in any input other than ``replace_in`` that does
+      not raises :class:`GediMergeError` before the destination is touched
+      (also on a first merge, with no existing destination).
 
     Parameters
     ----------
+    replace_granules : dict, optional
+        ``{(orbit, granule, track): {product: basename}}``: drop
+        ``replace_in`` rows from these granules unless every
+        ``root_file_<product>`` column it has already names the given file;
+        every other input must hold only such current rows of them. Values
+        are basenames, as rows store them. Requires ``shot_number`` and
+        ``root_file_l2a`` columns (:class:`GediMergeError` otherwise).
+    replace_in : str, optional
+        The input, if any, that is the existing destination: the only one
+        rows are dropped from. ``None`` (a first merge) drops nothing and
+        checks every input.
     rows_per_group : int, default 100_000
         Output row-group size and per-file iter batch size.
     bbox : list[float] or None
@@ -1979,6 +2046,12 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     # may not have shot_number / root_file_l2a / datetime).
     has_shot_number = 'shot_number' in schema.names
     has_root_file = 'root_file_l2a' in schema.names
+    if replace_granules and not (has_shot_number and has_root_file):
+        raise GediMergeError(f"Cannot replace granules in {ofile}: it needs shot_number and root_file_l2a")
+    if replace_granules:
+        paths = [v for files in replace_granules.values() for v in files.values() if os.path.basename(v) != v]
+        if paths:
+            raise GediMergeError(f"replace_granules takes file basenames, as rows store them; got {paths[0]}")
     has_datetime = 'datetime' in schema.names
     stats = {
         'shot_count': 0,
@@ -2026,7 +2099,21 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                 n: (file_schema.field(n).type, schema.field(n).type) for n in target_names
                 if n in file_schema.names and file_schema.field(n).type != schema.field(n).type
             }
+            drop_stale = bool(replace_granules) and replace_in is not None and f == replace_in
             for batch in _iter_batches_with_path(batch_iter, f):
+                if replace_granules and batch.num_rows:
+                    stale = _stale_granule_rows(batch, replace_granules)
+                    if stale.any() and not drop_stale:
+                        # A new row a re-run would drop as stale: the map does
+                        # not describe what the fragments hold.
+                        raise GediMergeError(
+                            f"{int(stale.sum())} row(s) of a replaced granule in {f} do not come from the files "
+                            f"given in replace_granules (a fragment of another release?); refusing to merge, as "
+                            f"a re-run would delete them")
+                    if stale.any():
+                        batch = batch.filter(pa.array(~stale))
+                        if not batch.num_rows:
+                            continue
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
                     if shots is None:
