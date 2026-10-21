@@ -768,7 +768,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">  - ``newer_release``: the SOC tree holds a later release of a granule</span>
 <span class="sd">    product (PPDS, PGE, generation or suffix, ``gedi_release_rank``) than</span>
 <span class="sd">    the one its rows were read from. NASA re-releases granules within one</span>
-<span class="sd">    GEDI version to fix faulty data; gh3_build does not re-index them (#47).</span>
+<span class="sd">    GEDI version to fix faulty data; ``gh3_build --replace-granules``</span>
+<span class="sd">    re-indexes them (#47).</span>
 <span class="sd">  - ``older_release``: only an older release than the one read is listed.</span>
 <span class="sd">    It is never applied, but variables added and products filled later read</span>
 <span class="sd">    the listed file.</span>
@@ -831,10 +832,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">n_newer</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="s2">"Rows of these granules come from the older release and gh3_build does not re-index them yet. "</span>
-            <span class="s2">"Until it does, move the newer files out of the SOC tree, so variables added and products filled "</span>
-            <span class="s2">"later read the release the rows came from (adding variables does not apply --exclude, and this "</span>
-            <span class="s2">"check does not either)"</span><span class="p">)</span>
+            <span class="s2">"Rows of these granules come from the older release: re-index them with gh3_build -i &lt;soc&gt; -o &lt;db&gt; "</span>
+            <span class="s2">"--replace-granules auto. Until then, variables added and products filled later read the newer "</span>
+            <span class="s2">"files (adding variables does not apply --exclude, and this check does not either)"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_older</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
             <span class="s2">"Restore the release these granules were indexed from before adding variables or filling products"</span><span class="p">)</span>

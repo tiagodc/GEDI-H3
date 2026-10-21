@@ -785,7 +785,8 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.daac</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_download</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_h3_params</span><span class="p">,</span> <span class="n">validate_product_vars</span><span class="p">,</span> <span class="n">validate_directory_exists</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">H3ValidationError</span><span class="p">,</span> <span class="n">GediValidationError</span><span class="p">,</span> <span class="n">GediFileError</span><span class="p">,</span> <span class="n">GediMergeError</span><span class="p">,</span> <span class="n">GediError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">H3ValidationError</span><span class="p">,</span> <span class="n">GediValidationError</span><span class="p">,</span> <span class="n">GediFileError</span><span class="p">,</span> <span class="n">GediMergeError</span><span class="p">,</span> <span class="n">GediError</span><span class="p">,</span>
+                         <span class="n">GediDatabaseError</span><span class="p">,</span> <span class="n">GediProcessingError</span><span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -1655,6 +1656,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        (see ``_promote_orphan_merge_result``), or the file was left empty</span>
 <span class="sd">        by ``replace_granules`` and removed.</span>
 <span class="sd">    """</span>
+    <span class="c1"># The output path is derived from in_dir's parents: with no trailing</span>
+    <span class="c1"># separator they would be off by one level, and the merge a silent no-op.</span>
+    <span class="n">in_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span>
     <span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span><span class="s1">'*.parquet'</span><span class="p">))</span>
 
     <span class="n">year_dir</span> <span class="o">=</span>  <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">in_dir</span><span class="p">)</span>
@@ -4209,6 +4213,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">allow_missing_products</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">stage1_outcome_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">set</span><span class="p">,</span> <span class="nb">set</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">scope_fingerprint</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">skip_check</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Streaming replacement for the legacy ``ddf.to_parquet().persist()``.</span>
 
@@ -4257,6 +4262,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        AND empty (zero leaves now, or an ``.empty`` sentinel on disk). Never called when the drain is interrupted,</span>
 <span class="sd">        so a caller holding no outcome must treat that as "nothing proven".</span>
 <span class="sd">        The CLI's ``NO_DATA`` marking rests on it.</span>
+<span class="sd">    skip_check</span>
+<span class="sd">        ``False`` writes every row, even of a granule the database's</span>
+<span class="sd">        metadata already lists (a granule replacement, #47). ``None``</span>
+<span class="sd">        enables the skip check whenever the database has partitions.</span>
 <span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_it</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">_time</span>
@@ -4334,7 +4343,9 @@ window.runMermaid = runMermaid;</script>
     <span class="c1">#    (Agent 3 adversarial review #J.2).</span>
     <span class="n">build_log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
     <span class="n">skip_check_enabled</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">skip_check</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">log</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">build_log_path</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
             <span class="n">skip_check_enabled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_partition_ids'</span><span class="p">))</span>
@@ -4821,7 +4832,9 @@ window.runMermaid = runMermaid;</script>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_merge_and_finalize</span><span class="p">(</span>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">replace_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">extra_dirs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Merge temporary partitioned files into the final H3 database.</span>
@@ -4837,11 +4850,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Temporary directory containing partitioned files</span>
 <span class="sd">    h3_dir : str</span>
 <span class="sd">        Final output directory for H3 database</span>
+<span class="sd">    replace_granules : dict, optional</span>
+<span class="sd">        Passed to every :func:`h3_merge_files`: the granules being re-indexed</span>
+<span class="sd">        (#47), ``{(orbit, granule, track): {product: basename}}``.</span>
+<span class="sd">    extra_dirs : list of str, optional</span>
+<span class="sd">        More ``&lt;tmp_dir&gt;/h3_&lt;p&gt;=&lt;cell&gt;/year=&lt;year&gt;`` targets, with or without</span>
+<span class="sd">        fragments: the (cell, year) files holding a replaced granule's old</span>
+<span class="sd">        rows, which are rewritten even when no new row lands there.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    list of str</span>
-<span class="sd">        List of merged H3 parquet file paths</span>
+<span class="sd">        List of merged H3 parquet file paths (without those a replacement</span>
+<span class="sd">        left empty and removed)</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Merging H3 partitions into final database path: </span><span class="si">{</span><span class="n">h3_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
@@ -4890,6 +4911,9 @@ window.runMermaid = runMermaid;</script>
         <span class="n">tmp_h3_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">year_lists</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">sub</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">tmp_h3_dirs</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">h3_part_dirs</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_list_year_subdirs</span><span class="p">(</span><span class="n">d</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">extra_dirs</span><span class="p">:</span>
+        <span class="n">listed</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">tmp_h3_dirs</span><span class="p">}</span>
+        <span class="n">tmp_h3_dirs</span> <span class="o">+=</span> <span class="p">[</span><span class="n">d</span> <span class="o">+</span> <span class="s1">'/'</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">d</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">'/'</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">extra_dirs</span><span class="p">}</span> <span class="o">-</span> <span class="n">listed</span><span class="p">)]</span>
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="c1"># Stale .merge.tmp cleanup is delegated to h3_merge_files (worker-side,</span>
@@ -4924,8 +4948,12 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># (this phase keeps every future alive for its whole duration, so</span>
         <span class="c1"># any same-process resubmission of a dir would otherwise get the</span>
         <span class="c1"># cached outcome without re-executing).</span>
+        <span class="c1"># A replacement map is baked into a partial: dask may read the tuple</span>
+        <span class="c1"># keys of a kwarg dict as task keys (see _write_partitioned_streaming).</span>
+        <span class="n">merge_fn</span> <span class="o">=</span> <span class="p">(</span><span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">h3_merge_files</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="n">replace_granules</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">replace_granules</span> <span class="k">else</span> <span class="n">h3_merge_files</span><span class="p">)</span>
         <span class="n">futures_list</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
-            <span class="n">h3_merge_files</span><span class="p">,</span>
+            <span class="n">merge_fn</span><span class="p">,</span>
             <span class="n">remaining_dirs</span><span class="p">,</span>
             <span class="n">out_dir</span><span class="o">=</span><span class="n">h3_dir</span><span class="p">,</span>
             <span class="n">rm_src</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -5026,6 +5054,10 @@ window.runMermaid = runMermaid;</script>
     <span class="n">h3_subdirs_set</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="p">{</span>
         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="o">+</span> <span class="s1">'/'</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">h3_files</span>
     <span class="p">}</span>
+    <span class="k">if</span> <span class="n">replace_granules</span><span class="p">:</span>
+        <span class="c1"># A replacement may have emptied some; their cells still get their</span>
+        <span class="c1"># summary recompiled (or removed) below.</span>
+        <span class="n">h3_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">h3_files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">f</span><span class="p">)]</span>
 
     <span class="c1"># Check a sample of merged files for NaN-only columns</span>
     <span class="k">if</span> <span class="n">h3_files</span><span class="p">:</span>
@@ -6122,6 +6154,237 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">releases</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">releases</span><span class="o">.</span><span class="n">pop</span><span class="p">())</span>
     <span class="k">return</span> <span class="n">GEDI_DEFAULT_VERSION</span>
+
+
+<span class="c1"># Scratch of a granule replacement (#47) under the build's tmp dir, and its</span>
+<span class="c1"># journal: the target set, written before the first destructive step. The</span>
+<span class="c1"># marker is written before the first rewrite of a database file.</span>
+<span class="n">_REPLACE_DIRNAME</span> <span class="o">=</span> <span class="s1">'_replace'</span>
+<span class="n">_REPLACE_JOURNAL</span> <span class="o">=</span> <span class="s1">'_replace_targets.json'</span>
+<span class="n">_REPLACE_MERGING</span> <span class="o">=</span> <span class="s1">'_merging'</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_year_file_replace_targets</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">targets</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Worker: :func:`_year_file_target_granules`, for a replacement.</span>
+
+<span class="sd">    A year file whose metadata is missing cannot be ruled out as holding a</span>
+<span class="sd">    target's rows (a lost sidecar, or a file a killed replacement emptied</span>
+<span class="sd">    between its two unlinks), so it is rewritten too rather than read as "no</span>
+<span class="sd">    data that year": the merge decides from the rows' own source columns.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">PARTITION_META_FILENAME</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">'(no metadata)'</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">_year_file_target_granules</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="replacement_abandon_hint">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.replacement_abandon_hint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">replacement_abandon_hint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""How to abandon an unfinished replacement, and what that leaves."""</span>
+    <span class="n">rtmp</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_REPLACE_DIRNAME</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_MERGING</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"removing </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2"> abandons it, but some database files were already rewritten: those granules "</span>
+                <span class="sa">f</span><span class="s2">"stay partly re-indexed until they are re-indexed again"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"removing </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2"> abandons it safely: no database file was rewritten yet"</span></div>
+
+
+
+<div class="viewcode-block" id="replacement_journal">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.replacement_journal">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">replacement_journal</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Path of the journal of a granule replacement under a build tmp dir.</span>
+
+<span class="sd">    Its presence means a replacement started there and has not finished:</span>
+<span class="sd">    ``gh3_build`` resumes it before anything else.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">_REPLACE_DIRNAME</span><span class="p">,</span> <span class="n">_REPLACE_JOURNAL</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="read_replacement_journal">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.read_replacement_journal">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_replacement_journal</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""The target set of an unfinished replacement, or ``None`` when there is none.</span>
+
+<span class="sd">    ``{(orbit, granule, track): {product: basename}}``, as passed to</span>
+<span class="sd">    :func:`_replace_granules_build`.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">replacement_journal</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">entries</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">ot</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+        <span class="n">orbit</span><span class="p">,</span> <span class="n">granule</span><span class="p">,</span> <span class="n">track</span> <span class="o">=</span> <span class="n">ot</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
+        <span class="n">out</span><span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">orbit</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">granule</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">track</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_replace_granules_build</span><span class="p">(</span>
+    <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">targets</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
+    <span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+    <span class="n">res</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">part</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">spatial</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">version</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Re-index granules from new source files, replacing their rows (#47).</span>
+
+<span class="sd">    For granules NASA re-released within the database's GEDI version:</span>
+
+<span class="sd">    1. **Journal.** The target set is written to</span>
+<span class="sd">       :func:`replacement_journal` before anything destructive; a run with a</span>
+<span class="sd">       different target set while one is unfinished is refused.</span>
+<span class="sd">    2. **Old rows.** Every ``(cell, year)`` file whose metadata lists a</span>
+<span class="sd">       target is found from the metadata alone (every partition of the build</span>
+<span class="sd">       log, so it does not depend on a region, and needs no ring-1 rule).</span>
+<span class="sd">    3. **New rows.** Stage 1 reads the new files in full, under the</span>
+<span class="sd">       database's region, with the skip check off, into</span>
+<span class="sd">       ``&lt;tmp_dir&gt;/_replace/partitions`` (its own sentinels, resumable).</span>
+<span class="sd">    4. **One rewrite per cell-year.** Only once Stage 1 has read every target</span>
+<span class="sd">       granule in full, each affected file is merged with</span>
+<span class="sd">       ``h3_merge_files(replace_granules=)``: the old rows go, the new rows</span>
+<span class="sd">       take their place, a file left empty is removed. Each rewrite is</span>
+<span class="sd">       atomic and gives the same result when re-run, so a kill at any point</span>
+<span class="sd">       resumes from the journal.</span>
+
+<span class="sd">    The caller updates the build log (releases, statuses, partitions) and</span>
+<span class="sd">    removes the scratch directory once the log is saved.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Database root.</span>
+<span class="sd">    targets : dict</span>
+<span class="sd">        ``{(orbit, granule, track): {product: path}}``: the new source file</span>
+<span class="sd">        of every product the database holds, for each granule to replace.</span>
+<span class="sd">    product_vars : dict</span>
+<span class="sd">        The database's products and variables (the build log's).</span>
+<span class="sd">    res, part : int</span>
+<span class="sd">        H3 resolution and partition level of the database.</span>
+<span class="sd">    spatial : optional</span>
+<span class="sd">        The database's region; ``None`` for the whole globe.</span>
+<span class="sd">    version : int, optional</span>
+<span class="sd">        The database's GEDI version.</span>
+<span class="sd">    tmp_dir : str, optional</span>
+<span class="sd">        The build's tmp dir (default ``&lt;h3_dir&gt;/.tmp``).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        ``{'replaced': set of keys, 'empty': set of keys, 'files': list}``:</span>
+<span class="sd">        ``empty``, the granules with no row in the region any more (now</span>
+<span class="sd">        ``NO_DATA``); ``files``, the database files written.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        Another replacement is unfinished under ``tmp_dir``.</span>
+<span class="sd">    GediDatabaseError</span>
+<span class="sd">        A year file's metadata is unreadable.</span>
+<span class="sd">    GediProcessingError</span>
+<span class="sd">        Stage 1 did not read every target in full.</span>
+<span class="sd">    GediMergeError</span>
+<span class="sd">        A merge failed. In every case nothing is lost: re-run to resume.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">get_dask_client</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediError</span><span class="p">(</span><span class="s2">"_replace_granules_build requires a registered dask Client"</span><span class="p">)</span>
+    <span class="n">rtmp</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tmp_dir</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'.tmp'</span><span class="p">),</span> <span class="n">_REPLACE_DIRNAME</span><span class="p">)</span>
+    <span class="n">parquet_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="s1">'partitions'</span><span class="p">)</span>
+    <span class="n">rmap</span> <span class="o">=</span> <span class="p">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">f</span><span class="p">)))</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">entries</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rmap</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="c1"># ── 1. Journal, before the first destructive step ──</span>
+    <span class="n">journal</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_JOURNAL</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">journal</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">previous</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="n">previous</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">previous</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">previous</span> <span class="o">!=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">entries</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Another granule replacement is unfinished in </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2">: gh3_build resumes it; finish it first, "</span>
+            <span class="sa">f</span><span class="s2">"or remove that directory to abandon it"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">previous</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">journal</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">invalidate_bbox_index</span>
+    <span class="n">invalidate_bbox_index</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">)</span>
+
+    <span class="c1"># ── 2. The (cell, year) files holding their old rows: metadata only ──</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">))</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="c1"># The log's partitions, and any partition directory on disk it misses: one</span>
+    <span class="c1"># readdir of the root, so a stale list cannot hide old rows.</span>
+    <span class="n">cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_partition_ids'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"h3_</span><span class="si">{</span><span class="n">part</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">="</span>
+    <span class="k">with</span> <span class="n">os</span><span class="o">.</span><span class="n">scandir</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">)</span> <span class="k">as</span> <span class="n">it</span><span class="p">:</span>
+        <span class="n">cells</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">):]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">it</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">is_dir</span><span class="p">())</span>
+    <span class="n">years</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">files</span><span class="o">.</span><span class="n">values</span><span class="p">()))))</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">year</span><span class="p">,</span> <span class="n">doy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stamp</span><span class="p">[:</span><span class="mi">4</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">stamp</span><span class="p">[</span><span class="mi">4</span><span class="p">:</span><span class="mi">7</span><span class="p">])</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">StopIteration</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot date the source files </span><span class="si">{</span><span class="n">files</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">years</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">year</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">doy</span> <span class="o">&gt;=</span> <span class="mi">365</span><span class="p">:</span>  <span class="c1"># a granule starting on the last day can run past midnight</span>
+            <span class="n">years</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">year</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">c</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"year=</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s2">.0.parquet"</span><span class="p">)</span>
+                  <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">cells</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">years</span><span class="p">)]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: locating </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">rmap</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) in </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span><span class="si">}</span><span class="s2"> candidate "</span>
+                <span class="sa">f</span><span class="s2">"(cell, year) file(s), metadata only"</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+    <span class="n">scan_fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_year_file_replace_targets</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">))</span>
+    <span class="n">old_dirs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">year_pf</span><span class="p">,</span> <span class="n">hits</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">scan_fn</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Locating granules"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">,</span>
+                                      <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10000</span> <span class="k">else</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hits</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediDatabaseError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: cannot read the metadata of </span><span class="si">{</span><span class="n">year_pf</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">hits</span><span class="si">}</span><span class="s2">); "</span>
+                                    <span class="sa">f</span><span class="s2">"the replacement did not go on"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">hits</span><span class="p">:</span>
+            <span class="n">year_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span>
+            <span class="n">old_dirs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)),</span>
+                                         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)))</span>
+
+    <span class="c1"># ── 3. Stage 1: the new files, in full, without the skip check ──</span>
+    <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span> <span class="nb">list</span><span class="p">(</span><span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
+                                        <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+    <span class="n">soc_files</span> <span class="o">=</span> <span class="p">[{</span><span class="n">p</span><span class="p">:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">}</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+    <span class="n">_pc</span> <span class="o">=</span> <span class="n">preclean_merge_failures</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_pc</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: reopened </span><span class="si">{</span><span class="n">_pc</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]</span><span class="si">}</span><span class="s2"> corrupt fragment task(s)"</span><span class="p">)</span>
+    <span class="n">ddf</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_create_h3_dataframe</span><span class="p">(</span><span class="n">soc_files</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
+    <span class="n">ddf</span> <span class="o">=</span> <span class="n">_apply_spatial_filter</span><span class="p">(</span><span class="n">ddf</span><span class="p">,</span> <span class="n">spatial</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">)</span>
+    <span class="n">outcome</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">_write_partitioned_streaming</span><span class="p">(</span>
+        <span class="n">ddf</span><span class="p">,</span> <span class="n">soc_files</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">spatial</span><span class="p">,</span> <span class="n">lat_col</span><span class="p">,</span> <span class="n">lon_col</span><span class="p">,</span> <span class="n">dat_col</span><span class="p">,</span>
+        <span class="n">stage1_outcome_callback</span><span class="o">=</span><span class="k">lambda</span> <span class="n">incomplete</span><span class="p">,</span> <span class="n">empty</span><span class="p">:</span> <span class="n">outcome</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">incomplete</span><span class="o">=</span><span class="nb">set</span><span class="p">(</span><span class="n">incomplete</span><span class="p">),</span>
+                                                                         <span class="n">empty</span><span class="o">=</span><span class="nb">set</span><span class="p">(</span><span class="n">empty</span><span class="p">)),</span>
+        <span class="n">scope_fingerprint</span><span class="o">=</span><span class="n">_stage1_scope_fingerprint</span><span class="p">(</span><span class="n">spatial</span><span class="p">,</span> <span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">),</span>
+        <span class="n">skip_check</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="s1">'incomplete'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">outcome</span> <span class="ow">or</span> <span class="n">outcome</span><span class="p">[</span><span class="s1">'incomplete'</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">GediProcessingError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Granule replacement: Stage 1 did not read every granule in full "</span>
+            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">outcome</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'incomplete'</span><span class="p">)</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="p">[])</span><span class="si">}</span><span class="s2"> unfinished), so no file was rewritten in this run. Re-run "</span>
+            <span class="sa">f</span><span class="s2">"gh3_build to resume it; if it keeps failing, </span><span class="si">{</span><span class="n">replacement_abandon_hint</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">rtmp</span><span class="p">))</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># ── 4. One atomic rewrite per affected cell-year ──</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_MERGING</span><span class="p">),</span> <span class="s1">'w'</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="n">rmap</span><span class="p">,</span> <span class="n">extra_dirs</span><span class="o">=</span><span class="n">old_dirs</span><span class="p">)</span>
+    <span class="n">failed</span> <span class="o">=</span> <span class="n">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">failed</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition merge(s) failed; re-run gh3_build to "</span>
+                             <span class="sa">f</span><span class="s2">"finish the replacement"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'replaced'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="n">outcome</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'files'</span><span class="p">:</span> <span class="n">files</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="build_h3db">

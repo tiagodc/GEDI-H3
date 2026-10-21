@@ -506,7 +506,8 @@
 <li><p><code class="docutils literal notranslate"><span class="pre">newer_release</span></code>: the SOC tree holds a later release of a granule
 product (PPDS, PGE, generation or suffix, <code class="docutils literal notranslate"><span class="pre">gedi_release_rank</span></code>) than
 the one its rows were read from. NASA re-releases granules within one
-GEDI version to fix faulty data; gh3_build does not re-index them (#47).</p></li>
+GEDI version to fix faulty data; <code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">--replace-granules</span></code>
+re-indexes them (#47).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">older_release</span></code>: only an older release than the one read is listed.
 It is never applied, but variables added and products filled later read
 the listed file.</p></li>

@@ -502,6 +502,9 @@ gh3_build<span class="w"> </span>--s3<span class="w"> </span>-r<span class="w"> 
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--allow-missing-products</span></code></p></td>
 <td><p>Index granules that have L2A before their later products (L2B, L4A, L4C) are published; those columns stay null until a later <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> fills them automatically (see <a class="reference internal" href="building-a-database.html#phased-updates"><span class="std std-ref">phased updates</span></a>). Remembered in the build log; <code class="docutils literal notranslate"><span class="pre">--no-allow-missing-products</span></code> turns it off. Needs a local SOC directory</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--replace-granules</span> <span class="pre">SPEC</span></code></p></td>
+<td><p>Re-index granules NASA re-released within the database’s GEDI version, replacing their rows with the new files’ rows. <code class="docutils literal notranslate"><span class="pre">auto</span></code> takes every granule with a newer release in the SOC directory (as <code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--check</span> <span class="pre">superseded_granules</span></code> lists them); otherwise granule keys (<code class="docutils literal notranslate"><span class="pre">O12345_01_T00123</span></code>, comma-separated) or a file of them. A run of its own, on a completed database with a local SOC directory; an interrupted run is finished by the next <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> (see the user guide, re-released granules)</p></td>
+</tr>
 </tbody>
 </table>
 </div>

@@ -11,7 +11,8 @@ gedih3.doctor.diagnoses.superseded_granules
      - ``newer_release``: the SOC tree holds a later release of a granule
        product (PPDS, PGE, generation or suffix, ``gedi_release_rank``) than
        the one its rows were read from. NASA re-releases granules within one
-       GEDI version to fix faulty data; gh3_build does not re-index them (#47).
+       GEDI version to fix faulty data; ``gh3_build --replace-granules``
+       re-indexes them (#47).
      - ``older_release``: only an older release than the one read is listed.
        It is never applied, but variables added and products filled later read
        the listed file.

@@ -30,6 +30,9 @@ Functions
    gedih3.gh3builder.dh3_merge_files
    gedih3.gh3builder.preclean_merge_failures
    gedih3.gh3builder.apply_merge_failures_to_logger
+   gedih3.gh3builder.replacement_abandon_hint
+   gedih3.gh3builder.replacement_journal
+   gedih3.gh3builder.read_replacement_journal
    gedih3.gh3builder.build_h3db
    gedih3.gh3builder.merge_build_logs
 
@@ -550,6 +553,79 @@ Module Contents
    startup (a run killed before its fold leaves the sidecar behind) and
    right after every merge. Does NOT call ``h3_logger.save_log`` — the
    caller controls save cadence.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: replacement_abandon_hint(tmp_dir: str) -> str
+
+   
+   How to abandon an unfinished replacement, and what that leaves.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: replacement_journal(tmp_dir: str) -> str
+
+   
+   Path of the journal of a granule replacement under a build tmp dir.
+
+   Its presence means a replacement started there and has not finished:
+   ``gh3_build`` resumes it before anything else.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: read_replacement_journal(tmp_dir: str) -> Optional[Dict[Tuple[int, int, int], Dict[str, str]]]
+
+   
+   The target set of an unfinished replacement, or ``None`` when there is none.
+
+   ``{(orbit, granule, track): {product: basename}}``, as passed to
+   :func:`_replace_granules_build`.
 
 
 
