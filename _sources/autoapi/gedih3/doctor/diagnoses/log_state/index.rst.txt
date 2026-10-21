@@ -8,7 +8,9 @@ gedih3.doctor.diagnoses.log_state
    log_state diagnosis — stuck recovery flags + log↔disk drift.
 
    Detects:
-     - ``_pending_variable_update`` left in the log without matching state.
+     - ``_pending_variable_update`` left on a ``COMPLETED`` log (stuck). On any
+       other status it is the resume state of a variable update killed in
+       Stage 2: reported (INFO) and left for ``gh3_build`` to finish (#56).
      - Partitions present on disk but not listed in ``h3_partition_ids``.
      - Partitions listed in the log but missing from disk.
      - Granule status drift — granules in ``granule_info`` with a non-INDEXED
@@ -18,7 +20,7 @@ gedih3.doctor.diagnoses.log_state
        statuses behind even though the data is already on disk.
 
    Remedies (safe):
-     - Clear the stuck flag when no work is pending.
+     - Clear the stuck flag (``COMPLETED`` log only).
      - Repopulate ``h3_partition_ids`` from disk via ``set_post_build_info``.
      - Disk-missing partitions are reported only (manual intervention).
      - Granule status drift: flip stale entries to ``INDEXED`` and save log.

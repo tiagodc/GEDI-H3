@@ -765,7 +765,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">"""log_state diagnosis — stuck recovery flags + log↔disk drift.</span>
 
 <span class="sd">Detects:</span>
-<span class="sd">  - ``_pending_variable_update`` left in the log without matching state.</span>
+<span class="sd">  - ``_pending_variable_update`` left on a ``COMPLETED`` log (stuck). On any</span>
+<span class="sd">    other status it is the resume state of a variable update killed in</span>
+<span class="sd">    Stage 2: reported (INFO) and left for ``gh3_build`` to finish (#56).</span>
 <span class="sd">  - Partitions present on disk but not listed in ``h3_partition_ids``.</span>
 <span class="sd">  - Partitions listed in the log but missing from disk.</span>
 <span class="sd">  - Granule status drift — granules in ``granule_info`` with a non-INDEXED</span>
@@ -775,7 +777,7 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    statuses behind even though the data is already on disk.</span>
 
 <span class="sd">Remedies (safe):</span>
-<span class="sd">  - Clear the stuck flag when no work is pending.</span>
+<span class="sd">  - Clear the stuck flag (``COMPLETED`` log only).</span>
 <span class="sd">  - Repopulate ``h3_partition_ids`` from disk via ``set_post_build_info``.</span>
 <span class="sd">  - Disk-missing partitions are reported only (manual intervention).</span>
 <span class="sd">  - Granule status drift: flip stale entries to ``INDEXED`` and save log.</span>
@@ -799,6 +801,9 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..report</span><span class="w"> </span><span class="kn">import</span> <span class="n">Report</span><span class="p">,</span> <span class="n">DoctorContext</span><span class="p">,</span> <span class="n">Severity</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..runner</span><span class="w"> </span><span class="kn">import</span> <span class="n">register</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+
+<span class="n">_FINISH_PENDING</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"Run gh3_build on this database (no new arguments) to finish the pending variable update; "</span>
+                   <span class="s2">"the build log already lists its variables"</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_granule_triples_in_partition</span><span class="p">(</span><span class="n">partition_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">:</span>
@@ -850,10 +855,16 @@ window.runMermaid = runMermaid;</script>
     <span class="n">log</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span>
     <span class="n">log_data</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span>
 
-    <span class="c1"># 1. Stuck _pending_variable_update flag</span>
+    <span class="c1"># 1. _pending_variable_update: gh3_build pops it before every final save,</span>
+    <span class="c1"># so it is stuck only beside COMPLETED. On any other status it is what the</span>
+    <span class="c1"># next gh3_build resumes Stage 2 from; clearing it would leave the listed</span>
+    <span class="c1"># variables missing from the partitions Stage 2 had not reached.</span>
     <span class="n">pending</span> <span class="o">=</span> <span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+    <span class="n">stuck</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">pending</span><span class="p">)</span> <span class="ow">and</span> <span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="s1">'COMPLETED'</span>
+    <span class="k">if</span> <span class="n">stuck</span><span class="p">:</span>
         <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'stuck_pending_flag'</span><span class="p">,</span> <span class="s1">'value'</span><span class="p">:</span> <span class="n">pending</span><span class="p">})</span>
+    <span class="k">elif</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">findings</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'pending_variable_update'</span><span class="p">,</span> <span class="s1">'value'</span><span class="p">:</span> <span class="n">pending</span><span class="p">})</span>
 
     <span class="c1"># 2 &amp; 3. Set-diff between disk partitions and logged partition ids</span>
     <span class="n">disk_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">_partition_id_from_dir</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">partition_dirs</span><span class="p">}</span>
@@ -916,14 +927,17 @@ window.runMermaid = runMermaid;</script>
             <span class="s1">'orbit'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">'granule'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s1">'track'</span><span class="p">:</span> <span class="n">tr</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
         <span class="p">})</span>
 
-    <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span> <span class="k">if</span> <span class="n">findings</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
+    <span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span> <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">'pending_variable_update'</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">findings</span><span class="p">)</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span>
     <span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'pending flag stuck; '</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">pending</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'pending flag stuck; '</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">stuck</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'variable update pending (run gh3_build to finish it); '</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">pending</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">stuck</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">on_disk_missing_log</span><span class="p">)</span><span class="si">}</span><span class="s2"> disk partitions not logged; "</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">in_log_missing_disk</span><span class="p">)</span><span class="si">}</span><span class="s2"> log partitions missing disk; "</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">drift_triples</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule status drift"</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'log_state'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span></div>
+    <span class="n">recommendations</span> <span class="o">=</span> <span class="p">[</span><span class="n">_FINISH_PENDING</span><span class="p">]</span> <span class="k">if</span> <span class="n">pending</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">stuck</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="n">Report</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'log_state'</span><span class="p">,</span> <span class="n">severity</span><span class="o">=</span><span class="n">severity</span><span class="p">,</span> <span class="n">findings</span><span class="o">=</span><span class="n">findings</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span>
+                  <span class="n">recommendations</span><span class="o">=</span><span class="n">recommendations</span><span class="p">)</span></div>
 
 
 
@@ -938,8 +952,9 @@ window.runMermaid = runMermaid;</script>
     <span class="n">log</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">h3_logger</span>
     <span class="n">actions</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="c1"># Clear stuck flag</span>
-    <span class="k">if</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># Clear the flag only where the check found it stuck.</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'stuck_pending_flag'</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">log</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'_pending_variable_update'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
         <span class="n">actions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">'kind'</span><span class="p">:</span> <span class="s1">'cleared_pending_flag'</span><span class="p">})</span>
 
     <span class="c1"># Refresh h3_partition_ids and per-product status from on-disk meta</span>
@@ -993,14 +1008,19 @@ window.runMermaid = runMermaid;</script>
                 <span class="p">})</span>
 
     <span class="n">n_errors</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">actions</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'kind'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'refresh_failed'</span><span class="p">,</span> <span class="s1">'log_save_failed'</span><span class="p">))</span>
+    <span class="c1"># Left in place, so still reported: --fix must not read as "clean".</span>
+    <span class="n">kept</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s1">'kind'</span><span class="p">]</span> <span class="o">==</span> <span class="s1">'pending_variable_update'</span><span class="p">]</span>
     <span class="n">report</span><span class="o">.</span><span class="n">applied</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">actions</span>
+    <span class="n">report</span><span class="o">.</span><span class="n">findings</span> <span class="o">=</span> <span class="n">actions</span> <span class="o">+</span> <span class="n">kept</span>
     <span class="k">if</span> <span class="n">n_errors</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> actions; </span><span class="si">{</span><span class="n">n_errors</span><span class="si">}</span><span class="s2"> errors"</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">report</span><span class="o">.</span><span class="n">severity</span> <span class="o">=</span> <span class="n">Severity</span><span class="o">.</span><span class="n">INFO</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">disk_missing</span> <span class="k">else</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARN</span>
         <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"applied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span><span class="si">}</span><span class="s2"> actions"</span>
+    <span class="k">if</span> <span class="n">kept</span><span class="p">:</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">summary</span> <span class="o">+=</span> <span class="s2">"; variable update pending (run gh3_build to finish it)"</span>
+        <span class="n">report</span><span class="o">.</span><span class="n">recommendations</span> <span class="o">=</span> <span class="p">[</span><span class="n">_FINISH_PENDING</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">report</span></div>
 
 

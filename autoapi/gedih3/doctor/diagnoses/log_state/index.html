@@ -502,7 +502,9 @@
 <p>log_state diagnosis — stuck recovery flags + log↔disk drift.</p>
 <dl class="simple">
 <dt>Detects:</dt><dd><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">_pending_variable_update</span></code> left in the log without matching state.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_pending_variable_update</span></code> left on a <code class="docutils literal notranslate"><span class="pre">COMPLETED</span></code> log (stuck). On any
+other status it is the resume state of a variable update killed in
+Stage 2: reported (INFO) and left for <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code> to finish (#56).</p></li>
 <li><p>Partitions present on disk but not listed in <code class="docutils literal notranslate"><span class="pre">h3_partition_ids</span></code>.</p></li>
 <li><p>Partitions listed in the log but missing from disk.</p></li>
 <li><p>Granule status drift — granules in <code class="docutils literal notranslate"><span class="pre">granule_info</span></code> with a non-INDEXED
@@ -513,7 +515,7 @@ statuses behind even though the data is already on disk.</p></li>
 </ul>
 </dd>
 <dt>Remedies (safe):</dt><dd><ul class="simple">
-<li><p>Clear the stuck flag when no work is pending.</p></li>
+<li><p>Clear the stuck flag (<code class="docutils literal notranslate"><span class="pre">COMPLETED</span></code> log only).</p></li>
 <li><p>Repopulate <code class="docutils literal notranslate"><span class="pre">h3_partition_ids</span></code> from disk via <code class="docutils literal notranslate"><span class="pre">set_post_build_info</span></code>.</p></li>
 <li><p>Disk-missing partitions are reported only (manual intervention).</p></li>
 <li><p>Granule status drift: flip stale entries to <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> and save log.</p></li>
