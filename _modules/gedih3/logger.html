@@ -1637,16 +1637,35 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
 <span class="sd">        granule_list : list of dict</span>
-<span class="sd">            Each dict must have 'orbit', 'granule', 'track' keys.</span>
+<span class="sd">            Each dict must have 'orbit', 'granule', 'track' keys, and may have</span>
+<span class="sd">            ``releases``: ``{product: tag}`` (:func:`gedi_release_tag`) of the</span>
+<span class="sd">            source files the build lists for the granule. A newer release</span>
+<span class="sd">            within the GEDI version is detected against the recorded tags</span>
+<span class="sd">            (#47), so a tag is never replaced here: a granule not indexed yet</span>
+<span class="sd">            gains tags only for products it has none for (rows a killed run</span>
+<span class="sd">            left on disk may come from the file recorded first, and an older</span>
+<span class="sd">            tag is reported later rather than a newer one hiding stale rows).</span>
+<span class="sd">            An ``INDEXED`` or ``NO_DATA`` entry, and one registered before</span>
+<span class="sd">            tags were recorded (no ``releases`` key, so rows on disk may come</span>
+<span class="sd">            from any file), are left as they are. No tag means the source is</span>
+<span class="sd">            unknown: an older log, a product added by a variable update, or</span>
+<span class="sd">            an S3-sourced build (which registers no granules).</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">existing</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">}</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="p">}</span>
         <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">granule_list</span><span class="p">:</span>
             <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
-            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">**</span><span class="n">g</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">:</span> <span class="s1">'PENDING'</span><span class="p">})</span>
-                <span class="n">existing</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span></div>
+            <span class="n">entry</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">index</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">g</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">:</span> <span class="s1">'PENDING'</span><span class="p">}</span>
+                <span class="k">if</span> <span class="s1">'releases'</span> <span class="ow">in</span> <span class="n">g</span><span class="p">:</span>
+                    <span class="n">index</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">'releases'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'releases'</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">granule_info</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">and</span> <span class="s1">'releases'</span> <span class="ow">in</span> <span class="n">entry</span>
+                  <span class="ow">and</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+                <span class="k">for</span> <span class="n">product</span><span class="p">,</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">g</span><span class="p">[</span><span class="s1">'releases'</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">entry</span><span class="p">[</span><span class="s1">'releases'</span><span class="p">]</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">tag</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.update_granule_status">
@@ -1699,10 +1718,10 @@ window.runMermaid = runMermaid;</script>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_finished_granule_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># Keys not part of the original granule identity. ``products`` was</span>
-        <span class="c1"># added by the per-product status extension; both must be stripped so</span>
-        <span class="c1"># _filter_granules' dict equality keeps matching legacy entries.</span>
-        <span class="n">_strip</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'products'</span><span class="p">}</span>
+        <span class="c1"># Keys not part of the original granule identity (``products``: the</span>
+        <span class="c1"># per-product statuses; ``releases``: the source files). Callers get</span>
+        <span class="c1"># bare {'orbit', 'granule', 'track'} dicts, the form legacy logs hold.</span>
+        <span class="n">_strip</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'status'</span><span class="p">,</span> <span class="s1">'products'</span><span class="p">,</span> <span class="s1">'releases'</span><span class="p">}</span>
         <span class="k">return</span> <span class="p">[</span>
             <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_strip</span><span class="p">}</span>
             <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
@@ -2297,6 +2316,39 @@ window.runMermaid = runMermaid;</script>
             <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
                 <span class="n">out</span><span class="p">[(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])]</span> <span class="o">=</span> <span class="n">missing</span>
         <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.record_releases">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.record_releases">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">record_releases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">releases</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Record the source releases a write is about to read (does not save).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        releases : dict</span>
+<span class="sd">            ``{(orbit, granule, track): {product: tag}}`` (tags from</span>
+<span class="sd">            ``gedi_release_tag``), e.g. from ``_build_fill_products``'</span>
+<span class="sd">            ``releases_callback`` before it writes. As in</span>
+<span class="sd">            :meth:`register_pending_granules`, a product that has a tag keeps</span>
+<span class="sd">            it (rows already written may come from that release), and an</span>
+<span class="sd">            entry recorded before tags existed (no ``releases`` key) stays</span>
+<span class="sd">            unknown: its other products' rows may come from any file.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Number of tags added.</span>
+<span class="sd">        """</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="n">tags</span> <span class="o">=</span> <span class="n">releases</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="n">tags</span> <span class="ow">and</span> <span class="s1">'releases'</span> <span class="ow">in</span> <span class="n">g</span><span class="p">:</span>
+                <span class="n">known</span> <span class="o">=</span> <span class="n">g</span><span class="p">[</span><span class="s1">'releases'</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">product</span><span class="p">,</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">product</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known</span><span class="p">:</span>
+                        <span class="n">known</span><span class="p">[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="n">tag</span>
+                        <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">n</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.record_fill_results">

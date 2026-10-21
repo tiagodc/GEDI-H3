@@ -356,7 +356,19 @@ Module Contents
       :Parameters:
 
           **granule_list** : list of dict
-              Each dict must have 'orbit', 'granule', 'track' keys.
+              Each dict must have 'orbit', 'granule', 'track' keys, and may have
+              ``releases``: ``{product: tag}`` (:func:`gedi_release_tag`) of the
+              source files the build lists for the granule. A newer release
+              within the GEDI version is detected against the recorded tags
+              (#47), so a tag is never replaced here: a granule not indexed yet
+              gains tags only for products it has none for (rows a killed run
+              left on disk may come from the file recorded first, and an older
+              tag is reported later rather than a newer one hiding stale rows).
+              An ``INDEXED`` or ``NO_DATA`` entry, and one registered before
+              tags were recorded (no ``releases`` key, so rows on disk may come
+              from any file), are left as they are. No tag means the source is
+              unknown: an older log, a product added by a variable update, or
+              an S3-sourced build (which registers no granules).
 
 
 
@@ -782,6 +794,44 @@ Module Contents
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: record_releases(releases)
+
+      
+      Record the source releases a write is about to read (does not save).
+
+
+      :Parameters:
+
+          **releases** : dict
+              ``{(orbit, granule, track): {product: tag}}`` (tags from
+              ``gedi_release_tag``), e.g. from ``_build_fill_products``'
+              ``releases_callback`` before it writes. As in
+              :meth:`register_pending_granules`, a product that has a tag keeps
+              it (rows already written may come from that release), and an
+              entry recorded before tags existed (no ``releases`` key) stays
+              unknown: its other products' rows may come from any file.
+
+
+
+      :Returns:
+
+          int
+              Number of tags added.
 
 
 

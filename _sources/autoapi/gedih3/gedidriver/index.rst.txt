@@ -39,6 +39,7 @@ Functions
    gedih3.gedidriver.soc_prod_from_file
    gedih3.gedidriver.soc_from_file
    gedih3.gedidriver.write_soc_manifest
+   gedih3.gedidriver.gedi_release_tag
    gedih3.gedidriver.gedi_release_rank
    gedih3.gedidriver.soc_file_tree
    gedih3.gedidriver.gedi_subset
@@ -168,6 +169,46 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: gedi_release_tag(file_name: str) -> Optional[str]
+
+   
+   The release fields of a GEDI file name, as a compact tag.
+
+   With the granule key, the product and the GEDI version, the tag
+   identifies the file: it is what the build log records per granule and
+   product (``releases``), at a fraction of a basename's size.
+
+   :Parameters:
+
+       **file_name** : str
+           A GEDI file name, path or URL. Only the basename is read.
+
+
+
+   :Returns:
+
+       str or None
+           ``'PP_PGE_GG'`` (PPDS, PGE, generation), plus ``'_<suffix>'`` when the
+           name has one; ``None`` for a name outside the GEDI convention.
+           :func:`gedi_release_rank` ranks tags as it ranks names.
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> gedi_release_tag('GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002_SGS.h5')
+   '02_003_01_SGS'
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: gedi_release_rank(file_name: str) -> tuple
 
    
@@ -184,7 +225,8 @@ Module Contents
    :Parameters:
 
        **file_name** : str
-           A GEDI file name, path or URL. Only the basename is read.
+           A GEDI file name, path or URL (only the basename is read), or a
+           release tag from :func:`gedi_release_tag`.
 
 
 

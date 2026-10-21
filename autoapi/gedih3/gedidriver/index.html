@@ -534,58 +534,61 @@ including parsing filenames, extracting data, and building Dask DataFrames.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.write_soc_manifest" title="gedih3.gedidriver.write_soc_manifest"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_soc_manifest</span></code></a>(→ int)</p></td>
 <td><p>(Re)generate the SOC manifest sentinel by walking <em>soc_dir</em> once.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_release_rank" title="gedih3.gedidriver.gedi_release_rank"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_release_rank</span></code></a>(→ tuple)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_release_tag" title="gedih3.gedidriver.gedi_release_tag"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_release_tag</span></code></a>(→ Optional[str])</p></td>
+<td><p>The release fields of a GEDI file name, as a compact tag.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_release_rank" title="gedih3.gedidriver.gedi_release_rank"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_release_rank</span></code></a>(→ tuple)</p></td>
 <td><p>Rank one file of a granule product against the granule's other files.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.soc_file_tree" title="gedih3.gedidriver.soc_file_tree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">soc_file_tree</span></code></a>(→ Union[Dict[str, Dict[str, str]], ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.soc_file_tree" title="gedih3.gedidriver.soc_file_tree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">soc_file_tree</span></code></a>(→ Union[Dict[str, Dict[str, str]], ...)</p></td>
 <td><p>Build a structured tree of GEDI SOC files grouped by orbit/track.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_subset" title="gedih3.gedidriver.gedi_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_subset</span></code></a>(source_file, dest_file, variables[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_subset" title="gedih3.gedidriver.gedi_subset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_subset</span></code></a>(source_file, dest_file, variables[, ...])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_file_glob" title="gedih3.gedidriver.gedi_file_glob"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_file_glob</span></code></a>([orbit, orbit_granule, track, product, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_file_glob" title="gedih3.gedidriver.gedi_file_glob"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_file_glob</span></code></a>([orbit, orbit_granule, track, product, ...])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.preset_extra_names" title="gedih3.gedidriver.preset_extra_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preset_extra_names</span></code></a>(spec)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.preset_extra_names" title="gedih3.gedidriver.preset_extra_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">preset_extra_names</span></code></a>(spec)</p></td>
 <td><p>Variable names given alongside a preset keyword in a product spec.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_expand" title="gedih3.gedidriver.gedi_vars_expand"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_expand</span></code></a>(product_vars[, version])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_expand" title="gedih3.gedidriver.gedi_vars_expand"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_expand</span></code></a>(product_vars[, version])</p></td>
 <td><p>Expand per-product variable specifications to variable lists, in place.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.expand_var_wildcards" title="gedih3.gedidriver.expand_var_wildcards"><code class="xref py py-obj docutils literal notranslate"><span class="pre">expand_var_wildcards</span></code></a>(var_specs, available_vars)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.expand_var_wildcards" title="gedih3.gedidriver.expand_var_wildcards"><code class="xref py py-obj docutils literal notranslate"><span class="pre">expand_var_wildcards</span></code></a>(var_specs, available_vars)</p></td>
 <td><p>Expand fnmatch-style wildcard patterns in variable specifications.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_from_h5" title="gedih3.gedidriver.gedi_vars_from_h5"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_from_h5</span></code></a>(gedi_file)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_from_h5" title="gedih3.gedidriver.gedi_vars_from_h5"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_from_h5</span></code></a>(gedi_file)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_static" title="gedih3.gedidriver.gedi_vars_static"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_static</span></code></a>(product[, version])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.gedi_vars_static" title="gedih3.gedidriver.gedi_vars_static"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gedi_vars_static</span></code></a>(product[, version])</p></td>
 <td><p>Return the canonical variable list for a GEDI <code class="docutils literal notranslate"><span class="pre">(product,</span> <span class="pre">version)</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.check_soc_file_vars" title="gedih3.gedidriver.check_soc_file_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_soc_file_vars</span></code></a>(soc_file, available_products)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.check_soc_file_vars" title="gedih3.gedidriver.check_soc_file_vars"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_soc_file_vars</span></code></a>(soc_file, available_products)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.validate_soc_files" title="gedih3.gedidriver.validate_soc_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">validate_soc_files</span></code></a>(product_vars[, soc_dir, version, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.validate_soc_files" title="gedih3.gedidriver.validate_soc_files"><code class="xref py py-obj docutils literal notranslate"><span class="pre">validate_soc_files</span></code></a>(product_vars[, soc_dir, version, ...])</p></td>
 <td><p>Validate <code class="docutils literal notranslate"><span class="pre">product_vars</span></code> against the shipped static manifests.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.wfm_pad" title="gedih3.gedidriver.wfm_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wfm_pad</span></code></a>(wave[, n_bins, cval])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.wfm_pad" title="gedih3.gedidriver.wfm_pad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wfm_pad</span></code></a>(wave[, n_bins, cval])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.process_waveforms" title="gedih3.gedidriver.process_waveforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_waveforms</span></code></a>(starts, ends, noises, wfs[, n_bins])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.process_waveforms" title="gedih3.gedidriver.process_waveforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_waveforms</span></code></a>(starts, ends, noises, wfs[, n_bins])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.wfm_extract" title="gedih3.gedidriver.wfm_extract"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wfm_extract</span></code></a>(h5_file, beam, idx[, tx])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.wfm_extract" title="gedih3.gedidriver.wfm_extract"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wfm_extract</span></code></a>(h5_file, beam, idx[, tx])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.load_h5" title="gedih3.gedidriver.load_h5"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_h5</span></code></a>(→ pandas.DataFrame)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.load_h5" title="gedih3.gedidriver.load_h5"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_h5</span></code></a>(→ pandas.DataFrame)</p></td>
 <td><p>Load data from a GEDI HDF5 file into a pandas DataFrame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.load_h5_merged" title="gedih3.gedidriver.load_h5_merged"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_h5_merged</span></code></a>(→ Optional[pandas.DataFrame])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.load_h5_merged" title="gedih3.gedidriver.load_h5_merged"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_h5_merged</span></code></a>(→ Optional[pandas.DataFrame])</p></td>
 <td><p>Load and merge data from multiple GEDI product files.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.dask_h5_merged" title="gedih3.gedidriver.dask_h5_merged"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_h5_merged</span></code></a>(→ dask.dataframe.DataFrame)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.dask_h5_merged" title="gedih3.gedidriver.dask_h5_merged"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dask_h5_merged</span></code></a>(→ dask.dataframe.DataFrame)</p></td>
 <td><p>Create a Dask DataFrame from multiple GEDI product file sets.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gedidriver.add_special_columns" title="gedih3.gedidriver.add_special_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_special_columns</span></code></a>(df[, lon_col, lat_col, dat_col])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gedidriver.add_special_columns" title="gedih3.gedidriver.add_special_columns"><code class="xref py py-obj docutils literal notranslate"><span class="pre">add_special_columns</span></code></a>(df[, lon_col, lat_col, dat_col])</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -667,6 +670,36 @@ list here avoids the redundant parallel walk.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gedidriver.gedi_release_tag">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gedidriver.</span></span><span class="sig-name descname"><span class="pre">gedi_release_tag</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gedidriver.html#gedi_release_tag"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gedidriver.gedi_release_tag" title="Link to this definition">#</a></dt>
+<dd><p>The release fields of a GEDI file name, as a compact tag.</p>
+<p>With the granule key, the product and the GEDI version, the tag
+identifies the file: it is what the build log records per granule and
+product (<code class="docutils literal notranslate"><span class="pre">releases</span></code>), at a fraction of a basename’s size.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>file_name</strong><span class="classifier">str</span></dt><dd><p>A GEDI file name, path or URL. Only the basename is read.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or None</dt><dd><p><code class="docutils literal notranslate"><span class="pre">'PP_PGE_GG'</span></code> (PPDS, PGE, generation), plus <code class="docutils literal notranslate"><span class="pre">'_&lt;suffix&gt;'</span></code> when the
+name has one; <code class="docutils literal notranslate"><span class="pre">None</span></code> for a name outside the GEDI convention.
+<a class="reference internal" href="#gedih3.gedidriver.gedi_release_rank" title="gedih3.gedidriver.gedi_release_rank"><code class="xref py py-func docutils literal notranslate"><span class="pre">gedi_release_rank()</span></code></a> ranks tags as it ranks names.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gedi_release_tag</span><span class="p">(</span><span class="s1">'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002_SGS.h5'</span><span class="p">)</span>
+<span class="go">'02_003_01_SGS'</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gedidriver.gedi_release_rank">
 <span class="sig-prename descclassname"><span class="pre">gedih3.gedidriver.</span></span><span class="sig-name descname"><span class="pre">gedi_release_rank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gedidriver.html#gedi_release_rank"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gedidriver.gedi_release_rank" title="Link to this definition">#</a></dt>
 <dd><p>Rank one file of a granule product against the granule’s other files.</p>
@@ -680,7 +713,8 @@ directory.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>file_name</strong><span class="classifier">str</span></dt><dd><p>A GEDI file name, path or URL. Only the basename is read.</p>
+<dt><strong>file_name</strong><span class="classifier">str</span></dt><dd><p>A GEDI file name, path or URL (only the basename is read), or a
+release tag from <a class="reference internal" href="#gedih3.gedidriver.gedi_release_tag" title="gedih3.gedidriver.gedi_release_tag"><code class="xref py py-func docutils literal notranslate"><span class="pre">gedi_release_tag()</span></code></a>.</p>
 </dd>
 </dl>
 </dd>
@@ -1191,6 +1225,7 @@ Required when variables have the same name across products.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.soc_prod_from_file"><code class="docutils literal notranslate"><span class="pre">soc_prod_from_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.soc_from_file"><code class="docutils literal notranslate"><span class="pre">soc_from_file()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.write_soc_manifest"><code class="docutils literal notranslate"><span class="pre">write_soc_manifest()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.gedi_release_tag"><code class="docutils literal notranslate"><span class="pre">gedi_release_tag()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.gedi_release_rank"><code class="docutils literal notranslate"><span class="pre">gedi_release_rank()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.soc_file_tree"><code class="docutils literal notranslate"><span class="pre">soc_file_tree()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gedidriver.gedi_subset"><code class="docutils literal notranslate"><span class="pre">gedi_subset()</span></code></a></li>

@@ -1684,6 +1684,10 @@ window.runMermaid = runMermaid;</script>
                     <span class="c1"># Parse orbit/granule/track from the basename directly — no</span>
                     <span class="c1"># GEDIFile() so we skip the unused os.path.getsize call per</span>
                     <span class="c1"># granule (matters on network filesystems).</span>
+                    <span class="c1"># Each granule's source releases for the products built,</span>
+                    <span class="c1"># so a later re-release can be detected (#47).</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gedi_release_tag</span>
+                    <span class="n">_build_products</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">get_product_vars</span><span class="p">()</span> <span class="ow">or</span> <span class="p">{})</span>
                     <span class="n">_build_granules</span> <span class="o">=</span> <span class="p">[]</span>
                     <span class="k">for</span> <span class="n">_soc</span> <span class="ow">in</span> <span class="n">_soc_for_build</span><span class="p">:</span>
                         <span class="n">fl</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">_soc</span><span class="o">.</span><span class="n">values</span><span class="p">())[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
@@ -1691,6 +1695,8 @@ window.runMermaid = runMermaid;</script>
                             <span class="s1">'orbit'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
                             <span class="s1">'granule'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span>
                             <span class="s1">'track'</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">fl</span><span class="p">[</span><span class="mi">5</span><span class="p">][</span><span class="mi">1</span><span class="p">:]),</span>
+                            <span class="s1">'releases'</span><span class="p">:</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">t</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">_soc</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                                         <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_build_products</span> <span class="ow">and</span> <span class="p">(</span><span class="n">t</span> <span class="o">:=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="n">f</span><span class="p">))},</span>
                         <span class="p">})</span>
                     <span class="n">h3_logger</span><span class="o">.</span><span class="n">register_pending_granules</span><span class="p">(</span><span class="n">_build_granules</span><span class="p">)</span>
                     <span class="n">_stage1_listed</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">_build_granules</span><span class="p">}</span>
@@ -1842,6 +1848,10 @@ window.runMermaid = runMermaid;</script>
                         <span class="k">try</span><span class="p">:</span>
                             <span class="kn">from</span><span class="w"> </span><span class="nn">gedih3.gh3builder</span><span class="w"> </span><span class="kn">import</span> <span class="n">_build_fill_products</span>
                             <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
+
+                            <span class="k">def</span><span class="w"> </span><span class="nf">_record_fill_releases</span><span class="p">(</span><span class="n">releases</span><span class="p">):</span>
+                                <span class="k">if</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">record_releases</span><span class="p">(</span><span class="n">releases</span><span class="p">):</span>
+                                    <span class="n">h3_logger</span><span class="o">.</span><span class="n">save_log</span><span class="p">(</span><span class="s1">'PROCESSING'</span><span class="p">)</span>
                             <span class="n">_fill</span> <span class="o">=</span> <span class="n">_build_fill_products</span><span class="p">(</span>
                                 <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">_awaiting</span><span class="p">,</span>
                                 <span class="c1"># Reuse the registration listing when it kept partial granules.</span>
@@ -1850,6 +1860,7 @@ window.runMermaid = runMermaid;</script>
                                 <span class="n">version</span><span class="o">=</span><span class="n">h3_logger</span><span class="o">.</span><span class="n">gedi_version</span><span class="p">,</span>
                                 <span class="n">tmp_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">tmpdir</span><span class="p">,</span>
                                 <span class="n">exclude</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">exclude</span><span class="p">,</span>
+                                <span class="n">releases_callback</span><span class="o">=</span><span class="n">_record_fill_releases</span><span class="p">,</span>
                             <span class="p">)</span>
                             <span class="n">_given_up</span> <span class="o">=</span> <span class="n">h3_logger</span><span class="o">.</span><span class="n">record_fill_results</span><span class="p">(</span><span class="n">_fill</span><span class="p">)</span>
                             <span class="n">_n_backfilled</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">_fill</span><span class="p">[</span><span class="s1">'updated_files'</span><span class="p">])</span>

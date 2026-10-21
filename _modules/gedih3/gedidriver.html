@@ -901,6 +901,42 @@ window.runMermaid = runMermaid;</script>
 <span class="c1"># The file-name fields after a granule's orbit/track that rank its releases</span>
 <span class="c1"># within one GEDI version: PPDS, PGE, generation and an optional suffix.</span>
 <span class="n">_RELEASE_FIELDS</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">'_O\d+_\d</span><span class="si">{2}</span><span class="s1">_T\d+_(\d</span><span class="si">{2}</span><span class="s1">)_(\d</span><span class="si">{3}</span><span class="s1">)_(\d</span><span class="si">{2}</span><span class="s1">)_V\d</span><span class="si">{3}</span><span class="s1">(?:_(.+?))?\.h5$'</span><span class="p">)</span>
+<span class="c1"># The same fields as a release tag (gedi_release_tag).</span>
+<span class="n">_RELEASE_TAG</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">'^(\d</span><span class="si">{2}</span><span class="s1">)_(\d</span><span class="si">{3}</span><span class="s1">)_(\d</span><span class="si">{2}</span><span class="s1">)(?:_(.+))?$'</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="gedi_release_tag">
+<a class="viewcode-back" href="../../autoapi/gedih3/gedidriver/index.html#gedih3.gedidriver.gedi_release_tag">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">gedi_release_tag</span><span class="p">(</span><span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""The release fields of a GEDI file name, as a compact tag.</span>
+
+<span class="sd">    With the granule key, the product and the GEDI version, the tag</span>
+<span class="sd">    identifies the file: it is what the build log records per granule and</span>
+<span class="sd">    product (``releases``), at a fraction of a basename's size.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    file_name : str</span>
+<span class="sd">        A GEDI file name, path or URL. Only the basename is read.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str or None</span>
+<span class="sd">        ``'PP_PGE_GG'`` (PPDS, PGE, generation), plus ``'_&lt;suffix&gt;'`` when the</span>
+<span class="sd">        name has one; ``None`` for a name outside the GEDI convention.</span>
+<span class="sd">        :func:`gedi_release_rank` ranks tags as it ranks names.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; gedi_release_tag('GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002_SGS.h5')</span>
+<span class="sd">    '02_003_01_SGS'</span>
+<span class="sd">    """</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">_RELEASE_FIELDS</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">file_name</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">ppds</span><span class="p">,</span> <span class="n">pge</span><span class="p">,</span> <span class="n">generation</span><span class="p">,</span> <span class="n">suffix</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ppds</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">pge</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">generation</span><span class="si">}</span><span class="s2">"</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">suffix</span> <span class="k">else</span> <span class="s1">''</span><span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="gedi_release_rank">
@@ -919,7 +955,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    file_name : str</span>
-<span class="sd">        A GEDI file name, path or URL. Only the basename is read.</span>
+<span class="sd">        A GEDI file name, path or URL (only the basename is read), or a</span>
+<span class="sd">        release tag from :func:`gedi_release_tag`.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -936,6 +973,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    True</span>
 <span class="sd">    """</span>
     <span class="n">match</span> <span class="o">=</span> <span class="n">_RELEASE_FIELDS</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">file_name</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">'/'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">file_name</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">file_name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">'.h5'</span><span class="p">):</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">_RELEASE_TAG</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">file_name</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">''</span><span class="p">)</span>
     <span class="n">ppds</span><span class="p">,</span> <span class="n">pge</span><span class="p">,</span> <span class="n">generation</span><span class="p">,</span> <span class="n">suffix</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>

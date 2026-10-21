@@ -847,7 +847,19 @@ as successful.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><dl class="simple">
-<dt><strong>granule_list</strong><span class="classifier">list of dict</span></dt><dd><p>Each dict must have ‘orbit’, ‘granule’, ‘track’ keys.</p>
+<dt><strong>granule_list</strong><span class="classifier">list of dict</span></dt><dd><p>Each dict must have ‘orbit’, ‘granule’, ‘track’ keys, and may have
+<code class="docutils literal notranslate"><span class="pre">releases</span></code>: <code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">tag}</span></code> (<code class="xref py py-func docutils literal notranslate"><span class="pre">gedi_release_tag()</span></code>) of the
+source files the build lists for the granule. A newer release
+within the GEDI version is detected against the recorded tags
+(#47), so a tag is never replaced here: a granule not indexed yet
+gains tags only for products it has none for (rows a killed run
+left on disk may come from the file recorded first, and an older
+tag is reported later rather than a newer one hiding stale rows).
+An <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> or <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> entry, and one registered before
+tags were recorded (no <code class="docutils literal notranslate"><span class="pre">releases</span></code> key, so rows on disk may come
+from any file), are left as they are. No tag means the source is
+unknown: an older log, a product added by a variable update, or
+an S3-sourced build (which registers no granules).</p>
 </dd>
 </dl>
 </dd>
@@ -1061,6 +1073,32 @@ granule with a product in one of <code class="docutils literal notranslate"><spa
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.record_releases">
+<span class="sig-name descname"><span class="pre">record_releases</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">releases</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.record_releases"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.record_releases" title="Link to this definition">#</a></dt>
+<dd><p>Record the source releases a write is about to read (does not save).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>releases</strong><span class="classifier">dict</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">{product:</span> <span class="pre">tag}}</span></code> (tags from
+<code class="docutils literal notranslate"><span class="pre">gedi_release_tag</span></code>), e.g. from <code class="docutils literal notranslate"><span class="pre">_build_fill_products</span></code>’
+<code class="docutils literal notranslate"><span class="pre">releases_callback</span></code> before it writes. As in
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.register_pending_granules" title="gedih3.logger.H3BuildLogger.register_pending_granules"><code class="xref py py-meth docutils literal notranslate"><span class="pre">register_pending_granules()</span></code></a>, a product that has a tag keeps
+it (rows already written may come from that release), and an
+entry recorded before tags existed (no <code class="docutils literal notranslate"><span class="pre">releases</span></code> key) stays
+unknown: its other products’ rows may come from any file.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>int</dt><dd><p>Number of tags added.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.record_fill_results">
 <span class="sig-name descname"><span class="pre">record_fill_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_attempts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count_failures</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.record_fill_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.record_fill_results" title="Link to this definition">#</a></dt>
 <dd><p>Apply a <code class="docutils literal notranslate"><span class="pre">_build_fill_products</span></code> result to per-product statuses.</p>
@@ -1199,6 +1237,7 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.mark_granule_product"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.mark_granule_product()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.set_product_statuses"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.set_product_statuses()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.pending_product_fills"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.pending_product_fills()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_releases()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_fill_results"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_fill_results()</span></code></a></li>
 </ul>
 </li>
