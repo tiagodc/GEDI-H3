@@ -1,6 +1,6 @@
 # Granule re-release replacement (#47)
 > owner calls for #47: release ranking, opt-in replacement, identity in S3 mode
-updated: 2026-10-21T15:20:47-04:00
+updated: 2026-10-21T17:27:40-04:00
 
 **Status:** accepted
 
@@ -17,19 +17,24 @@ granule whose file changes. The issue left three questions to the owner (Q1, Q2,
 - **Trigger (Q2):** opt-in. `gh3_build` reports outdated granules; it replaces them only with `--replace-granules`.
   An automatic mode can follow once the replace path has soaked.
 - **S3 / CMR (Q5):** the identity is the source basename in every mode (an S3 key's basename is the file name).
-  Automatic detection in v1 covers local SOC trees only; S3 builds use the explicit `--replace-granules` list.
+  Detection and replacement in v1 cover local SOC trees only; an S3-built database needs `gh3_download` first
+  (`--replace-granules` refuses a non-local SOC).
 - Whole-granule rebuild (Q3, products are inner-joined on `shot_number`); superseded files stay in place (Q4);
   concurrent readers are documented, not locked (Q6).
 
 ## Consequences
 PR split: explicit ranking (#58, 0.20.9) → identity in the build log (#59, 0.20.10) → detection and doctor diagnosis
-(#60, 0.20.11) → drop-predicate primitive (#61, 0.20.12) → Stage 0 replace driver.
+(#60, 0.20.11) → drop-predicate primitive (#61, 0.20.12) → Stage 0 replace driver, `gh3_build --replace-granules auto|keys|file` (#62, 0.21.0). #47 closed.
 - The primitive's idempotence rests on an enforced invariant: new rows of a replaced granule must name the files in the
   map (basenames), or the merge raises before writing, including a first merge with no destination (`replace_in=None`).
 - Identity is a compact tag per product in the build log (`releases`, `gedi_release_tag`), not a basename: log size.
 - The safety rule the reviews converged on: no path may record a release *newer* than the rows it describes. A tag is
   never replaced; an entry registered before #59 stays unknown; a merge keeps a tag only when both logs carry one (older);
   a backfill records its tags before its first write (`releases_callback`). Older-than-rows only costs a needless rebuild.
+
+- The driver journals `{key: {product: basename}}` under `<tmp>/_replace/` before the first destructive step; the log's
+  `_pending_replacement` holds that tmp dir, so any later `gh3_build` resumes it whatever its `--tmpdir`. Old rows are
+  located from partition metadata (a year file without metadata is always rewritten), never by region.
 
 ## Rejected
 - PGE first (changes which file wins for granules with mixed PPDS).
