@@ -890,3 +890,20 @@ def test_gedi_release_rank_matches_name_order_within_a_directory():
 def test_gedi_release_rank_puts_an_unconventional_name_last():
     from gedih3.gedidriver import gedi_release_rank
     assert gedi_release_rank('GEDI02_A_custom_O01956_03_T03909.h5') < gedi_release_rank(_BASE + '_00_000_00_V002.h5')
+
+
+def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
+    """GEDIFile.search_file uses the same ranking (it used to put generation first)."""
+    from gedih3.gedidriver import GEDIFile
+    soc = tmp_path / '2019' / '108'
+    soc.mkdir(parents=True)
+    l2a = soc / f'{_BASE}_02_003_01_V002.h5'
+    for sfx in ('_02_003_09_V002.h5', '_02_004_01_V002.h5', '_02_004_01_V002_SGS.h5', '_02_009_09_V001.h5'):
+        (soc / (_BASE.replace('GEDI02_A', 'GEDI02_B') + sfx)).touch()
+    l2a.touch()
+    found = GEDIFile(str(l2a)).search_file(str(tmp_path), product=2, level='B')
+    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
+    # No file of the same GEDI version: the latest version, then its latest release.
+    v3 = GEDIFile(str(l2a).replace('_V002', '_V003'))
+    found = v3.search_file(str(tmp_path), product=2, level='B')
+    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'

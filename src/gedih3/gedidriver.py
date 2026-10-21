@@ -141,8 +141,9 @@ def gedi_release_rank(file_name: str) -> tuple:
     (geolocation), PGE (software) or generation. The highest rank is the file
     to use: PPDS first, then PGE, then generation, then the suffix, where a
     suffixed file (e.g. ``_SGS``) beats the plain file of the same release and
-    suffixes compare alphabetically. This is the order a sort by file name
-    gives within one directory.
+    suffixes compare alphabetically. For names that follow the GEDI
+    convention, this is the order a sort by file name gives within one
+    directory.
 
     Parameters
     ----------
