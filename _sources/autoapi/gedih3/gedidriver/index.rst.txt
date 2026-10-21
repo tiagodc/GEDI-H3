@@ -39,6 +39,7 @@ Functions
    gedih3.gedidriver.soc_prod_from_file
    gedih3.gedidriver.soc_from_file
    gedih3.gedidriver.write_soc_manifest
+   gedih3.gedidriver.gedi_release_rank
    gedih3.gedidriver.soc_file_tree
    gedih3.gedidriver.gedi_subset
    gedih3.gedidriver.gedi_file_glob
@@ -167,6 +168,52 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: gedi_release_rank(file_name: str) -> tuple
+
+   
+   Rank one file of a granule product against the granule's other files.
+
+   NASA re-releases granules within one GEDI version with a new PPDS
+   (geolocation), PGE (software) or generation. The highest rank is the file
+   to use: PPDS first, then PGE, then generation, then the suffix, where a
+   suffixed file (e.g. ``_SGS``) beats the plain file of the same release and
+   suffixes compare alphabetically. For names that follow the GEDI
+   convention, this is the order a sort by file name gives within one
+   directory.
+
+   :Parameters:
+
+       **file_name** : str
+           A GEDI file name, path or URL. Only the basename is read.
+
+
+
+   :Returns:
+
+       tuple
+           ``(ppds, pge, generation, has_suffix, suffix)``, ordered so that a
+           larger tuple is a later release. A name that does not follow the GEDI
+           convention ranks below every one that does.
+
+
+
+
+
+
+
+
+
+
+   .. rubric:: Examples
+
+   >>> old = 'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002.h5'
+   >>> new = 'GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V002.h5'
+   >>> gedi_release_rank(new) > gedi_release_rank(old)
+   True
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: soc_file_tree(file_struct: Union[str, List[str], List[earthaccess.store.EarthAccessFile]], to_list: bool = False, glob_kwargs: Optional[Dict] = None, exclude: Optional[List[str]] = None, require_all: bool = True) -> Union[Dict[str, Dict[str, str]], List[Dict[str, str]]]
 
    
@@ -209,7 +256,9 @@ Module Contents
 
        dict or list
            If to_list=False: dict keyed by orbit_track identifier, with values
-           being dicts mapping product codes to file paths.
+           being dicts mapping product codes to file paths. A product with more
+           than one file maps to its latest release (``gedi_release_rank``),
+           and the duplicates are logged once per process.
            If to_list=True: list of product dicts.
 
 
