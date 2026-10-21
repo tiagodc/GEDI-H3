@@ -763,3 +763,87 @@ def test_has_new_local_granules_ignores_other_release(soc_tree_two_releases):
     (open(os.path.join(soc_tree_two_releases,
                        'GEDI02_A_2019108002012_O01999_03_T03909_02_003_01_V003.h5'), 'w')).close()
     assert _has_new_local_granules(soc_tree_two_releases, log) is True
+
+
+# A granule re-released within V003 (PGE 003 -> 004) next to its original,
+# plus a granule with a single file.
+_RERELEASE_NAMES = [
+    '/soc/2019/108/GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5',
+    '/soc/2019/108/GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5',
+    '/soc/2019/108/GEDI02_A_2019108002012_O01957_03_T03910_02_003_01_V003.h5',
+]
+
+
+@pytest.fixture
+def duplicate_warnings(monkeypatch):
+    """Fresh once-per-process registry; returns the warnings soc_file_tree logs."""
+    import gedih3.gedidriver as gd
+    monkeypatch.setattr(gd, '_REPORTED_DUPLICATE_FILES', set())
+    seen = []
+    monkeypatch.setattr(gd.logger, 'warning', lambda msg, *a, **k: seen.append(msg))
+    return seen
+
+
+def test_soc_file_tree_warns_about_a_rereleased_granule(duplicate_warnings):
+    tree = soc_file_tree(_RERELEASE_NAMES)
+
+    assert tree['O01956_03_T03909']['L2A'].endswith('_02_004_01_V003.h5')   # the later PGE is used
+    assert len(duplicate_warnings) == 1
+    msg = duplicate_warnings[0]
+    assert msg.startswith('1 granule product(s)')
+    assert 'GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5 over ' \
+           'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5' in msg
+    assert msg.isascii()
+
+
+def test_soc_file_tree_reports_each_duplicate_once_per_process(duplicate_warnings):
+    soc_file_tree(_RERELEASE_NAMES)
+    soc_file_tree(_RERELEASE_NAMES, to_list=True)
+    assert len(duplicate_warnings) == 1
+
+
+def test_soc_file_tree_is_silent_without_duplicates(duplicate_warnings):
+    soc_file_tree(_RERELEASE_NAMES[1:])
+    soc_file_tree([p.replace('GEDI02_A', 'GEDI02_B') for p in _RERELEASE_NAMES[1:]] + _RERELEASE_NAMES[1:])
+    assert duplicate_warnings == []
+
+
+def test_soc_file_tree_exclude_silences_the_duplicate(duplicate_warnings):
+    tree = soc_file_tree(_RERELEASE_NAMES, exclude=['*_02_003_01_V003.h5'])
+    assert duplicate_warnings == []
+    assert tree['O01956_03_T03909']['L2A'].endswith('_02_004_01_V003.h5')
+
+
+def test_soc_file_tree_names_the_file_the_pivot_keeps_across_directories(duplicate_warnings):
+    """The pivot ranks full paths, not basenames: an old copy in a later
+    directory wins, and the warning must say so."""
+    old = '/soc/z/GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
+    new = '/soc/a/GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5'
+    tree = soc_file_tree([new, old])
+    assert tree['O01956_03_T03909']['L2A'] == old
+    assert f'{os.path.basename(old)} over {os.path.basename(new)}' in duplicate_warnings[0]
+
+
+def test_soc_file_tree_a_path_listed_twice_is_not_a_duplicate(duplicate_warnings):
+    soc_file_tree([_RERELEASE_NAMES[0], _RERELEASE_NAMES[0]])
+    assert duplicate_warnings == []
+
+
+def test_soc_file_tree_reports_a_further_rerelease_again(duplicate_warnings):
+    soc_file_tree(_RERELEASE_NAMES)
+    third = _RERELEASE_NAMES[1].replace('_02_004_01_', '_02_004_02_')
+    soc_file_tree(_RERELEASE_NAMES + [third])
+    assert len(duplicate_warnings) == 2
+    assert os.path.basename(third) + ' over ' in duplicate_warnings[1]
+
+
+def test_soc_file_tree_summarises_several_duplicates(duplicate_warnings, monkeypatch):
+    import gedih3.gedidriver as gd
+    debug = []
+    monkeypatch.setattr(gd.logger, 'debug', lambda msg, *a, **k: debug.append(msg))
+    second = [p.replace('O01956_03_T03909', 'O01958_01_T03911') for p in _RERELEASE_NAMES[:2]]
+
+    soc_file_tree(_RERELEASE_NAMES + second)
+
+    assert duplicate_warnings[0].startswith('2 granule product(s)') and '(and 1 more' in duplicate_warnings[0]
+    assert len([m for m in debug if m.startswith('Duplicate granule files')]) == 2
