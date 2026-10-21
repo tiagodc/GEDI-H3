@@ -271,14 +271,21 @@ def _parse_replace_granules(spec):
     """Granule keys named by ``--replace-granules``; ``None`` for ``auto``.
 
     Accepts ``O12345_01_T00123`` keys or GEDI file names, comma- or
-    whitespace-separated, inline or in a file.
+    whitespace-separated, inline or in a file. An empty spec names none.
     """
     import os
     import re
     from gedih3.exceptions import GediValidationError
-    if spec.strip().lower() == 'auto':
+    spec = spec.strip()
+    if spec.lower() == 'auto':
         return None
-    text = open(spec).read() if os.path.isfile(spec) else spec
+    if os.path.isfile(spec):
+        with open(spec) as f:
+            text = f.read()
+    elif os.sep in spec or spec.endswith(('.txt', '.csv', '.lst')):
+        raise GediValidationError(f"--replace-granules: file not found: {spec}")
+    else:
+        text = spec
     keys = set()
     for token in re.split(r'[\s,]+', text.strip()):
         if not token:
@@ -291,69 +298,112 @@ def _parse_replace_granules(spec):
     return keys
 
 
-def _replace_granules(args, h3_logger, soc_source, logger):
+def _replace_granules(args, h3_logger, soc_source, logger, tmp_dir):
     """Run, or resume, a granule replacement, then exit (#47).
+
+    Errors map to exit codes as in :func:`main`: 2 for a refused request, 4
+    for a failed merge, 1 for any other GEDI error, 130 on an interrupt (the
+    next gh3_build resumes it). See :func:`_run_granule_replacement`.
+    """
+    import sys
+    from gedih3.exceptions import GediError, GediValidationError, GediDatabaseError
+    try:
+        _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir)
+    except KeyboardInterrupt:
+        logger.warning("\nRe-indexing interrupted: the next gh3_build resumes it")
+        sys.exit(130)
+    except GediValidationError as e:
+        logger.error(str(e))
+        sys.exit(2)
+    except GediDatabaseError as e:
+        logger.error(str(e))
+        sys.exit(4)
+    except GediError as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+
+def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
+    """Re-index granules from their new release, or resume that (#47).
 
     Targets come from ``--replace-granules`` (``auto``: the granules with a
     newer release listed, :meth:`H3BuildLogger.superseded_releases`), or from
-    the journal of an unfinished replacement. A target needs a listed file
-    for every product of the database, and is never replaced by an older
-    release than the one it was read from. The build log takes the new
-    releases once the rows are in, and the scratch directory goes last.
+    the journal of an unfinished replacement under ``tmp_dir`` (the build
+    log's ``_pending_replacement``, whatever this run's ``--tmpdir``). A
+    target needs a listed file for every product of the database, and is
+    never replaced by an older release than the one it was read from. The
+    build log takes the new releases once the rows are in; the scratch
+    directory goes last.
     """
     import os
-    import sys
     import shutil
+    from gedih3.config import BUILD_LOG_FILENAME
     from gedih3.cliutils import dask_client, parse_dask_args, print_success
-    from gedih3.exceptions import GediError
+    from gedih3.exceptions import GediValidationError
     from gedih3.gedidriver import soc_file_tree, gedi_release_rank, gedi_release_tag
-    from gedih3.gh3builder import (_replace_granules_build, read_replacement_journal, _granule_id_from_l2a_path,
-                                   _granule_key_str, _REPLACE_DIRNAME)
+    from gedih3.gh3builder import (_replace_granules_build, read_replacement_journal, replacement_abandon_hint,
+                                   _granule_id_from_l2a_path, _granule_key_str, _REPLACE_DIRNAME)
 
-    journal = read_replacement_journal(args.tmpdir)
+    if not os.path.isfile(os.path.join(args.output, BUILD_LOG_FILENAME)):
+        raise GediValidationError(f"No database at {args.output}: --replace-granules re-indexes granules of an "
+                                  f"existing, completed database")
+    rtmp = os.path.join(tmp_dir, _REPLACE_DIRNAME)
+    journal = read_replacement_journal(tmp_dir)
     if args.s3 or args.download or not (isinstance(soc_source, str) and os.path.isdir(soc_source)):
-        logger.error("Re-indexing granules needs a local SOC directory (-i). For an S3-built database, download "
-                     "the new files with gh3_download first.")
-        sys.exit(2)
-    if any(getattr(h3_logger, a, None) is not None for a in ('new_spatial', 'new_temporal', 'new_product_vars')):
-        logger.error("Re-index granules in a run of its own: leave out the region, date and variable changes, "
-                     "and apply them in another gh3_build.")
-        sys.exit(2)
+        raise GediValidationError("Re-indexing granules needs a local SOC directory (-i). For an S3-built "
+                                  "database, download the new files with gh3_download first.")
+    if (args.allow_missing_products is not None
+            or any(getattr(h3_logger, a, None) is not None for a in ('new_spatial', 'new_temporal', 'new_product_vars'))):
+        raise GediValidationError(
+            "An unfinished re-indexing must finish first: run gh3_build without region, date, variable or "
+            "--allow-missing-products options" if journal is not None else
+            "Re-index granules in a run of its own: leave out region, date, variable and "
+            "--allow-missing-products changes, and apply them in another gh3_build")
     if journal is None and h3_logger.previous_status != 'COMPLETED':
-        logger.error(f"The database has an unfinished build (status {h3_logger.previous_status}): run gh3_build "
-                     f"to finish it before re-indexing granules.")
-        sys.exit(2)
-    requested = _parse_replace_granules(args.replace_granules) if args.replace_granules else None
+        raise GediValidationError(f"The database has an unfinished build (status {h3_logger.previous_status}): "
+                                  f"run gh3_build to finish it before re-indexing granules")
+    requested = _parse_replace_granules(args.replace_granules) if args.replace_granules is not None else None
     if journal is not None and requested is not None and requested != set(journal):
-        logger.error(f"A replacement of {len(journal)} other granule(s) is unfinished: run gh3_build (or "
-                     f"--replace-granules auto) to finish it first.")
-        sys.exit(2)
+        raise GediValidationError(f"A re-indexing of {len(journal)} other granule(s) is unfinished: run gh3_build "
+                                  f"to finish it first, or {replacement_abandon_hint(tmp_dir)}")
+
+    index = {(g['orbit'], g['granule'], g['track']): g for g in h3_logger.granule_info or []}
+    targets, skipped = {}, []
+    if journal is not None:
+        def _recorded(key, files):
+            return (index.get(key) or {}).get('releases') == {p: gedi_release_tag(n) for p, n in files.items()}
+        if h3_logger.previous_status == 'COMPLETED' and all(_recorded(k, f) for k, f in journal.items()):
+            # Finished and logged; only the cleanup was cut short.
+            shutil.rmtree(rtmp, ignore_errors=True)
+            logger.info("The re-indexing started earlier had finished; removed its scratch files")
+            return
+        logger.info(f"Resuming the re-indexing of {len(journal)} granule(s) started earlier")
+        for key, files in journal.items():
+            # The journal's exact files, by the SOC tree layout (<year>/<doy>/):
+            # a release listed since then does not stand in for them.
+            targets[key] = {}
+            for product, name in files.items():
+                stamp = name.split('_')[2]
+                path = os.path.join(soc_source, stamp[:4], stamp[4:7], name)
+                if not os.path.isfile(path):
+                    raise GediValidationError(f"The unfinished re-indexing reads {name}, which is no longer in the "
+                                              f"SOC directory: restore it and re-run, or "
+                                              f"{replacement_abandon_hint(tmp_dir)}")
+                targets[key][product] = path
 
     product_vars = h3_logger.get_product_vars()
     products = set(product_vars)
     with dask_client(**parse_dask_args(args)):
-        listing = soc_file_tree(soc_source, to_list=True, require_all=False, exclude=args.exclude,
-                                glob_kwargs={'version': h3_logger.gedi_version})
-        by_key = {}
-        for entry in listing:
-            key = _granule_id_from_l2a_path(next(iter(entry.values())))
-            if key is not None:
-                by_key[key] = entry
-
-        targets, skipped = {}, []
-        if journal is not None:
-            logger.info(f"Resuming the re-indexing of {len(journal)} granule(s) started earlier")
-            for key, files in journal.items():
-                entry = by_key.get(key) or {}
-                if any(os.path.basename(entry.get(p, '')) != name for p, name in files.items()):
-                    logger.error(f"The SOC directory no longer lists the files the unfinished replacement reads "
-                                 f"({_granule_key_str(key)}: {sorted(files.values())}). Restore them and re-run.")
-                    sys.exit(2)
-                targets[key] = {p: entry[p] for p in files}
-        else:
+        if journal is None:
+            listing = soc_file_tree(soc_source, to_list=True, require_all=False, exclude=args.exclude,
+                                    glob_kwargs={'version': h3_logger.gedi_version})
+            by_key = {}
+            for entry in listing:
+                key = _granule_id_from_l2a_path(next(iter(entry.values())))  # any product's name holds the key
+                if key is not None:
+                    by_key[key] = entry
             if requested is None:
                 requested = set(h3_logger.superseded_releases(listing)['newer'])
-            index = {(g['orbit'], g['granule'], g['track']): g for g in h3_logger.granule_info or []}
             for key in sorted(requested):
                 g, entry = index.get(key), by_key.get(key) or {}
                 recorded = (g or {}).get('releases') or {}
@@ -366,23 +416,20 @@ def _replace_granules(args, h3_logger, soc_source, logger):
                     skipped.append((key, 'only an older release than the indexed one is listed'))
                 else:
                     targets[key] = {p: entry[p] for p in products}
-        for key, why in skipped[:5]:
-            logger.warning(f"Not re-indexing {_granule_key_str(key)}: {why}")
-        if len(skipped) > 5:
-            logger.warning(f"... and {len(skipped) - 5} more granule(s) not re-indexed")
-        if not targets:
-            logger.info("No granule to re-index")
-            return
+            for key, why in skipped[:5]:
+                logger.warning(f"Not re-indexing {_granule_key_str(key)}: {why}")
+            if len(skipped) > 5:
+                logger.warning(f"... and {len(skipped) - 5} more granule(s) not re-indexed")
+            if not targets:
+                logger.info("No granule to re-index")
+                return
 
         logger.info(f"Re-indexing {len(targets)} granule(s) from their new source files")
-        h3_logger.save_log('PROCESSING')  # the journal marks the replacement; it is checked first
-        try:
-            result = _replace_granules_build(
-                args.output, targets, product_vars, h3_logger.res, h3_logger.part,
-                spatial=h3_logger.get_spatial(), version=h3_logger.gedi_version, tmp_dir=args.tmpdir)
-        except GediError as e:
-            logger.error(str(e))
-            sys.exit(1)
+        h3_logger.log_data['_pending_replacement'] = tmp_dir
+        h3_logger.save_log('PROCESSING')
+        result = _replace_granules_build(
+            args.output, targets, product_vars, h3_logger.res, h3_logger.part,
+            spatial=h3_logger.get_spatial(), version=h3_logger.gedi_version, tmp_dir=tmp_dir)
 
         # The rows are in: the granules take their new releases (the one place
         # a recorded release is replaced), and their product statuses are rebuilt.
@@ -395,8 +442,9 @@ def _replace_granules(args, h3_logger, soc_source, logger):
                 g['status'] = 'NO_DATA' if key in result['empty'] else 'INDEXED'
         h3_logger.set_post_build_info()
         h3_logger.update_action = 'granule_replacement'
+        h3_logger.log_data.pop('_pending_replacement', None)
         h3_logger.save_log('COMPLETED')
-        shutil.rmtree(os.path.join(args.tmpdir, _REPLACE_DIRNAME), ignore_errors=True)
+        shutil.rmtree(rtmp, ignore_errors=True)
 
         from gedih3.gh3driver import refresh_bbox_index_after_build
         refresh_bbox_index_after_build(args.output, enabled=args.bbox_index, logger=logger)
@@ -681,9 +729,14 @@ def main():
 
     # Re-indexing re-released granules (#47): a run of its own, opted in with
     # --replace-granules and resumed by any later run until it finishes.
+    # The journal's tmp dir comes from the log, so a run with another --tmpdir
+    # still finds it. Marked but never journaled: nothing was touched.
     from gedih3.gh3builder import replacement_journal
-    if args.replace_granules or os.path.exists(replacement_journal(args.tmpdir)):
-        return _replace_granules(args, h3_logger, soc_source, logger)
+    _replace_tmp = h3_logger.log_data.get('_pending_replacement') or args.tmpdir
+    if not os.path.exists(replacement_journal(_replace_tmp)):
+        h3_logger.log_data.pop('_pending_replacement', None)
+    if args.replace_granules is not None or os.path.exists(replacement_journal(_replace_tmp)):
+        return _replace_granules(args, h3_logger, soc_source, logger, _replace_tmp)
 
     # Early exit: database is already up-to-date with requested parameters
     # Only when a valid build log exists with partition data to confirm completeness

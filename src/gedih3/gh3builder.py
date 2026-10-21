@@ -25,7 +25,8 @@ from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_me
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError
+from .exceptions import (H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError,
+                         GediDatabaseError, GediProcessingError)
 
 logger = get_logger(__name__)
 
@@ -5363,9 +5364,32 @@ def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
 
 
 # Scratch of a granule replacement (#47) under the build's tmp dir, and its
-# journal: the target set, written before the first destructive step.
+# journal: the target set, written before the first destructive step. The
+# marker is written before the first rewrite of a database file.
 _REPLACE_DIRNAME = '_replace'
 _REPLACE_JOURNAL = '_replace_targets.json'
+_REPLACE_MERGING = '_merging'
+
+
+def _year_file_replace_targets(year_pf, *, targets):
+    """Worker: :func:`_year_file_target_granules`, for a replacement.
+
+    A year file whose metadata is missing cannot be ruled out as holding a
+    target's rows, so it is an error here rather than "no data that year".
+    """
+    if os.path.exists(year_pf) and not os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME)):
+        raise GediDatabaseError(f"{year_pf} has no metadata, so the granules it holds are unknown; restore it "
+                                f"(gh3_doctor --fix metadata) and re-run")
+    return _year_file_target_granules(year_pf, targets=targets)
+
+
+def replacement_abandon_hint(tmp_dir: str) -> str:
+    """How to abandon an unfinished replacement, and what that leaves."""
+    rtmp = os.path.join(tmp_dir, _REPLACE_DIRNAME)
+    if os.path.exists(os.path.join(rtmp, _REPLACE_MERGING)):
+        return (f"removing {rtmp} abandons it, but some database files were already rewritten: those granules "
+                f"stay partly re-indexed until they are re-indexed again")
+    return f"removing {rtmp} abandons it safely: no database file was rewritten yet"
 
 
 def replacement_journal(tmp_dir: str) -> str:
@@ -5457,9 +5481,12 @@ def _replace_granules_build(
     ------
     GediValidationError
         Another replacement is unfinished under ``tmp_dir``.
-    GediError
-        No dask Client; a metadata file is unreadable; Stage 1 did not read
-        every target in full; or a merge failed. Nothing is lost: re-run.
+    GediDatabaseError
+        A year file's metadata is unreadable or missing.
+    GediProcessingError
+        Stage 1 did not read every target in full.
+    GediMergeError
+        A merge failed. In every case nothing is lost: re-run to resume.
     """
     if get_dask_client() is None:
         raise GediError("_replace_granules_build requires a registered dask Client")
@@ -5490,6 +5517,12 @@ def _replace_granules_build(
 
     # ── 2. The (cell, year) files holding their old rows: metadata only ──
     log = json_read(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}
+    # The log's partitions, and any partition directory on disk it misses: one
+    # readdir of the root, so a stale list cannot hide old rows.
+    cells = set(log.get('h3_partition_ids') or [])
+    prefix = f"h3_{part:02d}="
+    with os.scandir(h3_dir) as it:
+        cells.update(e.name[len(prefix):] for e in it if e.name.startswith(prefix) and e.is_dir())
     years = set()
     for files in targets.values():
         try:
@@ -5500,18 +5533,18 @@ def _replace_granules_build(
         years.add(year)
         if doy >= 365:  # a granule starting on the last day can run past midnight
             years.add(year + 1)
-    candidates = [os.path.join(h3_dir, f"h3_{part:02d}={c}", f"year={y}", f"{c}.{y}.0.parquet")
-                  for c in log.get('h3_partition_ids') or [] for y in sorted(years)]
+    candidates = [os.path.join(h3_dir, f"{prefix}{c}", f"year={y}", f"{c}.{y}.0.parquet")
+                  for c in sorted(cells) for y in sorted(years)]
     logger.info(f"Granule replacement: locating {len(rmap)} granule(s) in {len(candidates)} candidate "
                 f"(cell, year) file(s), metadata only")
     from .parallel import parallel_map
-    scan_fn = functools.partial(_year_file_target_granules, targets=frozenset(e[0] for e in entries))
+    scan_fn = functools.partial(_year_file_replace_targets, targets=frozenset(e[0] for e in entries))
     old_dirs = []
     for year_pf, hits in parallel_map(candidates, scan_fn, desc="Locating granules", unit="file",
                                       batch_size=500 if len(candidates) > 10000 else 0):
         if isinstance(hits, Exception):
-            raise GediError(f"Granule replacement: cannot read the metadata of {year_pf} ({hits}); "
-                            f"nothing was replaced")
+            why = str(hits) if isinstance(hits, GediDatabaseError) else f"cannot read the metadata of {year_pf} ({hits})"
+            raise GediDatabaseError(f"Granule replacement: {why}; the replacement did not go on")
         if hits:
             year_dir = os.path.dirname(year_pf)
             old_dirs.append(os.path.join(parquet_dir, os.path.basename(os.path.dirname(year_dir)),
@@ -5535,17 +5568,19 @@ def _replace_granules_build(
         skip_check=False,
     )
     if 'incomplete' not in outcome or outcome['incomplete']:
-        raise GediError(
+        raise GediProcessingError(
             f"Granule replacement: Stage 1 did not read every granule in full "
-            f"({len(outcome.get('incomplete') or [])} unfinished); nothing was replaced yet. Re-run gh3_build "
-            f"to resume it")
+            f"({len(outcome.get('incomplete') or [])} unfinished), so no file was rewritten in this run. Re-run "
+            f"gh3_build to resume it; if it keeps failing, {replacement_abandon_hint(os.path.dirname(rtmp))}")
 
     # ── 4. One atomic rewrite per affected cell-year ──
+    with open(os.path.join(rtmp, _REPLACE_MERGING), 'w'):
+        pass
     files = _merge_and_finalize(parquet_dir, h3_dir, replace_granules=rmap, extra_dirs=old_dirs)
     failed = _scan_merge_failure_sentinels(parquet_dir)
     if failed:
-        raise GediError(f"Granule replacement: {len(failed)} partition merge(s) failed; re-run gh3_build to "
-                        f"finish the replacement")
+        raise GediMergeError(f"Granule replacement: {len(failed)} partition merge(s) failed; re-run gh3_build to "
+                             f"finish the replacement")
     return {'replaced': set(rmap), 'empty': outcome['empty'] & set(rmap), 'files': files}
 
 

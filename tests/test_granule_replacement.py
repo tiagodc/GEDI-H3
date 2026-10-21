@@ -411,6 +411,9 @@ def test_replace_granules_refuses_what_it_cannot_do_safely(tmp_dir):
     assert 'No granule to re-index' in out
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto', '--region=-52,0,-49,1', ok=False)
     assert 'in a run of its own' in out
+    assert 'No granule to re-index' in _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', '')
+    out = _gh3_build(soc_dir, os.path.join(tmp_dir, 'none'), tmp, '--replace-granules', 'auto', ok=False)
+    assert 'No database at' in out and 'Traceback' not in out
 
 
 def _merge_failing_one_cell(ofile, *args, **kwargs):
@@ -441,6 +444,8 @@ def test_an_interrupted_replacement_is_finished_by_the_next_gh3_build(tmp_dir, m
     new = _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11, n=15, first=3)
 
     log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    log.log_data['_pending_replacement'] = tmp                       # as the CLI marks it
+    log.save_log('PROCESSING')
     cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=False,
                            dashboard_address=None, silence_logs='ERROR')
     client = Client(cluster)
@@ -457,7 +462,9 @@ def test_an_interrupted_replacement_is_finished_by_the_next_gh3_build(tmp_dir, m
     monkeypatch.undo()
     assert os.path.exists(gb.replacement_journal(tmp))
 
-    out = _gh3_build(soc_dir, h3_dir, tmp)                           # no flag: the journal resumes it
+    # A still newer release lands meanwhile; the resume runs with another -t.
+    _write_release(soc_dir, moved, '02_005_01', lon0=-49.0, seed=21)
+    out = _gh3_build(soc_dir, h3_dir, os.path.join(tmp_dir, 'other_tmp'))  # no flag: the log points at the journal
     assert 'Resuming the re-indexing of 1 granule(s)' in out
     after = _db_rows(h3_dir)
     assert after.shot_number.is_unique
@@ -466,8 +473,9 @@ def test_an_interrupted_replacement_is_finished_by_the_next_gh3_build(tmp_dir, m
     pd.testing.assert_frame_equal(
         after.query('shot_number // 10**13 == 103').sort_values('shot_number').reset_index(drop=True), kept_before)
     g = {x['orbit']: x for x in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}
-    assert g[101]['releases'] == {'L2A': NEW, 'L4A': NEW}
+    assert g[101]['releases'] == {'L2A': NEW, 'L4A': NEW}            # the journal's release, not the latest
     assert not os.path.exists(gb.replacement_journal(tmp))
+    assert '_pending_replacement' not in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))
 
 
 def test_a_different_replacement_is_refused_while_one_is_unfinished(tmp_dir):
@@ -483,3 +491,49 @@ def test_a_different_replacement_is_refused_while_one_is_unfinished(tmp_dir):
         with LocalCluster(n_workers=1, processes=False, dashboard_address=None) as c, Client(c):
             gb._replace_granules_build(str(tmp_dir), {(102, 1, 202): {'L2A': '/x/b.h5'}}, {'L2A': ['rh_098']},
                                        12, 3, tmp_dir=str(tmp_dir))
+
+
+def test_parse_replace_granules(tmp_dir):
+    from gedih3.cli.gh3_build import _parse_replace_granules
+    from gedih3.exceptions import GediValidationError
+    assert _parse_replace_granules(' AUTO ') is None
+    assert _parse_replace_granules('') == set()
+    assert _parse_replace_granules('O00101_01_T00201, O00102_02_T00202\nGEDI04_A_2020100000000_O00103_01_T00203'
+                                   '_02_003_02_V002.h5') == {(101, 1, 201), (102, 2, 202), (103, 1, 203)}
+    keys = os.path.join(tmp_dir, 'keys.txt')
+    with open(keys, 'w') as f:
+        f.write('O00101_01_T00201\n\nO00104_03_T00204\n')
+    assert _parse_replace_granules(keys) == {(101, 1, 201), (104, 3, 204)}
+    with pytest.raises(GediValidationError, match='file not found'):
+        _parse_replace_granules(os.path.join(tmp_dir, 'missing.txt'))
+    with pytest.raises(GediValidationError, match='not a granule key'):
+        _parse_replace_granules('O00101_01_T00201,garbage')
+
+
+def test_a_year_file_without_metadata_stops_the_replacement(tmp_dir):
+    """Its rows cannot be ruled out: replacing around them would leave a
+    granule's old rows beside its new ones for good."""
+    import glob
+    from dask.distributed import Client, LocalCluster
+    import gedih3.gh3builder as gb
+    from gedih3.config import PARTITION_META_FILENAME
+    from gedih3.exceptions import GediDatabaseError
+    from gedih3.gedidriver import soc_file_tree
+    from gedih3.logger import H3BuildLogger
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    moved = (101, 1, 201)
+    _write_release(soc_dir, moved, OLD, lon0=-50.9, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11)
+    sidecar = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*' + PARTITION_META_FILENAME)))[0]
+    os.unlink(sidecar)
+    before = _db_rows(h3_dir)
+    log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    with LocalCluster(n_workers=2, threads_per_worker=1, processes=False, dashboard_address=None,
+                      silence_logs='ERROR') as cluster, Client(cluster):
+        entry = next(e for e in soc_file_tree(soc_dir, to_list=True, require_all=False) if 'O00101' in e['L2A'])
+        with pytest.raises(GediDatabaseError, match='has no metadata'):
+            gb._replace_granules_build(h3_dir, {moved: entry}, log.get_product_vars(), 12, 3,
+                                       spatial=log.get_spatial(), version=2, tmp_dir=tmp)
+    pd.testing.assert_frame_equal(_db_rows(h3_dir), before)
+    assert 'no database file was rewritten' in gb.replacement_abandon_hint(tmp)

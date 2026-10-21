@@ -445,7 +445,7 @@ gh3_build -i /data/soc -o /data/db --replace-granules auto                 # eve
 gh3_build -i /data/soc -o /data/db --replace-granules O12345_01_T00123      # named granules (or a file of keys)
 ```
 
-Each granule's rows are replaced by the new files' rows: shots the new release moved go to their new cells, shots it dropped disappear, and a granule left with no row in the database's region becomes `NO_DATA`. Every other row is untouched. The run reads only the new files and rewrites only the (cell, year) files that hold those granules; it finds them from the partition metadata, without scanning data. Each rewrite is atomic, and the run keeps a journal: if it is interrupted, the next `gh3_build` finishes it before doing anything else.
+Each granule's rows are replaced by the new files' rows: shots the new release moved go to their new cells, shots it dropped disappear, and a granule left with no row in the database's region becomes `NO_DATA`. Every other row is untouched. The run reads only the new files and rewrites only the (cell, year) files that hold those granules; it finds them from the partition metadata, without scanning data. Each rewrite is atomic, and the run keeps a journal: if it is interrupted, the next `gh3_build` finishes it before doing anything else, whatever its `--tmpdir`. If it cannot finish (a new file that keeps failing to read, say), the error says whether removing its scratch directory abandons it safely.
 
 Notes:
 
