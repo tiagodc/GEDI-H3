@@ -12,3 +12,4 @@
 2026-10-21T17:27:40-04:00 · agent · merged #62 (0.21.0): #47 part 5, gh3_build --replace-granules; #47 closed, no PR or issue open
 2026-10-21T17:51:50-04:00 · agent · CLAUDE.md moved to AGENTS.md (CLAUDE.md = @AGENTS.md), protocol v3; harness-local memory deleted after import
 2026-10-21T18:42:10-04:00 · agent · merged #63 (AGENTS.md migration), no bump: agent files only
+2026-10-21T19:40:00-04:00 · claude-code/opus-5.5 · audit 0.18.1 (published on PyPI and conda-forge, not 0.20.1) → 0.21.0; real-data replace test: 5 scenarios + 14 kill points IDENTICAL to oracle; 3 silent gaps → gotchas/replace-granules-silent-paths
