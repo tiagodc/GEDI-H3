@@ -49,7 +49,7 @@ is almost never in the test:
   declared in `pyproject.toml`, or if an `OPTIONAL_MODULES` import is not guarded by
   `try`/`except ImportError`.
 - `test_release_recipe.py` — release metadata consistency.
-- `test_agent_docs.py` — keeps `CLAUDE.md` and `.claude/**` from drifting: referenced
+- `test_agent_docs.py` — keeps `AGENTS.md` and `.claude/**` from drifting: referenced
   paths must exist, `.claude/rules/*.md` must carry a `paths:` glob that matches something,
   the helper index must name real symbols, and no file may contain a hand-maintained count.
 
