@@ -129,6 +129,47 @@ def write_soc_manifest(soc_dir: str, files=None) -> int:
     return len(files)
 
 
+# The file-name fields after a granule's orbit/track that rank its releases
+# within one GEDI version: PPDS, PGE, generation and an optional suffix.
+_RELEASE_FIELDS = re.compile(r'_O\d+_\d{2}_T\d+_(\d{2})_(\d{3})_(\d{2})_V\d{3}(?:_(.+?))?\.h5$')
+
+
+def gedi_release_rank(file_name: str) -> tuple:
+    """Rank one file of a granule product against the granule's other files.
+
+    NASA re-releases granules within one GEDI version with a new PPDS
+    (geolocation), PGE (software) or generation. The highest rank is the file
+    to use: PPDS first, then PGE, then generation, then the suffix, where a
+    suffixed file (e.g. ``_SGS``) beats the plain file of the same release and
+    suffixes compare alphabetically. This is the order a sort by file name
+    gives within one directory.
+
+    Parameters
+    ----------
+    file_name : str
+        A GEDI file name, path or URL. Only the basename is read.
+
+    Returns
+    -------
+    tuple
+        ``(ppds, pge, generation, has_suffix, suffix)``, ordered so that a
+        larger tuple is a later release. A name that does not follow the GEDI
+        convention ranks below every one that does.
+
+    Examples
+    --------
+    >>> old = 'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002.h5'
+    >>> new = 'GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V002.h5'
+    >>> gedi_release_rank(new) > gedi_release_rank(old)
+    True
+    """
+    match = _RELEASE_FIELDS.search(os.path.basename(file_name))
+    if match is None:
+        return (-1, -1, -1, False, '')
+    ppds, pge, generation, suffix = match.groups()
+    return (int(ppds), int(pge), int(generation), suffix is not None, suffix or '')
+
+
 # Duplicate groups soc_file_tree has already reported in this process, keyed
 # by (orb_track, product, file paths): a build lists the SOC tree several
 # times, and one warning per group is enough, while a further re-release
@@ -140,19 +181,19 @@ _REPORTED_DUPLICATE_FILES = set()
 def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
     """Warn once per granule product that has more than one file in a listing.
 
-    ``soc_file_tree`` keys files by orbit/granule/track and keeps the last
-    path of each product in full-path order (``aggfunc='last'``); within one
-    directory that ranks PPDS, then PGE, then GEN, then the suffix. A second
-    file is a re-release within the same GEDI version, or an internal variant
-    such as ``_SGS``. Nothing re-indexes a granule whose file changes: rows
-    already in a database stay from the file they were built from, while
-    variables added and products filled later are read from the file chosen
-    here.
+    ``soc_file_tree`` keys files by orbit/granule/track and keeps the
+    highest-ranked file of each product (``gedi_release_rank``: PPDS, then
+    PGE, then generation, then the suffix). A second file is a re-release
+    within the same GEDI version, or an internal variant such as ``_SGS``.
+    Nothing re-indexes a granule whose file changes: rows already in a
+    database stay from the file they were built from, while variables
+    added and products filled later are read from the file chosen here.
 
     Parameters
     ----------
     flist : pandas.DataFrame
-        The listing, with ``file_paths``, ``orb_track`` and ``prod`` columns.
+        The listing, with ``file_paths``, ``orb_track`` and ``prod`` columns,
+        sorted so that each product's file to use comes last.
     """
     files = flist.drop_duplicates('file_paths')     # one path listed twice is not a second file
     dup = files[files.duplicated(['orb_track', 'prod'], keep=False)]
@@ -160,7 +201,7 @@ def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
         return
     new = []
     for (orb_track, prod), paths in dup.groupby(['orb_track', 'prod'], sort=True)['file_paths']:
-        paths = sorted(paths)                       # the pivot keeps the last one
+        paths = list(paths)                         # in rank order: the pivot keeps the last one
         key = (orb_track, prod, tuple(paths))
         if key not in _REPORTED_DUPLICATE_FILES:
             _REPORTED_DUPLICATE_FILES.add(key)
@@ -173,7 +214,8 @@ def _report_duplicate_granule_files(flist: pd.DataFrame) -> None:
     more = f" (and {len(new) - 1} more, listed at DEBUG level)" if len(new) > 1 else ""
     logger.warning(
         f"{len(new)} granule product(s) have more than one file in the SOC listing (a re-release within "
-        f"the same GEDI version, or an internal variant such as _SGS). The last in path order is used, "
+        f"the same GEDI version, or an internal variant such as _SGS). The latest release (PPDS, then PGE, "
+        f"generation and suffix) is used, "
         f"e.g. {os.path.basename(used)} over {', '.join(os.path.basename(o) for o in others)}{more}. "
         f"Rows already in a database are not re-indexed from a newer file, and variables added or "
         f"products filled later read the file used here. Remove the files you don't want, or exclude "
@@ -223,7 +265,9 @@ def soc_file_tree(
     -------
     dict or list
         If to_list=False: dict keyed by orbit_track identifier, with values
-        being dicts mapping product codes to file paths.
+        being dicts mapping product codes to file paths. A product with more
+        than one file maps to its latest release (``gedi_release_rank``),
+        and the duplicates are logged once per process.
         If to_list=True: list of product dicts.
 
     Raises
@@ -297,7 +341,12 @@ def soc_file_tree(
 
     flist['prod'] = 'L' + fidx[0].astype(int).astype(str) + fidx[1]
     flist['orb_track'] = fidx[2]
-    flist = flist.sort_values(['orb_track', 'file_paths', 'prod'])
+    rank = pd.DataFrame([gedi_release_rank(p) for p in flist.file_paths], index=flist.index,
+                        columns=['_ppds', '_pge', '_gen', '_has_suffix', '_suffix'])
+    flist = pd.concat([flist, rank], axis=1)
+    # Each product's latest release sorts last, for the pivot's 'last'. Ties
+    # (one file copied to two directories) fall back to path order.
+    flist = flist.sort_values(['orb_track', 'prod', *rank.columns, 'file_paths'])
     _report_duplicate_granule_files(flist)
     flist = flist.pivot_table(index='orb_track', columns='prod', values='file_links', aggfunc='last')
     if require_all:
@@ -661,10 +710,10 @@ class GEDIFile:
         parsed_files = [GEDIFile.from_filename(f) for f in files]
         version_matches = [f for f in parsed_files if f.version == self.version]
         if version_matches:
-            version_matches.sort(key=lambda x: (x.generation, x.pge), reverse=True)
+            version_matches.sort(key=lambda x: gedi_release_rank(x.file_path), reverse=True)
             return version_matches[0].file_path
 
-        parsed_files.sort(key=lambda x: (x.version, x.generation, x.pge), reverse=True)
+        parsed_files.sort(key=lambda x: (x.version, *gedi_release_rank(x.file_path)), reverse=True)
         return parsed_files[0].file_path
 
 class GEDIShot(GEDIFile):

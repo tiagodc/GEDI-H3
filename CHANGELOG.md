@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **The SOC listing picks a granule's latest release by its file-name fields, not by path order.** When a granule product has more than one file (a re-release within one GEDI version), `soc_file_tree` now ranks them with the new `gedidriver.gedi_release_rank`: PPDS, then PGE, then generation, then the suffix, where a suffixed file such as `_SGS` beats the plain file. Within one directory this is the file the listing already used. Files of one granule in different directories no longer lose to an older copy in a later path. `GEDIFile.search_file` uses the same ranking; it used to rank generation before PGE. (#47)
+
 ## [0.20.8] - 2026-10-21
 
 ### Fixed
