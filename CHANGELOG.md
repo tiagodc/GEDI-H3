@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.20.8] - 2026-10-21
 
 ### Fixed
 - **`gh3_doctor --fix` no longer drops an unfinished variable update.** A build killed during Stage 2 of a variable update (or of a mixed update's Phase 2) leaves `_pending_variable_update` in the build log, and the next `gh3_build` resumes Stage 2 from it. `--check log_state` reported any such flag as stuck, and `--fix` cleared it. The build log then listed the new variables while the partitions Stage 2 had not reached never got them, and `gh3_build` reported the database up to date. The flag is now reported as stuck, and cleared, only on a `COMPLETED` log. On any other status it is an INFO finding that says to run `gh3_build` to finish the update. (#56)
