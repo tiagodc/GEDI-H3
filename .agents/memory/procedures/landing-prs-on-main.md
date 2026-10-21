@@ -1,23 +1,27 @@
 # Landing PRs on main
 > main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
-updated: 2026-10-20T11:45:23-04:00
+updated: 2026-10-20T22:59:03-04:00
 
 Repo `tiagodc/GEDI-H3`. `main` requires one approving code-owner review; the owner can't approve their own PRs,
-so PRs land via `gh pr merge N --squash --admin`, squash subject `<PR title> (#N)`.
+so PRs land via `gh pr merge N --squash --admin --subject "<PR title> (#N)"`. `enforce_admins` is off, so the
+owner's bump commits are pushed straight to main (`git push origin HEAD:main`).
 
 Agent policy (owner's instruction): branch-level git/gh work on PR branches is fine (commit, push, `gh pr create/edit`,
-forward-merge stacked branches). Never `gh pr merge` and never push to main without an explicit request.
-Admin merges bypass review, so harness safety classifiers block them unless the user asked in that session.
+forward-merge stacked branches). Merge or push to main only on an explicit request in that session.
 
-1. Branch off `origin/main`; one focused change per PR; Conventional Commit subject (see recent `git log`).
-2. For a stacked PR: keep each branch current with `origin/main` and wait for CI before merging.
-3. After the base squash-merges, retarget the dependent PR: `gh pr edit N --base main`.
-4. Syncing the next stacked branch with `origin/main` then conflicts (squash vs original commits). Merge the updated base
-   branch in first, then check `git rev-parse origin/main^{tree}` equals the base tip's tree. If equal,
-   `git merge -s ours origin/main` is exact. Verified on #38→#40 (2026-10-05).
-5. Squash-merged branches need `git branch -D`.
-6. For a tricky stack, rehearse the whole merge sequence in a scratch worktree and compare trees with `git diff --stat`.
+1. Branch off `origin/main`; one focused change per PR; Conventional Commit subject; a `## [Unreleased]` CHANGELOG entry.
+2. Before merging: sync the branch with `origin/main`, run the fast suite, push, wait for every CI check.
+3. Merge, then bump on a main worktree with the bump-version skill (micro for fixes and warnings, minor for features
+   or new flags/API; never major in 0.x), commit exactly `bump version to X.Y.Z`, push to main. One bump per PR.
+4. **CHANGELOG after a bump:** syncing a branch whose `[Unreleased]` shares lines with the section the bump renamed
+   can merge *without conflict* and file the branch's entry under the released version. After every sync check that
+   `git diff origin/main -- CHANGELOG.md` adds only a new `## [Unreleased]` block; move the entry if not.
+5. Stacked PR after its base squash-merges (and a bump landed on top): merge the final base tip into the stacked branch,
+   check `git rev-parse <squash>^{tree}` equals the base tip's tree, `git merge -s ours <squash>`, then a normal
+   `git merge origin/main` for the bump; retarget with `gh pr edit N --base main`. Verified #50→#54/#55 (2026-10-20).
+6. After the squash, `git rev-parse origin/main^{tree}` must equal the PR tip's tree: proof nothing else changed.
+7. Squash-merged branches need `git branch -D`.
 
 ## Verify
-- `git diff origin/main HEAD --stat` on a synced stacked branch lists only that PR's own files.
+- `git diff --stat origin/main...HEAD` on a synced branch lists only that PR's own files.
 - Don't treat a green `claude-review` as an independent review: see [[gotchas/claude-review-check-noop]].
