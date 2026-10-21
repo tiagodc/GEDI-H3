@@ -25,7 +25,8 @@ from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_me
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
-from .exceptions import H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError
+from .exceptions import (H3ValidationError, GediValidationError, GediFileError, GediMergeError, GediError,
+                         GediDatabaseError, GediProcessingError)
 
 logger = get_logger(__name__)
 
@@ -869,6 +870,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules
         (see ``_promote_orphan_merge_result``), or the file was left empty
         by ``replace_granules`` and removed.
     """
+    # The output path is derived from in_dir's parents: with no trailing
+    # separator they would be off by one level, and the merge a silent no-op.
+    in_dir = os.path.join(in_dir, '')
     files = glob.glob(os.path.join(in_dir,'*.parquet'))
 
     year_dir =  os.path.dirname(in_dir)
@@ -3416,6 +3420,7 @@ def _write_partitioned_streaming(
     allow_missing_products: bool = False,
     stage1_outcome_callback: Optional[Callable[[set, set], None]] = None,
     scope_fingerprint: Optional[str] = None,
+    skip_check: Optional[bool] = None,
 ) -> bool:
     """Streaming replacement for the legacy ``ddf.to_parquet().persist()``.
 
@@ -3464,6 +3469,10 @@ def _write_partitioned_streaming(
         AND empty (zero leaves now, or an ``.empty`` sentinel on disk). Never called when the drain is interrupted,
         so a caller holding no outcome must treat that as "nothing proven".
         The CLI's ``NO_DATA`` marking rests on it.
+    skip_check
+        ``False`` writes every row, even of a granule the database's
+        metadata already lists (a granule replacement, #47). ``None``
+        enables the skip check whenever the database has partitions.
     """
     import itertools as _it
     import time as _time
@@ -3541,7 +3550,9 @@ def _write_partitioned_streaming(
     #    (Agent 3 adversarial review #J.2).
     build_log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
     skip_check_enabled = False
-    if os.path.exists(build_log_path):
+    if skip_check is False:
+        pass
+    elif os.path.exists(build_log_path):
         try:
             log = json_read(build_log_path) or {}
             skip_check_enabled = bool(log.get('h3_partition_ids'))
@@ -4028,7 +4039,9 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
 
 def _merge_and_finalize(
     tmp_dir: str,
-    h3_dir: str
+    h3_dir: str,
+    replace_granules: Optional[Dict[Tuple[int, int, int], Dict[str, str]]] = None,
+    extra_dirs: Optional[List[str]] = None,
 ) -> List[str]:
     """
     Merge temporary partitioned files into the final H3 database.
@@ -4044,11 +4057,19 @@ def _merge_and_finalize(
         Temporary directory containing partitioned files
     h3_dir : str
         Final output directory for H3 database
+    replace_granules : dict, optional
+        Passed to every :func:`h3_merge_files`: the granules being re-indexed
+        (#47), ``{(orbit, granule, track): {product: basename}}``.
+    extra_dirs : list of str, optional
+        More ``<tmp_dir>/h3_<p>=<cell>/year=<year>`` targets, with or without
+        fragments: the (cell, year) files holding a replaced granule's old
+        rows, which are rewritten even when no new row lands there.
 
     Returns
     -------
     list of str
-        List of merged H3 parquet file paths
+        List of merged H3 parquet file paths (without those a replacement
+        left empty and removed)
     """
     logger.info(f"Merging H3 partitions into final database path: {h3_dir}")
 
@@ -4097,6 +4118,9 @@ def _merge_and_finalize(
         tmp_h3_dirs = [p for sub in year_lists for p in sub]
     else:
         tmp_h3_dirs = [p for d in h3_part_dirs for p in _list_year_subdirs(d)]
+    if extra_dirs:
+        listed = {d.rstrip('/') for d in tmp_h3_dirs}
+        tmp_h3_dirs += [d + '/' for d in sorted({d.rstrip('/') for d in extra_dirs} - listed)]
     os.makedirs(h3_dir, exist_ok=True)
 
     # Stale .merge.tmp cleanup is delegated to h3_merge_files (worker-side,
@@ -4131,8 +4155,12 @@ def _merge_and_finalize(
         # (this phase keeps every future alive for its whole duration, so
         # any same-process resubmission of a dir would otherwise get the
         # cached outcome without re-executing).
+        # A replacement map is baked into a partial: dask may read the tuple
+        # keys of a kwarg dict as task keys (see _write_partitioned_streaming).
+        merge_fn = (functools.partial(h3_merge_files, replace_granules=replace_granules)
+                    if replace_granules else h3_merge_files)
         futures_list = client.map(
-            h3_merge_files,
+            merge_fn,
             remaining_dirs,
             out_dir=h3_dir,
             rm_src=True,
@@ -4233,6 +4261,10 @@ def _merge_and_finalize(
     h3_subdirs_set: set = {
         os.path.dirname(os.path.dirname(p)) + '/' for p in h3_files
     }
+    if replace_granules:
+        # A replacement may have emptied some; their cells still get their
+        # summary recompiled (or removed) below.
+        h3_files = [f for f in h3_files if os.path.exists(f)]
 
     # Check a sample of merged files for NaN-only columns
     if h3_files:
@@ -5329,6 +5361,228 @@ def _resolve_build_version(h3_dir: str, soc_source=None) -> int:
         if len(releases) == 1:
             return int(releases.pop())
     return GEDI_DEFAULT_VERSION
+
+
+# Scratch of a granule replacement (#47) under the build's tmp dir, and its
+# journal: the target set, written before the first destructive step. The
+# marker is written before the first rewrite of a database file.
+_REPLACE_DIRNAME = '_replace'
+_REPLACE_JOURNAL = '_replace_targets.json'
+_REPLACE_MERGING = '_merging'
+
+
+def _year_file_replace_targets(year_pf, *, targets):
+    """Worker: :func:`_year_file_target_granules`, for a replacement.
+
+    A year file whose metadata is missing cannot be ruled out as holding a
+    target's rows (a lost sidecar, or a file a killed replacement emptied
+    between its two unlinks), so it is rewritten too rather than read as "no
+    data that year": the merge decides from the rows' own source columns.
+    """
+    if os.path.exists(year_pf) and not os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME)):
+        return ['(no metadata)']
+    return _year_file_target_granules(year_pf, targets=targets)
+
+
+def replacement_abandon_hint(tmp_dir: str) -> str:
+    """How to abandon an unfinished replacement, and what that leaves."""
+    rtmp = os.path.join(tmp_dir, _REPLACE_DIRNAME)
+    if os.path.exists(os.path.join(rtmp, _REPLACE_MERGING)):
+        return (f"removing {rtmp} abandons it, but some database files were already rewritten: those granules "
+                f"stay partly re-indexed until they are re-indexed again")
+    return f"removing {rtmp} abandons it safely: no database file was rewritten yet"
+
+
+def replacement_journal(tmp_dir: str) -> str:
+    """Path of the journal of a granule replacement under a build tmp dir.
+
+    Its presence means a replacement started there and has not finished:
+    ``gh3_build`` resumes it before anything else.
+    """
+    return os.path.join(tmp_dir, _REPLACE_DIRNAME, _REPLACE_JOURNAL)
+
+
+def read_replacement_journal(tmp_dir: str) -> Optional[Dict[Tuple[int, int, int], Dict[str, str]]]:
+    """The target set of an unfinished replacement, or ``None`` when there is none.
+
+    ``{(orbit, granule, track): {product: basename}}``, as passed to
+    :func:`_replace_granules_build`.
+    """
+    try:
+        with open(replacement_journal(tmp_dir)) as f:
+            entries = json.load(f)
+    except FileNotFoundError:
+        return None
+    out = {}
+    for ot, files in entries:
+        orbit, granule, track = ot.split('_')
+        out[(int(orbit[1:]), int(granule), int(track[1:]))] = dict(files)
+    return out
+
+
+def _replace_granules_build(
+    h3_dir: str,
+    targets: Dict[Tuple[int, int, int], Dict[str, str]],
+    product_vars: Dict[str, List[str]],
+    res: int,
+    part: int,
+    spatial=None,
+    version: Optional[int] = None,
+    tmp_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Re-index granules from new source files, replacing their rows (#47).
+
+    For granules NASA re-released within the database's GEDI version:
+
+    1. **Journal.** The target set is written to
+       :func:`replacement_journal` before anything destructive; a run with a
+       different target set while one is unfinished is refused.
+    2. **Old rows.** Every ``(cell, year)`` file whose metadata lists a
+       target is found from the metadata alone (every partition of the build
+       log, so it does not depend on a region, and needs no ring-1 rule).
+    3. **New rows.** Stage 1 reads the new files in full, under the
+       database's region, with the skip check off, into
+       ``<tmp_dir>/_replace/partitions`` (its own sentinels, resumable).
+    4. **One rewrite per cell-year.** Only once Stage 1 has read every target
+       granule in full, each affected file is merged with
+       ``h3_merge_files(replace_granules=)``: the old rows go, the new rows
+       take their place, a file left empty is removed. Each rewrite is
+       atomic and gives the same result when re-run, so a kill at any point
+       resumes from the journal.
+
+    The caller updates the build log (releases, statuses, partitions) and
+    removes the scratch directory once the log is saved.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Database root.
+    targets : dict
+        ``{(orbit, granule, track): {product: path}}``: the new source file
+        of every product the database holds, for each granule to replace.
+    product_vars : dict
+        The database's products and variables (the build log's).
+    res, part : int
+        H3 resolution and partition level of the database.
+    spatial : optional
+        The database's region; ``None`` for the whole globe.
+    version : int, optional
+        The database's GEDI version.
+    tmp_dir : str, optional
+        The build's tmp dir (default ``<h3_dir>/.tmp``).
+
+    Returns
+    -------
+    dict
+        ``{'replaced': set of keys, 'empty': set of keys, 'files': list}``:
+        ``empty``, the granules with no row in the region any more (now
+        ``NO_DATA``); ``files``, the database files written.
+
+    Raises
+    ------
+    GediValidationError
+        Another replacement is unfinished under ``tmp_dir``.
+    GediDatabaseError
+        A year file's metadata is unreadable.
+    GediProcessingError
+        Stage 1 did not read every target in full.
+    GediMergeError
+        A merge failed. In every case nothing is lost: re-run to resume.
+    """
+    if get_dask_client() is None:
+        raise GediError("_replace_granules_build requires a registered dask Client")
+    rtmp = os.path.join(tmp_dir or os.path.join(h3_dir, '.tmp'), _REPLACE_DIRNAME)
+    parquet_dir = os.path.join(rtmp, 'partitions')
+    rmap = {tuple(k): {p: os.path.basename(str(getattr(f, 'path', f))) for p, f in files.items()}
+            for k, files in targets.items()}
+    entries = sorted([_granule_key_str(k), sorted(v.items())] for k, v in rmap.items())
+
+    # ── 1. Journal, before the first destructive step ──
+    journal = os.path.join(rtmp, _REPLACE_JOURNAL)
+    try:
+        with open(journal) as f:
+            previous = json.load(f)
+    except FileNotFoundError:
+        previous = None
+    if previous is not None and previous != json.loads(json.dumps(entries)):
+        raise GediValidationError(
+            f"Another granule replacement is unfinished in {rtmp}: gh3_build resumes it; finish it first, "
+            f"or remove that directory to abandon it")
+    if previous is None:
+        os.makedirs(rtmp, exist_ok=True)
+        with AtomicFileWriter(journal) as tmp_path:
+            with open(tmp_path, 'w') as f:
+                json.dump(entries, f)
+    from .gh3driver import invalidate_bbox_index
+    invalidate_bbox_index(h3_dir)
+
+    # ── 2. The (cell, year) files holding their old rows: metadata only ──
+    log = json_read(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}
+    # The log's partitions, and any partition directory on disk it misses: one
+    # readdir of the root, so a stale list cannot hide old rows.
+    cells = set(log.get('h3_partition_ids') or [])
+    prefix = f"h3_{part:02d}="
+    with os.scandir(h3_dir) as it:
+        cells.update(e.name[len(prefix):] for e in it if e.name.startswith(prefix) and e.is_dir())
+    years = set()
+    for files in targets.values():
+        try:
+            stamp = os.path.basename(str(next(iter(files.values())))).split('_')[2]
+            year, doy = int(stamp[:4]), int(stamp[4:7])
+        except (IndexError, ValueError, StopIteration):
+            raise GediValidationError(f"Cannot date the source files {files}")
+        years.add(year)
+        if doy >= 365:  # a granule starting on the last day can run past midnight
+            years.add(year + 1)
+    candidates = [os.path.join(h3_dir, f"{prefix}{c}", f"year={y}", f"{c}.{y}.0.parquet")
+                  for c in sorted(cells) for y in sorted(years)]
+    logger.info(f"Granule replacement: locating {len(rmap)} granule(s) in {len(candidates)} candidate "
+                f"(cell, year) file(s), metadata only")
+    from .parallel import parallel_map
+    scan_fn = functools.partial(_year_file_replace_targets, targets=frozenset(e[0] for e in entries))
+    old_dirs = []
+    for year_pf, hits in parallel_map(candidates, scan_fn, desc="Locating granules", unit="file",
+                                      batch_size=500 if len(candidates) > 10000 else 0):
+        if isinstance(hits, Exception):
+            raise GediDatabaseError(f"Granule replacement: cannot read the metadata of {year_pf} ({hits}); "
+                                    f"the replacement did not go on")
+        if hits:
+            year_dir = os.path.dirname(year_pf)
+            old_dirs.append(os.path.join(parquet_dir, os.path.basename(os.path.dirname(year_dir)),
+                                         os.path.basename(year_dir)))
+
+    # ── 3. Stage 1: the new files, in full, without the skip check ──
+    product_vars = _expand_product_vars({p: list(v) for p, v in product_vars.items()}, list(targets.values()),
+                                        version=version)
+    soc_files = [{p: f for p, f in files.items() if p in product_vars} for files in targets.values()]
+    _pc = preclean_merge_failures(parquet_dir)
+    if _pc['parquets_removed']:
+        logger.info(f"Granule replacement: reopened {_pc['parquets_removed']} corrupt fragment task(s)")
+    ddf, lat_col, lon_col, dat_col, _ = _create_h3_dataframe(soc_files, product_vars, res, part)
+    ddf = _apply_spatial_filter(ddf, spatial, part, h3_dir)
+    outcome = {}
+    _write_partitioned_streaming(
+        ddf, soc_files, product_vars, res, part, parquet_dir, h3_dir, spatial, lat_col, lon_col, dat_col,
+        stage1_outcome_callback=lambda incomplete, empty: outcome.update(incomplete=set(incomplete),
+                                                                         empty=set(empty)),
+        scope_fingerprint=_stage1_scope_fingerprint(spatial, res, part, product_vars),
+        skip_check=False,
+    )
+    if 'incomplete' not in outcome or outcome['incomplete']:
+        raise GediProcessingError(
+            f"Granule replacement: Stage 1 did not read every granule in full "
+            f"({len(outcome.get('incomplete') or [])} unfinished), so no file was rewritten in this run. Re-run "
+            f"gh3_build to resume it; if it keeps failing, {replacement_abandon_hint(os.path.dirname(rtmp))}")
+
+    # ── 4. One atomic rewrite per affected cell-year ──
+    with open(os.path.join(rtmp, _REPLACE_MERGING), 'w'):
+        pass
+    files = _merge_and_finalize(parquet_dir, h3_dir, replace_granules=rmap, extra_dirs=old_dirs)
+    failed = _scan_merge_failure_sentinels(parquet_dir)
+    if failed:
+        raise GediMergeError(f"Granule replacement: {len(failed)} partition merge(s) failed; re-run gh3_build to "
+                             f"finish the replacement")
+    return {'replaced': set(rmap), 'empty': outcome['empty'] & set(rmap), 'files': files}
 
 
 def build_h3db(

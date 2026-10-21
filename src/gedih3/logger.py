@@ -1291,7 +1291,8 @@ class H3BuildLogger:
 
         # Append to update history on terminal statuses
         if status in ('COMPLETED', 'FAILED', 'INTERRUPTED'):
-            action = 'variable_update' if getattr(self, 'new_product_vars', None) and getattr(self, 'new_spatial', None) is None and getattr(self, 'new_temporal', None) is None else 'build'
+            action = getattr(self, 'update_action', None) or (
+                'variable_update' if getattr(self, 'new_product_vars', None) and getattr(self, 'new_spatial', None) is None and getattr(self, 'new_temporal', None) is None else 'build')
             update_entry = {
                 'timestamp': now(),
                 'action': action,
@@ -1306,6 +1307,10 @@ class H3BuildLogger:
         # Preserve pending variable update state for crash recovery (P0-B)
         if '_pending_variable_update' in self.log_data:
             log_dict['_pending_variable_update'] = self.log_data['_pending_variable_update']
+        # A granule replacement under way (#47): the tmp dir holding its journal,
+        # so any later run finds it whatever its --tmpdir.
+        if '_pending_replacement' in self.log_data:
+            log_dict['_pending_replacement'] = self.log_data['_pending_replacement']
 
         # Pending until the run's stages have run, or until Stage 2 starts: its
         # own _pending_variable_update then describes all the remaining work.

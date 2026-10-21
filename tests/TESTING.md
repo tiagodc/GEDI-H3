@@ -18,7 +18,7 @@ The build step is the most critical component. It creates new H3 databases and u
 
 ### 1.2 Safe updates on all scopes
 A GH3 database can be updated by adding variables, expanding the spatial extent, expanding the temporal range, or any combination of these. Each update must:
-- Preserve all existing data (no row loss, no column loss).
+- Preserve all existing data (no row loss, no column loss). The one deliberate exception is re-indexing re-released granules (`gh3_build --replace-granules`): a replaced granule's rows equal its new files' rows under the database's region, every other row is untouched, and shot numbers stay unique.
 - Update metadata (build log, partition metadata) to reflect exactly what exists in the database.
 - Be resumable if cancelled or failed mid-update.
 - Record each update in `update_history` with action type and timestamp.
