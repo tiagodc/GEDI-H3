@@ -197,9 +197,10 @@ def test_replacing_needs_the_source_columns(tmp_dir):
 def test_stale_rows_mask_reads_dictionary_columns(tmp_dir):
     from gedih3.utils import _stale_granule_rows
     df = _rows(100, range(0, 3), OLD, 1.0)
-    batch = pa.RecordBatch.from_pandas(df, preserve_index=False)
-    dict_batch = batch.set_column(batch.schema.get_field_index('root_file_l2a'), 'root_file_l2a',
-                                  batch['root_file_l2a'].dictionary_encode())
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    batch = table.to_batches()[0]
+    i = table.schema.get_field_index('root_file_l2a')
+    dict_batch = table.set_column(i, 'root_file_l2a', table['root_file_l2a'].dictionary_encode()).to_batches()[0]
     for b in (batch, dict_batch):
         assert _stale_granule_rows(b, {_key(100): _new_files(100)}).tolist() == [True] * 3
         assert _stale_granule_rows(b, {_key(101): _new_files(101)}).tolist() == [False] * 3
