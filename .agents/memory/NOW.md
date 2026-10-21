@@ -11,4 +11,4 @@ from: claude-code/opus-5.5 @ gsapp23 · 2026-10-21T08:26:56-04:00 · branch main
 - Local worktrees ../gedih3-wt-{46,42b,47w,shot,42a,52,56,main} can be removed; their branches are squash-merged.
 ## State
 main is at 0.20.8 with every fix PR merged and no PR open; issues #42, #46, #52, #56 closed. #47 is the only open issue.
-Resume markers in the build log are described in [[build-log-resume-state]].
+Resume markers in the build log are described in [[concepts/build-log-resume-state]].
