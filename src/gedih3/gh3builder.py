@@ -21,7 +21,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, parquet_join_columns, parquet_fill_columns, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname, AtomicFileWriter
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards, gedi_release_rank, gedi_release_tag
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -5049,7 +5049,8 @@ def _product_fill_vars(h3_dir: str, products, soc_files=None, version=None) -> D
 _PRODUCT_FILL_DIRNAME = '_product_fill'
 
 
-def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None):
+def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None,
+                         releases_callback=None):
     """Backfill products published after their granule's rows were indexed.
 
     A granule indexed while some of its products were not yet published (a
@@ -5090,16 +5091,22 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
         sentinel can never stand in for a product it did not fill.
     exclude : list of str, optional
         fnmatch patterns of source files to ignore (as ``gh3_build --exclude``).
+    releases_callback : callable, optional
+        Called once, before the first write, with ``{key: {product: tag}}``
+        (``gedi_release_tag``) of the files the fill reads, so the caller can
+        persist them (:meth:`H3BuildLogger.record_releases`) ahead of any row
+        they produce.
 
     Returns
     -------
     dict
         ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
         'unlocated': {key: [products]}, 'failed': {key: [products]},
-        'updated_files': [paths]}`` — ``unavailable``: no product file yet;
-        ``unlocated``: the file exists but no database file lists the granule
-        (it cannot be filled); ``failed``: a read or merge error, or no row
-        matched (retry). See :meth:`H3BuildLogger.record_fill_results`.
+        'updated_files': [paths]}`` —
+        ``unavailable``: no product file yet; ``unlocated``: the file exists
+        but no database file lists the granule (it cannot be filled);
+        ``failed``: a read or merge error, or no row matched (retry). See
+        :meth:`H3BuildLogger.record_fill_results`.
     """
     client = get_dask_client()
     if client is None:
@@ -5206,6 +5213,12 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
                 f.write(signature)
 
     # ── Stages 1-3: read each product file once, fill the files that own the rows ──
+    if releases_callback is not None:
+        # Before the first write: a fill killed or failed part-way leaves
+        # committed rows from these files (#47).
+        tags = {by_str[ot]: {p: t for p, f in h5.items() if (t := gedi_release_tag(str(getattr(f, 'path', f))))}
+                for ot, h5 in gran_h5.items()}
+        releases_callback({k: v for k, v in tags.items() if v})
     products = sorted({p for h5 in gran_h5.values() for p in h5})
     fill_vars = _product_fill_vars(h3_dir, products, soc_files=list(gran_h5.values()), version=version)
     res = _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, fill_vars, tmp_dir, fill=True)
@@ -5670,7 +5683,35 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     granules_1 = log1.get('granules', [])
     granules_2 = log2.get('granules', [])
     merged_granules = granules_1.copy()
+    # Entries alike but for their recorded releases (one log predates them, or
+    # the databases read different files) become one entry. A product keeps a
+    # tag only if both carry one, the older: an unknown source may be older
+    # still, and a re-release must be reported, never hidden (#47).
+    def _sans_releases(e):
+        return {k: v for k, v in e.items() if k != 'releases'}
+
+    def _fold(a, b):
+        out = _sans_releases(a)
+        if 'releases' in a and 'releases' in b:
+            ra, rb = a['releases'], b['releases']
+            out['releases'] = {p: min(ra[p], rb[p], key=gedi_release_rank) for p in ra if p in rb}
+        return out
+
+    by_key = {}
+    for i, e in enumerate(merged_granules):
+        by_key.setdefault((e.get('orbit'), e.get('granule'), e.get('track')), []).append(('1', i))
+    unpaired = []
     for g in granules_2:
+        key = (g.get('orbit'), g.get('granule'), g.get('track'))
+        pool = {'1': merged_granules, '2': unpaired}
+        same = next(((src, i) for src, i in by_key.get(key, ())
+                     if _sans_releases(pool[src][i]) == _sans_releases(g)), None)
+        if same is None:
+            by_key.setdefault(key, []).append(('2', len(unpaired)))
+            unpaired.append(g)
+        else:
+            pool[same[0]][same[1]] = _fold(pool[same[0]][same[1]], g)
+    for g in unpaired:
         if g in merged_granules:
             continue
         # NO_DATA ("no rows under that database's scope") loses to any other

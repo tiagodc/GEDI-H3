@@ -822,16 +822,35 @@ class H3BuildLogger:
         Parameters
         ----------
         granule_list : list of dict
-            Each dict must have 'orbit', 'granule', 'track' keys.
+            Each dict must have 'orbit', 'granule', 'track' keys, and may have
+            ``releases``: ``{product: tag}`` (:func:`gedi_release_tag`) of the
+            source files the build lists for the granule. A newer release
+            within the GEDI version is detected against the recorded tags
+            (#47), so a tag is never replaced here: a granule not indexed yet
+            gains tags only for products it has none for (rows a killed run
+            left on disk may come from the file recorded first, and an older
+            tag is reported later rather than a newer one hiding stale rows).
+            An ``INDEXED`` or ``NO_DATA`` entry, and one registered before
+            tags were recorded (no ``releases`` key, so rows on disk may come
+            from any file), are left as they are. No tag means the source is
+            unknown: an older log, a product added by a variable update, or
+            an S3-sourced build (which registers no granules).
         """
         if not hasattr(self, 'granule_info'):
             self.granule_info = []
-        existing = {(g['orbit'], g['granule'], g['track']) for g in self.granule_info}
+        index = {(g['orbit'], g['granule'], g['track']): g for g in self.granule_info}
         for g in granule_list:
             key = (g['orbit'], g['granule'], g['track'])
-            if key not in existing:
-                self.granule_info.append({**g, 'status': 'PENDING'})
-                existing.add(key)
+            entry = index.get(key)
+            if entry is None:
+                index[key] = {**g, 'status': 'PENDING'}
+                if 'releases' in g:
+                    index[key]['releases'] = dict(g['releases'])
+                self.granule_info.append(index[key])
+            elif (g.get('releases') and 'releases' in entry
+                  and entry.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA, None)):
+                for product, tag in g['releases'].items():
+                    entry['releases'].setdefault(product, tag)
 
     def update_granule_status(self, gran_key, status):
         """Update status of a single granule (does NOT auto-save).
@@ -877,10 +896,10 @@ class H3BuildLogger:
         return None
 
     def _finished_granule_list(self):
-        # Keys not part of the original granule identity. ``products`` was
-        # added by the per-product status extension; both must be stripped so
-        # _filter_granules' dict equality keeps matching legacy entries.
-        _strip = {'status', 'products'}
+        # Keys not part of the original granule identity (``products``: the
+        # per-product statuses; ``releases``: the source files). Callers get
+        # bare {'orbit', 'granule', 'track'} dicts, the form legacy logs hold.
+        _strip = {'status', 'products', 'releases'}
         return [
             {k: v for k, v in g.items() if k not in _strip}
             for g in getattr(self, 'granule_info', None) or []
@@ -1437,6 +1456,36 @@ class H3BuildLogger:
             if missing:
                 out[(g['orbit'], g['granule'], g['track'])] = missing
         return out
+
+    def record_releases(self, releases):
+        """Record the source releases a write is about to read (does not save).
+
+        Parameters
+        ----------
+        releases : dict
+            ``{(orbit, granule, track): {product: tag}}`` (tags from
+            ``gedi_release_tag``), e.g. from ``_build_fill_products``'
+            ``releases_callback`` before it writes. As in
+            :meth:`register_pending_granules`, a product that has a tag keeps
+            it (rows already written may come from that release), and an
+            entry recorded before tags existed (no ``releases`` key) stays
+            unknown: its other products' rows may come from any file.
+
+        Returns
+        -------
+        int
+            Number of tags added.
+        """
+        n = 0
+        for g in getattr(self, 'granule_info', None) or []:
+            tags = releases.get((g['orbit'], g['granule'], g['track']))
+            if tags and 'releases' in g:
+                known = g['releases']
+                for product, tag in tags.items():
+                    if product not in known:
+                        known[product] = tag
+                        n += 1
+        return n
 
     def record_fill_results(self, result, max_attempts=3, count_failures=True):
         """Apply a ``_build_fill_products`` result to per-product statuses.

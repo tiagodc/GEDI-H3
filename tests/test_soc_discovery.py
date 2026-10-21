@@ -907,3 +907,15 @@ def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
     v3 = GEDIFile(str(l2a).replace('_V002', '_V003'))
     found = v3.search_file(str(tmp_path), product=2, level='B')
     assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
+
+
+def test_gedi_release_tag_round_trips_the_ranking():
+    from gedih3.gedidriver import gedi_release_rank, gedi_release_tag
+    for sfx in ('_02_003_01_V002.h5', '_01_009_09_V002_SGS.h5', '_02_003_01_V002_7algs.h5'):
+        name = _BASE + sfx
+        assert gedi_release_rank(gedi_release_tag(name)) == gedi_release_rank(name)
+    assert gedi_release_tag('s3://b/2019/108/' + _BASE + '_02_003_01_V002_SGS.h5') == '02_003_01_SGS'
+    assert gedi_release_tag('GEDI02_A_custom_O01956_03_T03909.h5') is None
+    # Only a bare tag reads as one: a file or path that merely looks like one ranks last.
+    for not_a_tag in ('10_200_30_x.h5', '/soc/02_003_01', 's3://b/02_003_01_SGS'):
+        assert gedi_release_rank(not_a_tag) == (-1, -1, -1, False, '')

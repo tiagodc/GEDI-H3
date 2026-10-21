@@ -910,6 +910,10 @@ def main():
                     # Parse orbit/granule/track from the basename directly — no
                     # GEDIFile() so we skip the unused os.path.getsize call per
                     # granule (matters on network filesystems).
+                    # Each granule's source releases for the products built,
+                    # so a later re-release can be detected (#47).
+                    from gedih3.gedidriver import gedi_release_tag
+                    _build_products = set(h3_logger.get_product_vars() or {})
                     _build_granules = []
                     for _soc in _soc_for_build:
                         fl = os.path.basename(list(_soc.values())[0]).split('_')
@@ -917,6 +921,8 @@ def main():
                             'orbit': int(fl[3][1:]),
                             'granule': int(fl[4]),
                             'track': int(fl[5][1:]),
+                            'releases': {p: t for p, f in _soc.items()
+                                         if p in _build_products and (t := gedi_release_tag(f))},
                         })
                     h3_logger.register_pending_granules(_build_granules)
                     _stage1_listed = {(g['orbit'], g['granule'], g['track']) for g in _build_granules}
@@ -1068,6 +1074,10 @@ def main():
                         try:
                             from gedih3.gh3builder import _build_fill_products
                             h3_logger.save_log('PROCESSING')
+
+                            def _record_fill_releases(releases):
+                                if h3_logger.record_releases(releases):
+                                    h3_logger.save_log('PROCESSING')
                             _fill = _build_fill_products(
                                 args.output, _awaiting,
                                 # Reuse the registration listing when it kept partial granules.
@@ -1076,6 +1086,7 @@ def main():
                                 version=h3_logger.gedi_version,
                                 tmp_dir=args.tmpdir,
                                 exclude=args.exclude,
+                                releases_callback=_record_fill_releases,
                             )
                             _given_up = h3_logger.record_fill_results(_fill)
                             _n_backfilled = len(_fill['updated_files'])
