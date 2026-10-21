@@ -1,5 +1,5 @@
 """
-Guards that CLAUDE.md and .claude/** stay true to the source tree.
+Guards that AGENTS.md (which CLAUDE.md imports) and .claude/** stay true to the source tree.
 
 These files are loaded into an AI coding agent's context at the start of every
 session, so a stale claim in them is worse than no claim at all — the agent has
@@ -26,6 +26,7 @@ import pytest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_ROOT = os.path.join(REPO_ROOT, 'src', 'gedih3')
 PYPROJECT = os.path.join(REPO_ROOT, 'pyproject.toml')
+AGENTS_MD = os.path.join(REPO_ROOT, 'AGENTS.md')
 CLAUDE_MD = os.path.join(REPO_ROOT, 'CLAUDE.md')
 CLAUDE_DIR = os.path.join(REPO_ROOT, '.claude')
 RULES_DIR = os.path.join(CLAUDE_DIR, 'rules')
@@ -33,12 +34,12 @@ HELPER_SKILL = os.path.join(CLAUDE_DIR, 'skills', 'find-existing-helper', 'SKILL
 CLI_REFERENCE = os.path.join(REPO_ROOT, 'docs', 'user-guide', 'cli-reference.md')
 
 # Anthropic's guidance for the Claude 5 generation is to keep a CLAUDE.md under
-# 200 lines: it loads in full on every request and is injected into every custom
-# subagent, and longer files measurably reduce adherence. Raising this number is
+# 200 lines (here AGENTS.md, which CLAUDE.md imports): it loads in full on every
+# request and is injected into every custom subagent, and longer files measurably reduce adherence. Raising this number is
 # almost never the right fix — move the content to a path-scoped rule in
 # .claude/rules/ (loads only when a matching file is opened) or to a skill
 # (loads only on demand).
-CLAUDE_MD_MAX_LINES = 200
+AGENTS_MD_MAX_LINES = 200
 RULE_MAX_LINES = 150
 
 # Paths referenced deliberately even though they do not currently exist.
@@ -79,12 +80,12 @@ def _read(path):
 
 
 def _tracked_agent_files():
-    """CLAUDE.md plus every markdown/json file under .claude/ that is tracked.
+    """AGENTS.md plus every markdown/json file under .claude/ that is tracked.
 
     settings.local.json is gitignored and machine-specific by design, so it is
     exempt from the hygiene checks below.
     """
-    files = [CLAUDE_MD]
+    files = [AGENTS_MD]
     for pattern in ('rules/*.md', 'skills/*/SKILL.md', 'agents/*.md', 'settings.json'):
         files.extend(sorted(glob.glob(os.path.join(CLAUDE_DIR, pattern))))
     return [f for f in files if os.path.exists(f)]
@@ -151,7 +152,7 @@ class TestHelperIndex:
     def test_skill_exists(self):
         assert os.path.exists(HELPER_SKILL), (
             'find-existing-helper/SKILL.md is missing. It holds the helper index that '
-            'CLAUDE.md points at instead of carrying inline.'
+            'AGENTS.md points at instead of carrying inline.'
         )
 
     def test_every_indexed_symbol_resolves(self):
@@ -227,7 +228,7 @@ class TestRulesAreScoped:
     """An unscoped rule saves nothing; a typo'd glob makes a rule invisible.
 
     Rules without `paths:` frontmatter load unconditionally, at the same
-    priority as CLAUDE.md — which defeats the reason for splitting them out. A
+    priority as AGENTS.md — which defeats the reason for splitting them out. A
     rule whose glob matches nothing is worse: it fails silently, with no error
     and no warning, and the knowledge simply never reaches the agent.
     """
@@ -237,7 +238,7 @@ class TestRulesAreScoped:
 
     def test_rules_directory_is_populated(self):
         assert self._rule_files(), (
-            '.claude/rules/ is empty. CLAUDE.md delegates subsystem detail to it.'
+            '.claude/rules/ is empty. AGENTS.md delegates subsystem detail to it.'
         )
 
     @pytest.mark.parametrize('rule', sorted(glob.glob(os.path.join(RULES_DIR, '*.md'))),
@@ -249,7 +250,7 @@ class TestRulesAreScoped:
         globs = re.findall(r'^\s*-\s*["\']?([^"\'\n]+)["\']?\s*$', front, re.M)
         assert globs, (
             f'{os.path.basename(rule)} declares no `paths:` globs, so it loads on every '
-            'session at CLAUDE.md priority — which is the cost the split exists to avoid.'
+            'session at AGENTS.md priority — which is the cost the split exists to avoid.'
         )
 
         dead = [g for g in globs
@@ -297,10 +298,17 @@ class TestNoDriftProneContent:
 
 class TestSizeBudgets:
 
-    def test_claude_md_stays_small(self):
-        lines = len(_read(CLAUDE_MD).splitlines())
-        assert lines <= CLAUDE_MD_MAX_LINES, (
-            f'CLAUDE.md is {lines} lines, over the {CLAUDE_MD_MAX_LINES}-line budget.\n'
+    def test_claude_md_imports_agents_md(self):
+        # Claude Code reads CLAUDE.md, other harnesses AGENTS.md: one source of truth.
+        assert _read(CLAUDE_MD).split() == ['@AGENTS.md'], (
+            'CLAUDE.md must hold only `@AGENTS.md`. Put agent context in AGENTS.md, so '
+            'every harness reads the same file.'
+        )
+
+    def test_agents_md_stays_small(self):
+        lines = len(_read(AGENTS_MD).splitlines())
+        assert lines <= AGENTS_MD_MAX_LINES, (
+            f'AGENTS.md is {lines} lines, over the {AGENTS_MD_MAX_LINES}-line budget.\n'
             'It loads in full on every request and into every custom subagent, and '
             'adherence drops as it grows. Raising this limit is almost never the fix — '
             'move the content to a path-scoped rule in .claude/rules/ (loads only when a '
