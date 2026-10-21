@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Re-released granules are reported.** NASA sometimes re-releases a granule within one GEDI version (a new PPDS, PGE or generation) to fix faulty data. `gh3_build` now compares the release each indexed granule was read from (recorded in the build log since 0.20.10) with the latest one the SOC tree holds. When a newer one is listed, it warns that the rows come from the older file and are not re-indexed, while variables added and products filled later read the newer one. When only an older release is listed, it warns too; an older release is never applied. The new read-only `gh3_doctor` diagnosis `superseded_granules` (in the `soc` group; needs `--soc-dir`) lists every such granule and product. Granules indexed before 0.20.10 have no recorded release and are counted, not checked. The comparison is `H3BuildLogger.superseded_releases`: log-only, with no HDF5 or parquet opened. (#47)
+
 ## [0.20.10] - 2026-10-21
 
 ### Added

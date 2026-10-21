@@ -432,6 +432,14 @@ Notes:
 - **The row set can differ slightly from a single all-products build.** A single build loads each product without NaN rows and keeps only shots every product has, so it drops a shot when a later product has no record for it or a NaN value. A phased update keeps such a shot, with null values for that product.
 - **Types while a product is pending.** Its columns keep the database's types, but integer columns holding nulls read into pandas as floats until they are filled.
 
+### Re-released granules
+
+NASA sometimes re-releases a granule within the same GEDI version, with a new PPDS, PGE or generation in its file name, to fix faulty data. When a SOC directory holds more than one file for a granule product, `gh3_build` reads the latest release (PPDS first, then PGE, then generation, then any suffix such as `_SGS`) and logs the duplicates.
+
+The build log records the release each granule was read from. When the SOC directory later holds a newer release of an indexed granule, `gh3_build` warns that its rows come from the older file. It does not re-index them yet. Until it does, variables added and products filled later read the newer file, so move it out of the SOC directory to keep the database consistent with the release its rows came from (adding variables does not apply `--exclude`). A granule whose indexed file is gone and that has only an older release listed is reported too; an older release is never applied over a newer one. That includes a granule indexed from a suffixed file such as `_SGS` that is later excluded or removed: the plain file ranks below it.
+
+`gh3_doctor --soc-dir /data/soc --check superseded_granules` lists every such granule and product. Granules indexed before gedih3 recorded releases cannot be checked and are counted separately.
+
 ---
 
 ## Dask Configuration and Performance

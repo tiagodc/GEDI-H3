@@ -492,6 +492,15 @@ def test_empty_granule_is_recorded_no_data_and_never_re_read(tmp_dir):
     assert '1 granules x 8 beams'.replace('x', '\u00d7') in out   # only the new granule is read
     assert statuses() == {inside: 'INDEXED', outside: 'NO_DATA', later: 'INDEXED'}
 
+    # NASA re-releases the indexed granule (a later PGE): reported, not re-indexed (#47).
+    import shutil
+    old_l2a = os.path.join(soc_dir, '2020', '100', _gedi_name('02_A', '2020100', *inside))
+    shutil.copy(old_l2a, old_l2a.replace('_02_003_02_V002', '_02_004_01_V002'))
+    out = gh3_build()
+    assert 'up-to-date' in out
+    assert '1 granule(s) were indexed from an older release' in out
+    assert 'O00101_01_T00201 L2A 02_003_02 -> 02_004_01' in out
+
 
 # ---------------------------------------------------------------------------
 # partial Stage 1 scope, merge_build_logs

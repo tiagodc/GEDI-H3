@@ -193,7 +193,74 @@ def get_cmd_args():
     return p.parse_args()
 
 
-def _has_new_local_granules(soc_source, h3_logger, exclude=None):
+def _local_soc_files(soc_source, h3_logger, exclude=None):
+    """HDF5 files of the database's GEDI release under a local SOC directory.
+
+    A serial glob, for the early-exit path, which has no dask Client. Files
+    matching an ``exclude`` pattern (``gh3_build --exclude``) are left out.
+    """
+    import os
+    import fnmatch
+    import glob as globmod
+    from gedih3.gedidriver import gedi_file_glob
+
+    if not soc_source or not os.path.isdir(soc_source):
+        return []
+    pattern = gedi_file_glob(version=h3_logger.gedi_version) if h3_logger.gedi_version else 'GEDI*.h5'
+    return [f for f in globmod.glob(os.path.join(soc_source, '**', pattern), recursive=True)
+            if not (exclude and any(fnmatch.fnmatch(os.path.basename(f), pat) for pat in exclude))]
+
+
+def _warn_superseded_granules(h3_logger, soc_entries, logger):
+    """Warn about indexed granules whose source is not the listed release (#47).
+
+    ``soc_entries``: ``{product: path}`` dicts, see
+    :meth:`H3BuildLogger.superseded_releases` (log-only, against the recorded
+    ``releases``). Reports, never re-indexes, and never fails a build: an
+    error is logged at debug level.
+    """
+    from gedih3.exceptions import GediError
+    try:
+        found = h3_logger.superseded_releases(soc_entries)
+    except (GediError, ValueError, OSError) as e:
+        logger.debug(f"Superseded-release check skipped: {type(e).__name__}: {e}")
+        return None
+
+    def _example(side):
+        key, prods = next(iter(sorted(found[side].items())))
+        product, (recorded, listed) = next(iter(sorted(prods.items())))
+        return f"O{key[0]:05d}_{key[1]:02d}_T{key[2]:05d} {product} {recorded} -> {listed}"
+
+    if found['newer']:
+        logger.warning(
+            f"{len(found['newer'])} granule(s) were indexed from an older release than the SOC tree now holds "
+            f"(e.g. {_example('newer')}). Their rows are not re-indexed, while variables added and products "
+            f"filled later read the newer file: until gh3_build can re-index them, move the newer files out "
+            f"of the SOC tree. List them with gh3_doctor --check superseded_granules."
+        )
+    if found['older']:
+        logger.warning(
+            f"{len(found['older'])} granule(s) were indexed from a release the SOC tree no longer holds: only an "
+            f"older one is listed (e.g. {_example('older')}). The indexed rows are kept and never replaced by an "
+            f"older release, but variables added and products filled later would read it. Restore the file the "
+            f"granule was read from."
+        )
+    return found
+
+
+def _soc_files_by_product(files):
+    """``{product: path}`` per GEDI file, for :func:`_warn_superseded_granules`."""
+    import os
+    import re
+    out = []
+    for f in files:
+        m = re.match(r'GEDI0(\d)_([A-Z])_', os.path.basename(f))
+        if m:
+            out.append({f"L{m.group(1)}{m.group(2)}": f})
+    return out
+
+
+def _has_new_local_granules(soc_source, h3_logger, exclude=None, files=None):
     """Check if SOC directory has HDF5 files not tracked in the build log,
     or a product file for an indexed granule still waiting for it.
 
@@ -201,13 +268,11 @@ def _has_new_local_granules(soc_source, h3_logger, exclude=None):
     another release side by side must not make a finished database look
     stale (those granules can never be built into it). The granule key and
     product come from the file name — no stat, no HDF5 open. Files matching an
-    ``exclude`` pattern (``gh3_build --exclude``) never count.
+    ``exclude`` pattern (``gh3_build --exclude``) never count. ``files``: a
+    listing already made by :func:`_local_soc_files`, to reuse.
     """
     import os
     import re
-    import fnmatch
-    import glob as globmod
-    from gedih3.gedidriver import gedi_file_glob
     from gedih3.gh3builder import _granule_id_from_l2a_path
 
     if not soc_source or not os.path.isdir(soc_source):
@@ -219,10 +284,9 @@ def _has_new_local_granules(soc_source, h3_logger, exclude=None):
             tracked.add((g['orbit'], g['granule'], g['track']))
     awaiting = h3_logger.pending_product_fills() if hasattr(h3_logger, 'pending_product_fills') else {}
 
-    pattern = gedi_file_glob(version=h3_logger.gedi_version) if h3_logger.gedi_version else 'GEDI*.h5'
-    for f in globmod.glob(os.path.join(soc_source, '**', pattern), recursive=True):
-        if exclude and any(fnmatch.fnmatch(os.path.basename(f), pat) for pat in exclude):
-            continue
+    if files is None:
+        files = _local_soc_files(soc_source, h3_logger, exclude=exclude)
+    for f in files:
         key = _granule_id_from_l2a_path(f)
         if key is None:
             continue
@@ -479,7 +543,8 @@ def main():
         # or run download_soc() to discover new NASA granules
         if not args.s3 and not args.download:
             # Local mode: check SOC directory for new HDF5 files
-            if not _has_new_local_granules(soc_source, h3_logger, exclude=args.exclude):
+            _local_files = _local_soc_files(soc_source, h3_logger, exclude=args.exclude)
+            if not _has_new_local_granules(soc_source, h3_logger, files=_local_files):
                 _flag_changed = (args.allow_missing_products is not None
                                  and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
                 if h3_logger.previous_status != 'COMPLETED':
@@ -488,6 +553,8 @@ def main():
                 elif _flag_changed:
                     h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products
                 logger.info("Database is already up-to-date with requested parameters")
+                if _local_files:
+                    _warn_superseded_granules(h3_logger, _soc_files_by_product(_local_files), logger)
                 # Up-to-date DB: create the index only if it is missing
                 # (e.g. first run after upgrading gedih3) — the data is
                 # unchanged, so an existing index remains valid. No client
@@ -925,6 +992,7 @@ def main():
                                          if p in _build_products and (t := gedi_release_tag(f))},
                         })
                     h3_logger.register_pending_granules(_build_granules)
+                    _warn_superseded_granules(h3_logger, _soc_for_build, logger)
                     _stage1_listed = {(g['orbit'], g['granule'], g['track']) for g in _build_granules}
 
                     # Resume reconciliation: scan h3 db AND tmp/partitions for
