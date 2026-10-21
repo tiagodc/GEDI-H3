@@ -508,32 +508,47 @@ def test_parse_replace_granules(tmp_dir):
         _parse_replace_granules(os.path.join(tmp_dir, 'missing.txt'))
     with pytest.raises(GediValidationError, match='not a granule key'):
         _parse_replace_granules('O00101_01_T00201,garbage')
+    gone = os.path.join(tmp_dir, 'old', 'GEDI02_A_2020100000000_O00105_01_T00205_02_003_02_V002.h5')
+    assert _parse_replace_granules(gone) == {(105, 1, 205)}                # a GEDI file path, even a removed one
+    binary = os.path.join(tmp_dir, 'keys.bin')
+    with open(binary, 'wb') as f:
+        f.write(bytes([0xff, 0xfe, 0x00, 0x81]))
+    with pytest.raises(GediValidationError, match='not a text file'):
+        _parse_replace_granules(binary)
 
 
-def test_a_year_file_without_metadata_stops_the_replacement(tmp_dir):
-    """Its rows cannot be ruled out: replacing around them would leave a
-    granule's old rows beside its new ones for good."""
+def test_year_files_without_metadata_are_rewritten_too(tmp_dir):
+    """A lost sidecar, or a 0-row file a killed replacement emptied between
+    its two unlinks: neither can be ruled out from metadata, so both are
+    rewritten, and the merge decides from the rows' source columns."""
     import glob
     from dask.distributed import Client, LocalCluster
     import gedih3.gh3builder as gb
     from gedih3.config import PARTITION_META_FILENAME
-    from gedih3.exceptions import GediDatabaseError
     from gedih3.gedidriver import soc_file_tree
     from gedih3.logger import H3BuildLogger
     soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
     moved = (101, 1, 201)
     _write_release(soc_dir, moved, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, (103, 1, 203), OLD, lon0=-49.6, seed=3)
     _gh3_build(soc_dir, h3_dir, tmp)
-    _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11)
-    sidecar = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*' + PARTITION_META_FILENAME)))[0]
-    os.unlink(sidecar)
-    before = _db_rows(h3_dir)
+    new = _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11)
+    files = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
+    only_moved = [f for f in files if set(pq.read_table(f, columns=['root_file_l2a'])['root_file_l2a'].to_pylist())
+                  == {f"GEDI02_A_2020100000000_O00101_01_T00201_{OLD}_V002.h5"}]
+    assert len(only_moved) >= 2
+    lost_sidecar, emptied = only_moved[:2]
+    os.unlink(lost_sidecar.replace('.parquet', PARTITION_META_FILENAME))
+    pq.write_table(pq.read_table(emptied).slice(0, 0), emptied)        # a kill between the two unlinks
+    os.unlink(emptied.replace('.parquet', PARTITION_META_FILENAME))
+
     log = H3BuildLogger(product_vars=None, dir=h3_dir)
     with LocalCluster(n_workers=2, threads_per_worker=1, processes=False, dashboard_address=None,
                       silence_logs='ERROR') as cluster, Client(cluster):
         entry = next(e for e in soc_file_tree(soc_dir, to_list=True, require_all=False) if 'O00101' in e['L2A'])
-        with pytest.raises(GediDatabaseError, match='has no metadata'):
-            gb._replace_granules_build(h3_dir, {moved: entry}, log.get_product_vars(), 12, 3,
-                                       spatial=log.get_spatial(), version=2, tmp_dir=tmp)
-    pd.testing.assert_frame_equal(_db_rows(h3_dir), before)
-    assert 'no database file was rewritten' in gb.replacement_abandon_hint(tmp)
+        gb._replace_granules_build(h3_dir, {moved: entry}, log.get_product_vars(), 12, 3,
+                                   spatial=log.get_spatial(), version=2, tmp_dir=tmp)
+    assert not os.path.exists(emptied)
+    after = _db_rows(h3_dir)
+    assert after.shot_number.is_unique
+    assert set(after[after.shot_number // 10**13 == 101].root_file_l2a) == {new['L2A']}

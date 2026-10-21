@@ -279,9 +279,14 @@ def _parse_replace_granules(spec):
     spec = spec.strip()
     if spec.lower() == 'auto':
         return None
-    if os.path.isfile(spec):
-        with open(spec) as f:
-            text = f.read()
+    if re.search(r'_O\d+_\d{2}_T\d+_', os.path.basename(spec)) or re.fullmatch(r'O\d+_\d{2}_T\d+', spec):
+        text = spec                                  # a GEDI file name or path, or a key: not a keys file
+    elif os.path.isfile(spec):
+        try:
+            with open(spec) as f:
+                text = f.read()
+        except UnicodeDecodeError:
+            raise GediValidationError(f"--replace-granules: {spec} is not a text file of granule keys")
     elif os.sep in spec or spec.endswith(('.txt', '.csv', '.lst')):
         raise GediValidationError(f"--replace-granules: file not found: {spec}")
     else:
@@ -342,7 +347,7 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     from gedih3.exceptions import GediValidationError
     from gedih3.gedidriver import soc_file_tree, gedi_release_rank, gedi_release_tag
     from gedih3.gh3builder import (_replace_granules_build, read_replacement_journal, replacement_abandon_hint,
-                                   _granule_id_from_l2a_path, _granule_key_str, _REPLACE_DIRNAME)
+                                   _granule_id_from_l2a_path, _granule_key_str, _REPLACE_DIRNAME, _REPLACE_MERGING)
 
     if not os.path.isfile(os.path.join(args.output, BUILD_LOG_FILENAME)):
         raise GediValidationError(f"No database at {args.output}: --replace-granules re-indexes granules of an "
@@ -372,7 +377,8 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     if journal is not None:
         def _recorded(key, files):
             return (index.get(key) or {}).get('releases') == {p: gedi_release_tag(n) for p, n in files.items()}
-        if h3_logger.previous_status == 'COMPLETED' and all(_recorded(k, f) for k, f in journal.items()):
+        if (h3_logger.previous_status == 'COMPLETED' and os.path.exists(os.path.join(rtmp, _REPLACE_MERGING))
+                and all(_recorded(k, f) for k, f in journal.items())):
             # Finished and logged; only the cleanup was cut short.
             shutil.rmtree(rtmp, ignore_errors=True)
             logger.info("The re-indexing started earlier had finished; removed its scratch files")
@@ -385,6 +391,9 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
             for product, name in files.items():
                 stamp = name.split('_')[2]
                 path = os.path.join(soc_source, stamp[:4], stamp[4:7], name)
+                if not os.path.isfile(path):             # a tree laid out otherwise: look it up
+                    import glob
+                    path = next(iter(glob.glob(os.path.join(soc_source, '**', name), recursive=True)), path)
                 if not os.path.isfile(path):
                     raise GediValidationError(f"The unfinished re-indexing reads {name}, which is no longer in the "
                                               f"SOC directory: restore it and re-run, or "
@@ -670,7 +679,7 @@ def main():
         source_mode='s3' if args.s3 else 'local',
     )
 
-    if not h3_logger.product_vars and not h3_logger.updating:
+    if not h3_logger.product_vars and not h3_logger.updating and args.replace_granules is None:
         raise ValueError(
             "No GEDI product selected - please select at least one of "
             "--l2a, --l2b, --l4a, --l4c (or use --detail-level for all four), "

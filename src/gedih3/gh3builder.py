@@ -5375,11 +5375,12 @@ def _year_file_replace_targets(year_pf, *, targets):
     """Worker: :func:`_year_file_target_granules`, for a replacement.
 
     A year file whose metadata is missing cannot be ruled out as holding a
-    target's rows, so it is an error here rather than "no data that year".
+    target's rows (a lost sidecar, or a file a killed replacement emptied
+    between its two unlinks), so it is rewritten too rather than read as "no
+    data that year": the merge decides from the rows' own source columns.
     """
     if os.path.exists(year_pf) and not os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME)):
-        raise GediDatabaseError(f"{year_pf} has no metadata, so the granules it holds are unknown; restore it "
-                                f"(gh3_doctor --fix metadata) and re-run")
+        return ['(no metadata)']
     return _year_file_target_granules(year_pf, targets=targets)
 
 
@@ -5482,7 +5483,7 @@ def _replace_granules_build(
     GediValidationError
         Another replacement is unfinished under ``tmp_dir``.
     GediDatabaseError
-        A year file's metadata is unreadable or missing.
+        A year file's metadata is unreadable.
     GediProcessingError
         Stage 1 did not read every target in full.
     GediMergeError
@@ -5543,8 +5544,8 @@ def _replace_granules_build(
     for year_pf, hits in parallel_map(candidates, scan_fn, desc="Locating granules", unit="file",
                                       batch_size=500 if len(candidates) > 10000 else 0):
         if isinstance(hits, Exception):
-            why = str(hits) if isinstance(hits, GediDatabaseError) else f"cannot read the metadata of {year_pf} ({hits})"
-            raise GediDatabaseError(f"Granule replacement: {why}; the replacement did not go on")
+            raise GediDatabaseError(f"Granule replacement: cannot read the metadata of {year_pf} ({hits}); "
+                                    f"the replacement did not go on")
         if hits:
             year_dir = os.path.dirname(year_pf)
             old_dirs.append(os.path.join(parquet_dir, os.path.basename(os.path.dirname(year_dir)),
