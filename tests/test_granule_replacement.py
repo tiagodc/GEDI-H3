@@ -4,6 +4,7 @@
 drop a destination's rows of the replaced granules unless they already come
 from the new files, then merge the fragments' rows in their place.
 """
+import json
 import os
 
 import numpy as np
@@ -288,3 +289,197 @@ def test_a_first_merge_checks_the_new_rows_too(layout):
     h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)})
     pd.testing.assert_frame_equal(_table(dest), first)
     assert len(first) == 2
+
+
+# ---------------------------------------------------------------------------
+# end to end: gh3_build --replace-granules (#47 part 5)
+# ---------------------------------------------------------------------------
+
+def _write_release(soc_dir, key, release, lon0, seed, n=20, first=0):
+    """L2A + L4A files of one granule release, with real GEDI shot numbers
+    (orbit, beam and granule encoded), so the replacement can match rows."""
+    import h5py
+    from gedih3.config import GEDI_BEAMS
+    orbit, granule, track = key
+    day = os.path.join(soc_dir, '2020', '100')
+    os.makedirs(day, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    names = {}
+    for product in ('02_A', '04_A'):
+        name = f"GEDI{product}_2020100000000_O{orbit:05d}_{granule:02d}_T{track:05d}_{release}_V002.h5"
+        names['L' + product.replace('0', '', 1).replace('_', '')] = name
+        with h5py.File(os.path.join(day, name), 'w') as f:
+            for i, beam in enumerate(GEDI_BEAMS):
+                g = f.create_group(beam)
+                g['shot_number'] = (np.uint64(orbit) * np.uint64(10**13) + np.uint64(i) * np.uint64(10**11)
+                                    + np.uint64(granule) * np.uint64(10**8)
+                                    + np.arange(first, first + n, dtype=np.uint64))
+                if product == '02_A':
+                    g['delta_time'] = rng.uniform(7.0e7, 7.0e7 + 1e5, n)
+                    g['lat_lowestmode'] = rng.uniform(0.0, 0.5, n)
+                    g['lon_lowestmode'] = rng.uniform(lon0, lon0 + 0.5, n)
+                    g['elev_lowestmode'] = rng.uniform(0, 100, n)
+                    g['quality_flag'] = np.ones(n, dtype='u1')
+                    g['degrade_flag'] = np.zeros(n, dtype='u1')
+                    g['sensitivity'] = rng.uniform(0.9, 1.0, n)
+                    g['rh_098'] = rng.uniform(0, 50, n)
+                    g['rh_050'] = rng.uniform(0, 30, n)
+                else:
+                    g['agbd'] = rng.uniform(1, 300, n)
+                    g['agbd_se'] = rng.uniform(1, 30, n)
+                    g['l4_quality_flag'] = np.ones(n, dtype='u1')
+    return names
+
+
+def _db_rows(h3_dir):
+    import glob
+    files = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
+    return pd.concat([pq.read_table(f, columns=['shot_number', 'root_file_l2a', 'root_file_l4a', 'agbd_l4a'])
+                      .to_pandas() for f in files], ignore_index=True)
+
+
+def _gh3_build(soc_dir, h3_dir, tmp, *extra, ok=True):
+    import subprocess
+    import sys
+    cmd = [sys.executable, '-m', 'gedih3.cli.gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp,
+           '--gedi-version', '2', '-N', '2', '-T', '1', '-M', '2', '-P', '0', '--no-bbox-index',
+           '-l2a', 'rh_098', '-l4a', 'agbd', '--region=-51,0,-49,1', *extra]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    out = res.stdout + res.stderr
+    assert (res.returncode == 0) is ok, out[-4000:]
+    return out
+
+
+def test_replace_granules_end_to_end(tmp_dir):
+    """A re-release that moves and revalues a granule, and one that leaves the
+    region: after --replace-granules auto, every row of both comes from the
+    new files (or is gone), the other granule is untouched, the log records
+    the new releases, and the database reads as up to date."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    moved, leaves, kept = (101, 1, 201), (102, 1, 202), (103, 1, 203)
+    _write_release(soc_dir, moved, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, leaves, OLD, lon0=-50.2, seed=2)
+    _write_release(soc_dir, kept, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    before = _db_rows(h3_dir)
+    kept_before = before[before.shot_number // 10**13 == 103].sort_values('shot_number').reset_index(drop=True)
+
+    # NASA re-releases two of them: one moved and revalued (fewer shots), one now outside the region.
+    new_moved = _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11, n=15, first=3)
+    _write_release(soc_dir, leaves, NEW, lon0=10.0, seed=12)
+    assert '2 granule(s) were indexed from an older release' in _gh3_build(soc_dir, h3_dir, tmp)
+
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    assert '2 granule(s) re-indexed from their new release (1 with no row left in the region' in out
+
+    after = _db_rows(h3_dir)
+    assert after.shot_number.is_unique
+    rows_moved = after[after.shot_number // 10**13 == 101]
+    assert set(rows_moved.root_file_l2a) == {new_moved['L2A']} and set(rows_moved.root_file_l4a) == {new_moved['L4A']}
+    assert len(rows_moved) == 8 * 15
+    assert (after.shot_number // 10**13 == 102).sum() == 0
+    kept_after = after[after.shot_number // 10**13 == 103].sort_values('shot_number').reset_index(drop=True)
+    pd.testing.assert_frame_equal(kept_after, kept_before)
+
+    log = json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))
+    granules = {g['orbit']: g for g in log['granules']}
+    assert granules[101]['status'] == 'INDEXED' and granules[101]['releases'] == {'L2A': NEW, 'L4A': NEW}
+    assert granules[102]['status'] == 'NO_DATA' and granules[102]['releases'] == {'L2A': NEW, 'L4A': NEW}
+    assert granules[103]['releases'] == {'L2A': OLD, 'L4A': OLD}
+    assert log['status'] == 'COMPLETED' and log['update_history'][-1]['action'] == 'granule_replacement'
+    assert not os.path.exists(os.path.join(tmp, '_replace'))
+    # Every partition the log lists exists, and every metadata file lists only live granules.
+    for cell in log['h3_partition_ids']:
+        assert os.path.isdir(os.path.join(h3_dir, f"h3_03={cell}"))
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert 'up-to-date' in out and 'older release' not in out
+
+
+def test_replace_granules_refuses_what_it_cannot_do_safely(tmp_dir):
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key = (101, 1, 201)
+    indexed = _write_release(soc_dir, key, NEW, lon0=-50.9, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    for name in indexed.values():                                    # only an older release is left
+        os.unlink(os.path.join(soc_dir, '2020', '100', name))
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=2)
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201,O00999_01_T00001')
+    assert 'O00101_01_T00201: only an older release than the indexed one is listed' in out
+    assert 'O00999_01_T00001: not indexed in this database' in out
+    assert 'No granule to re-index' in out
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto', '--region=-52,0,-49,1', ok=False)
+    assert 'in a run of its own' in out
+
+
+def _merge_failing_one_cell(ofile, *args, **kwargs):
+    """parquet_merge_files, failing for one cell that holds only old rows."""
+    from gedih3.utils import parquet_merge_files
+    if '83806afffffffff' in ofile:
+        raise OSError("simulated failure of one cell-year")
+    return parquet_merge_files(ofile, *args, **kwargs)
+
+
+def test_an_interrupted_replacement_is_finished_by_the_next_gh3_build(tmp_dir, monkeypatch):
+    """A merge fails part-way (as a kill would leave it): the journal stays,
+    a plain gh3_build resumes the replacement, and the result is exact."""
+    from dask.distributed import Client, LocalCluster
+    import gedih3.gh3builder as gb
+    from gedih3.config import BUILD_LOG_FILENAME
+    from gedih3.exceptions import GediError
+    from gedih3.gedidriver import soc_file_tree
+    from gedih3.logger import H3BuildLogger
+
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    moved, kept = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, moved, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, kept, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    kept_before = (_db_rows(h3_dir).query('shot_number // 10**13 == 103')
+                   .sort_values('shot_number').reset_index(drop=True))
+    new = _write_release(soc_dir, moved, NEW, lon0=-49.9, seed=11, n=15, first=3)
+
+    log = H3BuildLogger(product_vars=None, dir=h3_dir)
+    cluster = LocalCluster(n_workers=2, threads_per_worker=1, processes=False,
+                           dashboard_address=None, silence_logs='ERROR')
+    client = Client(cluster)
+    try:
+        entry = next(e for e in soc_file_tree(soc_dir, to_list=True, require_all=False)
+                     if 'O00101' in e['L2A'])
+        monkeypatch.setattr(gb, 'parquet_merge_files', _merge_failing_one_cell)
+        with pytest.raises(GediError, match='merge'):
+            gb._replace_granules_build(h3_dir, {moved: entry}, log.get_product_vars(), 12, 3,
+                                       spatial=log.get_spatial(), version=2, tmp_dir=tmp)
+    finally:
+        client.close()
+        cluster.close()
+    monkeypatch.undo()
+    assert os.path.exists(gb.replacement_journal(tmp))
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)                           # no flag: the journal resumes it
+    assert 'Resuming the re-indexing of 1 granule(s)' in out
+    after = _db_rows(h3_dir)
+    assert after.shot_number.is_unique
+    rows = after[after.shot_number // 10**13 == 101]
+    assert set(rows.root_file_l2a) == {new['L2A']} and len(rows) == 8 * 15
+    pd.testing.assert_frame_equal(
+        after.query('shot_number // 10**13 == 103').sort_values('shot_number').reset_index(drop=True), kept_before)
+    g = {x['orbit']: x for x in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}
+    assert g[101]['releases'] == {'L2A': NEW, 'L4A': NEW}
+    assert not os.path.exists(gb.replacement_journal(tmp))
+
+
+def test_a_different_replacement_is_refused_while_one_is_unfinished(tmp_dir):
+    import gedih3.gh3builder as gb
+    from gedih3.exceptions import GediValidationError
+    journal = gb.replacement_journal(str(tmp_dir))
+    os.makedirs(os.path.dirname(journal))
+    with open(journal, 'w') as f:
+        json.dump([['O00101_01_T00201', [['L2A', 'a.h5']]]], f)
+    assert gb.read_replacement_journal(str(tmp_dir)) == {(101, 1, 201): {'L2A': 'a.h5'}}
+    with pytest.raises(GediValidationError, match='unfinished'):
+        from dask.distributed import Client, LocalCluster
+        with LocalCluster(n_workers=1, processes=False, dashboard_address=None) as c, Client(c):
+            gb._replace_granules_build(str(tmp_dir), {(102, 1, 202): {'L2A': '/x/b.h5'}}, {'L2A': ['rh_098']},
+                                       12, 3, tmp_dir=str(tmp_dir))

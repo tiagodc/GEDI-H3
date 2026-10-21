@@ -436,7 +436,22 @@ Notes:
 
 NASA sometimes re-releases a granule within the same GEDI version, with a new PPDS, PGE or generation in its file name, to fix faulty data. When a SOC directory holds more than one file for a granule product, `gh3_build` reads the latest release (PPDS first, then PGE, then generation, then any suffix such as `_SGS`) and logs the duplicates.
 
-The build log records the release each granule was read from. When the SOC directory later holds a newer release of an indexed granule, `gh3_build` warns that its rows come from the older file. It does not re-index them yet. Until it does, variables added and products filled later read the newer file, so move it out of the SOC directory to keep the database consistent with the release its rows came from (adding variables does not apply `--exclude`). A granule whose indexed file is gone and that has only an older release listed is reported too; an older release is never applied over a newer one. That includes a granule indexed from a suffixed file such as `_SGS` that is later excluded or removed: the plain file ranks below it.
+The build log records the release each granule was read from. When the SOC directory later holds a newer release of an indexed granule, `gh3_build` warns that its rows come from the older file. Until they are re-indexed, variables added and products filled later read the newer file. A granule whose indexed file is gone and that has only an older release listed is reported too; an older release is never applied over a newer one. That includes a granule indexed from a suffixed file such as `_SGS` that is later excluded or removed: the plain file ranks below it.
+
+To re-index them, run `gh3_build` with `--replace-granules`:
+
+```bash
+gh3_build -i /data/soc -o /data/db --replace-granules auto                 # every granule with a newer release
+gh3_build -i /data/soc -o /data/db --replace-granules O12345_01_T00123      # named granules (or a file of keys)
+```
+
+Each granule's rows are replaced by the new files' rows: shots the new release moved go to their new cells, shots it dropped disappear, and a granule left with no row in the database's region becomes `NO_DATA`. Every other row is untouched. The run reads only the new files and rewrites only the (cell, year) files that hold those granules; it finds them from the partition metadata, without scanning data. Each rewrite is atomic, and the run keeps a journal: if it is interrupted, the next `gh3_build` finishes it before doing anything else.
+
+Notes:
+
+- **A run of its own.** It needs a completed database and a local SOC directory, with no region, date or variable change in the same run. An S3-built database can be re-indexed once the new files are downloaded (`gh3_download`).
+- **Every product of the database** needs a listed file for a granule to be re-indexed; a granule is never re-indexed from an older release than the one it was read from. Named granules are re-indexed even from the release they were read from, which also re-reads granules indexed before releases were recorded.
+- **Readers during the run** may see a moved shot in its old and its new cell until the run ends; run it when nothing reads the database. Afterwards, rebuild a DuckLake catalog (`gh3_build_ducklake`), and re-extract datasets or rasters made from the database earlier.
 
 `gh3_doctor --soc-dir /data/soc --check superseded_granules` lists every such granule and product. Granules indexed before gedih3 recorded releases cannot be checked and are counted separately.
 

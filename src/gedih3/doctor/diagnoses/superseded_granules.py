@@ -8,7 +8,8 @@ Detects (read-only, no fix):
   - ``newer_release``: the SOC tree holds a later release of a granule
     product (PPDS, PGE, generation or suffix, ``gedi_release_rank``) than
     the one its rows were read from. NASA re-releases granules within one
-    GEDI version to fix faulty data; gh3_build does not re-index them (#47).
+    GEDI version to fix faulty data; ``gh3_build --replace-granules``
+    re-indexes them (#47).
   - ``older_release``: only an older release than the one read is listed.
     It is never applied, but variables added and products filled later read
     the listed file.
@@ -69,10 +70,9 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     recommendations = []
     if n_newer:
         recommendations.append(
-            "Rows of these granules come from the older release and gh3_build does not re-index them yet. "
-            "Until it does, move the newer files out of the SOC tree, so variables added and products filled "
-            "later read the release the rows came from (adding variables does not apply --exclude, and this "
-            "check does not either)")
+            "Rows of these granules come from the older release: re-index them with gh3_build -i <soc> -o <db> "
+            "--replace-granules auto. Until then, variables added and products filled later read the newer "
+            "files (adding variables does not apply --exclude, and this check does not either)")
     if n_older:
         recommendations.append(
             "Restore the release these granules were indexed from before adding variables or filling products")

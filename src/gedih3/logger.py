@@ -1291,7 +1291,8 @@ class H3BuildLogger:
 
         # Append to update history on terminal statuses
         if status in ('COMPLETED', 'FAILED', 'INTERRUPTED'):
-            action = 'variable_update' if getattr(self, 'new_product_vars', None) and getattr(self, 'new_spatial', None) is None and getattr(self, 'new_temporal', None) is None else 'build'
+            action = getattr(self, 'update_action', None) or (
+                'variable_update' if getattr(self, 'new_product_vars', None) and getattr(self, 'new_spatial', None) is None and getattr(self, 'new_temporal', None) is None else 'build')
             update_entry = {
                 'timestamp': now(),
                 'action': action,
