@@ -236,6 +236,24 @@ def test_log_state_clears_pending_flag(tmp_dir):
     assert '_pending_variable_update' not in ctx.h3_logger.log_data
 
 
+def test_log_state_keeps_a_pending_variable_update_of_an_interrupted_build(tmp_dir):
+    """#56: on a non-COMPLETED log the flag is what gh3_build resumes Stage 2 from."""
+    _make_partition(tmp_dir)
+    log_path = _make_build_log(tmp_dir)
+    data = json.load(open(log_path))
+    data['status'] = 'PROCESSING'
+    data['_pending_variable_update'] = {'product_vars': {'L2B': ['cover']}}
+    json.dump(data, open(log_path, 'w'))
+
+    ctx = _ctx(tmp_dir)
+    report = run_diagnoses(ctx, ['log_state'], mode='check')[0]
+    assert [f['kind'] for f in report.findings] == ['pending_variable_update']
+    assert report.severity == Severity.INFO
+
+    run_diagnoses(ctx, ['log_state'], mode='fix')
+    assert ctx.h3_logger.log_data['_pending_variable_update'] == {'product_vars': {'L2B': ['cover']}}
+
+
 def test_log_state_detects_and_fixes_granule_status_drift(tmp_dir):
     """After a merge-only resume, granule_info can hold stale PENDING entries
     even though the data is in finalized partition metadata. log_state must
