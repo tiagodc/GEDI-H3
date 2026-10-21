@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.20.12] - 2026-10-21
 
 ### Added
 - **A merge can replace a granule's rows.** `h3_merge_files` and `parquet_merge_files` take `replace_granules={(orbit, granule, track): {product: basename}}` (and, for `parquet_merge_files`, `replace_in=`, the input that is the existing destination). The destination's rows from those granules are dropped unless every `root_file_<product>` column already names the given file, and the fragments' rows take their place. Rows a replacement already wrote are therefore kept, so the merge gives the same result when re-run at any point, with or without the fragments. That is enforced: a new row of a replaced granule that does not name the given files, or a map holding paths instead of basenames, raises `GediMergeError` before the destination is touched, on a first merge into a cell-year as well. The destination is rewritten even with no fragment (the granule's shots left that cell-year). The "already merged" skip never applies, and a file left with no row is removed with its metadata and empty year directory. No command uses it yet: it is the building block for re-indexing re-released granules. (#47)
