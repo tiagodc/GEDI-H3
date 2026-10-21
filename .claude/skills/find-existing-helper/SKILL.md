@@ -79,6 +79,7 @@ don't build a second one. The second column is the module; it is machine-checked
 | `_meta_from_dtype_dict` | `gh3driver.py` | Dask `_meta` from cached dtypes — no parquet read. |
 | `gedi_vars_static` | `gedidriver.py` | Cached per-product variable list from the manifests shipped in `src/gedih3/data/`. |
 | `gedi_vars_from_h5` | `gedidriver.py` | HDF5 BEAM-tree walk. Only for files that may have been subset already. |
+| `gedi_release_rank` | `gedidriver.py` | Which of a granule's files is the latest re-release (PPDS, PGE, generation, suffix), from the name alone. |
 
 ## Build internals
 

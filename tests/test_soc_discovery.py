@@ -814,14 +814,25 @@ def test_soc_file_tree_exclude_silences_the_duplicate(duplicate_warnings):
     assert tree['O01956_03_T03909']['L2A'].endswith('_02_004_01_V003.h5')
 
 
-def test_soc_file_tree_names_the_file_the_pivot_keeps_across_directories(duplicate_warnings):
-    """The pivot ranks full paths, not basenames: an old copy in a later
-    directory wins, and the warning must say so."""
+def test_soc_file_tree_uses_the_latest_release_across_directories(duplicate_warnings):
+    """The release fields rank the files, not their paths: an old copy in a
+    later directory loses, and the warning names the file used."""
     old = '/soc/z/GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
     new = '/soc/a/GEDI02_A_2019108002012_O01956_03_T03909_02_004_01_V003.h5'
     tree = soc_file_tree([new, old])
-    assert tree['O01956_03_T03909']['L2A'] == old
-    assert f'{os.path.basename(old)} over {os.path.basename(new)}' in duplicate_warnings[0]
+    assert tree['O01956_03_T03909']['L2A'] == new
+    assert f'{os.path.basename(new)} over {os.path.basename(old)}' in duplicate_warnings[0]
+
+
+def test_soc_file_tree_ranks_ppds_over_pge(duplicate_warnings):
+    later_pge = '/soc/2019/108/GEDI02_A_2019108002012_O01956_03_T03909_01_004_01_V003.h5'
+    later_ppds = '/soc/2019/108/GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
+    assert soc_file_tree([later_ppds, later_pge])['O01956_03_T03909']['L2A'] == later_ppds
+
+
+def test_soc_file_tree_a_copy_in_two_directories_keeps_path_order(duplicate_warnings):
+    name = 'GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V003.h5'
+    assert soc_file_tree([f'/soc/b/{name}', f'/soc/a/{name}'])['O01956_03_T03909']['L2A'] == f'/soc/b/{name}'
 
 
 def test_soc_file_tree_a_path_listed_twice_is_not_a_duplicate(duplicate_warnings):
@@ -847,3 +858,52 @@ def test_soc_file_tree_summarises_several_duplicates(duplicate_warnings, monkeyp
 
     assert duplicate_warnings[0].startswith('2 granule product(s)') and '(and 1 more' in duplicate_warnings[0]
     assert len([m for m in debug if m.startswith('Duplicate granule files')]) == 2
+
+
+_BASE = 'GEDI02_A_2019108002012_O01956_03_T03909'
+
+
+@pytest.mark.parametrize('older, newer', [
+    ('_02_003_01_V002.h5', '_02_003_02_V002.h5'),        # generation
+    ('_02_003_09_V002.h5', '_02_004_01_V002.h5'),        # PGE outranks generation
+    ('_01_009_09_V002.h5', '_02_003_01_V002.h5'),        # PPDS outranks PGE
+    ('_02_003_01_V002.h5', '_02_003_01_V002_SGS.h5'),    # a suffixed file beats the plain one
+    ('_02_003_01_V002_7algs.h5', '_02_003_01_V002_SGS.h5'),
+    ('_02_003_01_V002_SGS.h5', '_02_003_02_V002.h5'),    # a later generation beats any suffix
+])
+def test_gedi_release_rank_orders_releases(older, newer):
+    from gedih3.gedidriver import gedi_release_rank
+    assert gedi_release_rank(_BASE + newer) > gedi_release_rank(_BASE + older)
+    assert gedi_release_rank('s3://bucket/2019/108/' + _BASE + newer) == gedi_release_rank(_BASE + newer)
+
+
+def test_gedi_release_rank_matches_name_order_within_a_directory():
+    """The explicit ranking keeps the winner the old name sort picked."""
+    import itertools
+    from gedih3.gedidriver import gedi_release_rank
+    names = [f'{_BASE}_{pp}_{pge}_{gen}_V002{sfx}.h5'
+             for pp, pge, gen, sfx in itertools.product(['01', '02'], ['003', '004'], ['01', '02'],
+                                                        ['', '_SGS', '_7algs'])]
+    assert sorted(names, key=gedi_release_rank) == sorted(names)
+
+
+def test_gedi_release_rank_puts_an_unconventional_name_last():
+    from gedih3.gedidriver import gedi_release_rank
+    assert gedi_release_rank('GEDI02_A_custom_O01956_03_T03909.h5') < gedi_release_rank(_BASE + '_00_000_00_V002.h5')
+
+
+def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
+    """GEDIFile.search_file uses the same ranking (it used to put generation first)."""
+    from gedih3.gedidriver import GEDIFile
+    soc = tmp_path / '2019' / '108'
+    soc.mkdir(parents=True)
+    l2a = soc / f'{_BASE}_02_003_01_V002.h5'
+    for sfx in ('_02_003_09_V002.h5', '_02_004_01_V002.h5', '_02_004_01_V002_SGS.h5', '_02_009_09_V001.h5'):
+        (soc / (_BASE.replace('GEDI02_A', 'GEDI02_B') + sfx)).touch()
+    l2a.touch()
+    found = GEDIFile(str(l2a)).search_file(str(tmp_path), product=2, level='B')
+    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
+    # No file of the same GEDI version: the latest version, then its latest release.
+    v3 = GEDIFile(str(l2a).replace('_V002', '_V003'))
+    found = v3.search_file(str(tmp_path), product=2, level='B')
+    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
