@@ -725,6 +725,14 @@ class GEDIShot(GEDIFile):
             self.beam_str = [f'BEAM{b:04b}' for b in self.beam]    
     
     def get_glob_pattern(self, product: int=1, level: str='B', ppds: int=2, pge:int=None, generation:int=None, version:int=None):
+        """Glob pattern(s) of the GEDI file(s) holding these shots (any track).
+
+        Returns
+        -------
+        str or list of str
+            One pattern for a scalar shot; for an array, one per distinct
+            granule, sorted. Also stored as ``file_glob_pattern``.
+        """
         if self.is_scalar:
             self.file_glob_pattern = gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, pge, generation, version)
         else:
@@ -733,7 +741,15 @@ class GEDIShot(GEDIFile):
         return self.file_glob_pattern
 
     def search_file(self, soc_dir: str):
-        # A SOC tree is <soc>/<year>/<doy>/: search it recursively, as GEDIFile.search_file does.
+        """Files under ``soc_dir`` matching ``file_glob_pattern`` (built if absent).
+
+        Returns
+        -------
+        list of str
+            Sorted paths; empty if none match.
+        """
+        # A SOC tree is <soc>/<year>/<doy>/: walk it, as GEDIFile.search_file does
+        # (_soc_manifest.txt is write-only, so smart_glob does not apply).
         patterns = getattr(self, 'file_glob_pattern', None) or self.get_glob_pattern()
         if self.is_scalar:
             patterns = [patterns]
