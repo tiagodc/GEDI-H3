@@ -916,3 +916,6 @@ def test_gedi_release_tag_round_trips_the_ranking():
         assert gedi_release_rank(gedi_release_tag(name)) == gedi_release_rank(name)
     assert gedi_release_tag('s3://b/2019/108/' + _BASE + '_02_003_01_V002_SGS.h5') == '02_003_01_SGS'
     assert gedi_release_tag('GEDI02_A_custom_O01956_03_T03909.h5') is None
+    # Only a bare tag reads as one: a file or path that merely looks like one ranks last.
+    for not_a_tag in ('10_200_30_x.h5', '/soc/02_003_01', 's3://b/02_003_01_SGS'):
+        assert gedi_release_rank(not_a_tag) == (-1, -1, -1, False, '')

@@ -231,9 +231,9 @@ class TestMergeBuildLogs:
         assert data['status'] == 'COMPLETED'
 
     @pytest.mark.parametrize('releases_2, expected', [
-        (None, {'L2A': '02_003_01'}),                               # one log predates releases
+        (None, None),                                               # one log predates releases: unknown
         ({'L2A': '02_003_01'}, {'L2A': '02_003_01'}),
-        ({'L2A': '02_004_01', 'L4A': '02_002_01'}, {'L2A': '02_003_01', 'L4A': '02_002_01'}),  # older kept
+        ({'L2A': '02_004_01', 'L4A': '02_002_01'}, {'L2A': '02_003_01'}),  # older kept; L4A unknown in one
         ({'L2A': '01_009_09'}, {'L2A': '01_009_09'}),               # PPDS outranks PGE: this one is older
     ])
     def test_entries_alike_but_for_releases_merge_into_one(self, tmp_dir, releases_2, expected):
@@ -251,4 +251,19 @@ class TestMergeBuildLogs:
         merge_build_logs(*paths, os.path.join(tmp_dir, 'merged.json'))
 
         granules = json.load(open(os.path.join(tmp_dir, 'merged.json')))['granules']
-        assert granules == [{**base, 'releases': expected}]
+        assert granules == [{**base, 'releases': expected} if expected else base]
+
+    def test_twins_within_one_log_fold_too(self, tmp_dir):
+        g = {'orbit': 1000, 'granule': 1, 'track': 100, 'status': 'INDEXED'}
+        logs = [[{**g, 'releases': {'L2A': '02_004_01'}}],
+                [{**g, 'releases': {'L2A': '02_003_01'}}, {**g, 'releases': {'L2A': '02_005_01'}}]]
+        paths = []
+        for i, granules in enumerate(logs):
+            paths.append(os.path.join(tmp_dir, f'log{i}.json'))
+            with open(paths[-1], 'w') as f:
+                json.dump(_make_build_log(granules=granules), f)
+
+        merge_build_logs(*paths, os.path.join(tmp_dir, 'merged.json'))
+
+        assert json.load(open(os.path.join(tmp_dir, 'merged.json')))['granules'] == \
+            [{**g, 'releases': {'L2A': '02_003_01'}}]

@@ -829,11 +829,12 @@ class H3BuildLogger:
             (#47), so a tag is never replaced here: a granule not indexed yet
             gains tags only for products it has none for (rows a killed run
             left on disk may come from the file recorded first, and an older
-            tag is reported later rather than a newer one hiding stale rows);
-            an ``INDEXED`` or ``NO_DATA`` one, or a legacy entry with no
-            status, is left as it is. No tag means the source is unknown: an
-            older log, a product added by a variable update, or an S3-sourced
-            build (which registers no granules).
+            tag is reported later rather than a newer one hiding stale rows).
+            An ``INDEXED`` or ``NO_DATA`` entry, and one registered before
+            tags were recorded (no ``releases`` key, so rows on disk may come
+            from any file), are left as they are. No tag means the source is
+            unknown: an older log, a product added by a variable update, or
+            an S3-sourced build (which registers no granules).
         """
         if not hasattr(self, 'granule_info'):
             self.granule_info = []
@@ -846,10 +847,10 @@ class H3BuildLogger:
                 if 'releases' in g:
                     index[key]['releases'] = dict(g['releases'])
                 self.granule_info.append(index[key])
-            elif g.get('releases') and entry.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA, None):
-                known = entry.setdefault('releases', {})
+            elif (g.get('releases') and 'releases' in entry
+                  and entry.get('status') not in ('INDEXED', GRANULE_STATUS_NO_DATA, None)):
                 for product, tag in g['releases'].items():
-                    known.setdefault(product, tag)
+                    entry['releases'].setdefault(product, tag)
 
     def update_granule_status(self, gran_key, status):
         """Update status of a single granule (does NOT auto-save).
@@ -1456,12 +1457,38 @@ class H3BuildLogger:
                 out[(g['orbit'], g['granule'], g['track'])] = missing
         return out
 
+    def record_releases(self, releases):
+        """Record the source releases a write is about to read (does not save).
+
+        Parameters
+        ----------
+        releases : dict
+            ``{(orbit, granule, track): {product: tag}}`` (tags from
+            ``gedi_release_tag``), e.g. from ``_build_fill_products``'
+            ``releases_callback`` before it writes. A product that has a tag
+            keeps it, as in :meth:`register_pending_granules`: rows already
+            written may come from that release.
+
+        Returns
+        -------
+        int
+            Number of tags added.
+        """
+        n = 0
+        for g in getattr(self, 'granule_info', None) or []:
+            tags = releases.get((g['orbit'], g['granule'], g['track']))
+            if tags:
+                known = g.setdefault('releases', {})
+                for product, tag in tags.items():
+                    if product not in known:
+                        known[product] = tag
+                        n += 1
+        return n
+
     def record_fill_results(self, result, max_attempts=3, count_failures=True):
         """Apply a ``_build_fill_products`` result to per-product statuses.
 
-        * ``filled`` → ``INDEXED`` (attempt count cleared), and the release
-          each product was filled from (``result['releases']``) is recorded in
-          the granule's ``releases``;
+        * ``filled`` → ``INDEXED`` (attempt count cleared);
         * ``unlocated`` (the product file exists but no database file lists the
           granule, so it can never fill) → ``FAILED`` at once;
         * ``failed`` (read or merge error, or no row matched) → retried by the
@@ -1478,12 +1505,9 @@ class H3BuildLogger:
             g = index.get(tuple(key))
             if g is None:
                 continue
-            sources = (result.get('releases') or {}).get(tuple(key)) or {}
             for p in prods:
                 g.setdefault('products', {})[p] = PRODUCT_STATUS_INDEXED
                 (g.get('fill_attempts') or {}).pop(p, None)
-                if p in sources:
-                    g.setdefault('releases', {})[p] = sources[p]
             if 'fill_attempts' in g and not g['fill_attempts']:
                 del g['fill_attempts']
         for key, prods in (result.get('unlocated') or {}).items():

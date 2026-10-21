@@ -1074,6 +1074,10 @@ def main():
                         try:
                             from gedih3.gh3builder import _build_fill_products
                             h3_logger.save_log('PROCESSING')
+
+                            def _record_fill_releases(releases):
+                                if h3_logger.record_releases(releases):
+                                    h3_logger.save_log('PROCESSING')
                             _fill = _build_fill_products(
                                 args.output, _awaiting,
                                 # Reuse the registration listing when it kept partial granules.
@@ -1082,6 +1086,7 @@ def main():
                                 version=h3_logger.gedi_version,
                                 tmp_dir=args.tmpdir,
                                 exclude=args.exclude,
+                                releases_callback=_record_fill_releases,
                             )
                             _given_up = h3_logger.record_fill_results(_fill)
                             _n_backfilled = len(_fill['updated_files'])

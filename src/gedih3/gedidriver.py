@@ -198,7 +198,9 @@ def gedi_release_rank(file_name: str) -> tuple:
     >>> gedi_release_rank(new) > gedi_release_rank(old)
     True
     """
-    match = _RELEASE_FIELDS.search(os.path.basename(file_name)) or _RELEASE_TAG.match(file_name)
+    match = _RELEASE_FIELDS.search(os.path.basename(file_name))
+    if match is None and '/' not in file_name and not file_name.endswith('.h5'):
+        match = _RELEASE_TAG.match(file_name)
     if match is None:
         return (-1, -1, -1, False, '')
     ppds, pge, generation, suffix = match.groups()

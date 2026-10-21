@@ -618,10 +618,16 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
             pending.setdefault((g['orbit'], g['granule'], g['track']), []).extend(f['products'])
     if pending:
         from ...gh3builder import _build_fill_products
+        log = ctx.h3_logger
+
+        def _record_fill_releases(releases):
+            if log is not None and log.record_releases(releases):
+                log.save_log(log.log_data.get('status', 'COMPLETED'))
         try:
             fill = _build_fill_products(
                 ctx.h3_dir, pending, soc_source=soc_source, version=version,
                 tmp_dir=ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'),
+                releases_callback=_record_fill_releases,
             )
         except BaseException:
             if s3_tmp_dir and os.path.exists(s3_tmp_dir):

@@ -5049,7 +5049,8 @@ def _product_fill_vars(h3_dir: str, products, soc_files=None, version=None) -> D
 _PRODUCT_FILL_DIRNAME = '_product_fill'
 
 
-def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None):
+def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None, exclude=None,
+                         releases_callback=None):
     """Backfill products published after their granule's rows were indexed.
 
     A granule indexed while some of its products were not yet published (a
@@ -5090,25 +5091,28 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
         sentinel can never stand in for a product it did not fill.
     exclude : list of str, optional
         fnmatch patterns of source files to ignore (as ``gh3_build --exclude``).
+    releases_callback : callable, optional
+        Called once, before the first write, with ``{key: {product: tag}}``
+        (``gedi_release_tag``) of the files the fill reads, so the caller can
+        persist them (:meth:`H3BuildLogger.record_releases`) ahead of any row
+        they produce.
 
     Returns
     -------
     dict
         ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
         'unlocated': {key: [products]}, 'failed': {key: [products]},
-        'updated_files': [paths], 'releases': {key: {product: tag}}}`` —
+        'updated_files': [paths]}`` —
         ``unavailable``: no product file yet; ``unlocated``: the file exists
         but no database file lists the granule (it cannot be filled);
-        ``failed``: a read or merge error, or no row matched (retry);
-        ``releases``: the release tag (``gedi_release_tag``) of the file each
-        product was filled from. See
+        ``failed``: a read or merge error, or no row matched (retry). See
         :meth:`H3BuildLogger.record_fill_results`.
     """
     client = get_dask_client()
     if client is None:
         raise GediError("_build_fill_products requires a registered dask Client")
     targets = {tuple(k): set(v) for k, v in targets.items() if v}
-    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': [], 'releases': {}}
+    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': []}
     if not targets:
         return out
     tmp_dir = os.path.join(tmp_dir or os.path.join(h3_dir, '.tmp'), _PRODUCT_FILL_DIRNAME)
@@ -5209,6 +5213,12 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
                 f.write(signature)
 
     # ── Stages 1-3: read each product file once, fill the files that own the rows ──
+    if releases_callback is not None:
+        # Before the first write: a fill killed or failed part-way leaves
+        # committed rows from these files (#47).
+        tags = {by_str[ot]: {p: t for p, f in h5.items() if (t := gedi_release_tag(str(getattr(f, 'path', f))))}
+                for ot, h5 in gran_h5.items()}
+        releases_callback({k: v for k, v in tags.items() if v})
     products = sorted({p for h5 in gran_h5.values() for p in h5})
     fill_vars = _product_fill_vars(h3_dir, products, soc_files=list(gran_h5.values()), version=version)
     res = _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, fill_vars, tmp_dir, fill=True)
@@ -5217,9 +5227,6 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
         for bucket, prods in (('failed', failed), ('filled', set(h5) - failed)):
             if prods:
                 out[bucket][by_str[ot]] = sorted(prods)
-        tags = {p: gedi_release_tag(str(getattr(h5[p], 'path', h5[p]))) for p in set(h5) - failed}
-        if any(tags.values()):
-            out['releases'][by_str[ot]] = {p: t for p, t in tags.items() if t}
     out['updated_files'] = res['updated_files']
     logger.info(
         f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
@@ -5677,27 +5684,33 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     granules_2 = log2.get('granules', [])
     merged_granules = granules_1.copy()
     # Entries alike but for their recorded releases (one log predates them, or
-    # the databases read different files) become one entry that keeps each
-    # product's older release, so a re-release is reported, never hidden (#47).
+    # the databases read different files) become one entry. A product keeps a
+    # tag only if both carry one, the older: an unknown source may be older
+    # still, and a re-release must be reported, never hidden (#47).
     def _sans_releases(e):
         return {k: v for k, v in e.items() if k != 'releases'}
 
+    def _fold(a, b):
+        out = _sans_releases(a)
+        if 'releases' in a and 'releases' in b:
+            ra, rb = a['releases'], b['releases']
+            out['releases'] = {p: min(ra[p], rb[p], key=gedi_release_rank) for p in ra if p in rb}
+        return out
+
     by_key = {}
     for i, e in enumerate(merged_granules):
-        by_key.setdefault((e.get('orbit'), e.get('granule'), e.get('track')), []).append(i)
+        by_key.setdefault((e.get('orbit'), e.get('granule'), e.get('track')), []).append(('1', i))
     unpaired = []
     for g in granules_2:
         key = (g.get('orbit'), g.get('granule'), g.get('track'))
-        same = next((i for i in by_key.get(key, ()) if _sans_releases(merged_granules[i]) == _sans_releases(g)), None)
+        pool = {'1': merged_granules, '2': unpaired}
+        same = next(((src, i) for src, i in by_key.get(key, ())
+                     if _sans_releases(pool[src][i]) == _sans_releases(g)), None)
         if same is None:
+            by_key.setdefault(key, []).append(('2', len(unpaired)))
             unpaired.append(g)
-            continue
-        releases = dict(merged_granules[same].get('releases') or {})
-        for prod, tag in (g.get('releases') or {}).items():
-            if prod not in releases or gedi_release_rank(tag) < gedi_release_rank(releases[prod]):
-                releases[prod] = tag
-        if releases:
-            merged_granules[same] = {**merged_granules[same], 'releases': releases}
+        else:
+            pool[same[0]][same[1]] = _fold(pool[same[0]][same[1]], g)
     for g in unpaired:
         if g in merged_granules:
             continue

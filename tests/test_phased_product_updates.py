@@ -122,12 +122,14 @@ def test_l2a_first_then_backfill(tmp_dir, _client):
 
     # L4A arrives: the backfill fills B's null cells only.
     _write_granule(soc_dir, b, '2020200', 8.0e7, products=('04_A',))
-    out = gb._build_fill_products(h3_dir, log.pending_product_fills(), soc_source=soc_dir, version=2,
-                                  tmp_dir=tmp)
-    assert out['filled'] == {b: ['L4A']} and not out['failed'] and not out['unavailable']
     from gedih3.gedidriver import gedi_release_tag
-    assert out['releases'] == {b: {'L4A': gedi_release_tag(_gedi_name('04_A', '2020200', *b))}}
-    assert out['releases'][b]['L4A']
+    before_write = []
+    out = gb._build_fill_products(h3_dir, log.pending_product_fills(), soc_source=soc_dir, version=2,
+                                  tmp_dir=tmp, releases_callback=before_write.append)
+    assert out['filled'] == {b: ['L4A']} and not out['failed'] and not out['unavailable']
+    # The releases it reads are handed over once, ahead of any write (#47).
+    assert before_write == [{b: {'L4A': gedi_release_tag(_gedi_name('04_A', '2020200', *b))}}]
+    assert before_write[0][b]['L4A']
 
     t = _db_table(h3_dir, 2020)
     assert t['agbd_l4a'].null_count == 0
@@ -531,18 +533,21 @@ def test_fill_results_are_recorded_and_given_up_on(tmp_dir):
     assert g[2]['products']['L4A'] == 'FAILED'
 
 
-def test_a_fill_records_the_release_it_read(tmp_dir):
+def test_recorded_releases_are_never_replaced(tmp_dir):
+    """A fill records the releases it reads before writing; one recorded
+    earlier stays: rows a killed fill committed may come from it (#47)."""
     log = _logger_with(tmp_dir, [
-        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_01'},
+        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_01', 'L4A': '02_001_01'},
          'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
         {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'INDEXED',
          'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
     ])
-    a, b = (1, 1, 1), (2, 1, 1)
-    log.record_fill_results({'filled': {a: ['L4A'], b: ['L4A']}, 'releases': {a: {'L4A': '02_002_01'}}})
+    a, b, c = (1, 1, 1), (2, 1, 1), (3, 1, 1)
+    assert log.record_releases({a: {'L4A': '02_002_01'}, b: {'L4A': '02_002_01'}, c: {'L4A': '02_002_01'}}) == 1
     g = {x['orbit']: x for x in log.granule_info}
-    assert g[1]['releases'] == {'L2A': '02_003_01', 'L4A': '02_002_01'}
-    assert 'releases' not in g[2]                       # no source given: still unknown
+    assert g[1]['releases'] == {'L2A': '02_003_01', 'L4A': '02_001_01'}
+    assert g[2]['releases'] == {'L4A': '02_002_01'}            # L2A stays unknown
+    assert 3 not in g                                           # no entry is invented
 
 
 def test_registration_never_replaces_a_recorded_release(tmp_dir):
@@ -555,7 +560,7 @@ def test_registration_never_replaces_a_recorded_release(tmp_dir):
         {'orbit': 3, 'granule': 1, 'track': 1},                                 # legacy: no status
         {'orbit': 4, 'granule': 1, 'track': 1, 'status': 'PENDING', 'releases': {'L2A': '02_003_01'}},
         {'orbit': 5, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED', 'releases': {'L2A': '02_003_01'}},
-        {'orbit': 6, 'granule': 1, 'track': 1, 'status': 'FAILED'},
+        {'orbit': 6, 'granule': 1, 'track': 1, 'status': 'FAILED'},          # registered before tags
     ])
     new = {'L2A': '02_004_01', 'L4A': '02_002_01'}
     log.register_pending_granules([{'orbit': o, 'granule': 1, 'track': 1, 'releases': new} for o in range(1, 8)])
@@ -564,9 +569,9 @@ def test_registration_never_replaces_a_recorded_release(tmp_dir):
     assert g[1]['releases'] == {'L2A': '02_003_01'} and g[2]['releases'] == {'L2A': '02_003_01'}
     assert 'releases' not in g[3]
     assert g[4]['releases'] == g[5]['releases'] == {'L2A': '02_003_01', 'L4A': '02_002_01'}
-    assert g[6]['releases'] == new
+    assert 'releases' not in g[6]                       # its rows on disk may come from any file
     assert g[7] == {'orbit': 7, 'granule': 1, 'track': 1, 'releases': new, 'status': 'PENDING'}
-    assert g[6]['releases'] is not new and g[7]['releases'] is not new
+    assert g[7]['releases'] is not new
     # The skip list stays bare (orbit, granule, track) dicts.
     assert {tuple(sorted(d)) for d in log.get_finished_granules()} == {('granule', 'orbit', 'track')}
 
