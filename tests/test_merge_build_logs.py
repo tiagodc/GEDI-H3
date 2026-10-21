@@ -229,3 +229,26 @@ class TestMergeBuildLogs:
             data = json.load(f)
         assert isinstance(data, dict)
         assert data['status'] == 'COMPLETED'
+
+    @pytest.mark.parametrize('releases_2, expected', [
+        (None, {'L2A': '02_003_01'}),                               # one log predates releases
+        ({'L2A': '02_003_01'}, {'L2A': '02_003_01'}),
+        ({'L2A': '02_004_01', 'L4A': '02_002_01'}, {'L2A': '02_003_01', 'L4A': '02_002_01'}),  # older kept
+        ({'L2A': '01_009_09'}, {'L2A': '01_009_09'}),               # PPDS outranks PGE: this one is older
+    ])
+    def test_entries_alike_but_for_releases_merge_into_one(self, tmp_dir, releases_2, expected):
+        """A granule both logs list once is listed once: a twin would leave one
+        copy's product statuses behind for every later fill (#47)."""
+        base = {'orbit': 1000, 'granule': 1, 'track': 100, 'status': 'INDEXED',
+                'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}}
+        g2 = dict(base, releases=releases_2) if releases_2 else dict(base)
+        paths = []
+        for i, g in enumerate(({**base, 'releases': {'L2A': '02_003_01'}}, g2)):
+            paths.append(os.path.join(tmp_dir, f'log{i}.json'))
+            with open(paths[-1], 'w') as f:
+                json.dump(_make_build_log(granules=[g]), f)
+
+        merge_build_logs(*paths, os.path.join(tmp_dir, 'merged.json'))
+
+        granules = json.load(open(os.path.join(tmp_dir, 'merged.json')))['granules']
+        assert granules == [{**base, 'releases': expected}]

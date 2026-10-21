@@ -132,6 +132,39 @@ def write_soc_manifest(soc_dir: str, files=None) -> int:
 # The file-name fields after a granule's orbit/track that rank its releases
 # within one GEDI version: PPDS, PGE, generation and an optional suffix.
 _RELEASE_FIELDS = re.compile(r'_O\d+_\d{2}_T\d+_(\d{2})_(\d{3})_(\d{2})_V\d{3}(?:_(.+?))?\.h5$')
+# The same fields as a release tag (gedi_release_tag).
+_RELEASE_TAG = re.compile(r'^(\d{2})_(\d{3})_(\d{2})(?:_(.+))?$')
+
+
+def gedi_release_tag(file_name: str) -> Optional[str]:
+    """The release fields of a GEDI file name, as a compact tag.
+
+    With the granule key, the product and the GEDI version, the tag
+    identifies the file: it is what the build log records per granule and
+    product (``releases``), at a fraction of a basename's size.
+
+    Parameters
+    ----------
+    file_name : str
+        A GEDI file name, path or URL. Only the basename is read.
+
+    Returns
+    -------
+    str or None
+        ``'PP_PGE_GG'`` (PPDS, PGE, generation), plus ``'_<suffix>'`` when the
+        name has one; ``None`` for a name outside the GEDI convention.
+        :func:`gedi_release_rank` ranks tags as it ranks names.
+
+    Examples
+    --------
+    >>> gedi_release_tag('GEDI02_A_2019108002012_O01956_03_T03909_02_003_01_V002_SGS.h5')
+    '02_003_01_SGS'
+    """
+    match = _RELEASE_FIELDS.search(os.path.basename(file_name))
+    if match is None:
+        return None
+    ppds, pge, generation, suffix = match.groups()
+    return f"{ppds}_{pge}_{generation}" + (f"_{suffix}" if suffix else '')
 
 
 def gedi_release_rank(file_name: str) -> tuple:
@@ -148,7 +181,8 @@ def gedi_release_rank(file_name: str) -> tuple:
     Parameters
     ----------
     file_name : str
-        A GEDI file name, path or URL. Only the basename is read.
+        A GEDI file name, path or URL (only the basename is read), or a
+        release tag from :func:`gedi_release_tag`.
 
     Returns
     -------
@@ -164,7 +198,7 @@ def gedi_release_rank(file_name: str) -> tuple:
     >>> gedi_release_rank(new) > gedi_release_rank(old)
     True
     """
-    match = _RELEASE_FIELDS.search(os.path.basename(file_name))
+    match = _RELEASE_FIELDS.search(os.path.basename(file_name)) or _RELEASE_TAG.match(file_name)
     if match is None:
         return (-1, -1, -1, False, '')
     ppds, pge, generation, suffix = match.groups()

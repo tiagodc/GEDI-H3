@@ -21,7 +21,7 @@ from dask.distributed import progress
 from .config import GEDI_BEAMS, GH3_DEFAULT_DOWNLOAD_DIR, GH3_DEFAULT_TMP_DIR, GH3_DEFAULT_SOC_DIR, GH3_DEFAULT_H3_DIR, GEDI_PRODUCTS, GEDI_START_DATE, BUILD_LOG_FILENAME, PARTITION_META_FILENAME, _get_versioned, _GEDI_L2A_ESSENTIALS, _PRODUCT_QUALITY_FLAGS
 from .utils import now, json_read, json_write, to_geojson, parquet_append_columns, parquet_merge_files, parquet_join_columns, parquet_fill_columns, read_parquet_schema, h5_is_valid, get_dask_client, generate_manifest, check_nan_only_columns, h3_partition_bbox, parse_h3_partition_dirname, AtomicFileWriter
 from .h3utils import intersect_h3_geometries, h3_index_df, fix_h3_geometry
-from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards
+from .gedidriver import GEDIFile, add_special_columns, soc_file_tree, dask_h5_merged, gedi_vars_expand, gedi_vars_from_h5, gedi_vars_static, gedi_subset, validate_soc_files, load_h5, load_h5_merged, expand_var_wildcards, gedi_release_rank, gedi_release_tag
 from .daac import gedi_download
 from .logging_config import get_logger
 from .validation import validate_h3_params, validate_product_vars, validate_directory_exists
@@ -5096,18 +5096,19 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
     dict
         ``{'filled': {key: [products]}, 'unavailable': {key: [products]},
         'unlocated': {key: [products]}, 'failed': {key: [products]},
-        'updated_files': [paths], 'files': {key: {product: basename}}}`` —
+        'updated_files': [paths], 'releases': {key: {product: tag}}}`` —
         ``unavailable``: no product file yet; ``unlocated``: the file exists
         but no database file lists the granule (it cannot be filled);
         ``failed``: a read or merge error, or no row matched (retry);
-        ``files``: the source file of each filled product. See
+        ``releases``: the release tag (``gedi_release_tag``) of the file each
+        product was filled from. See
         :meth:`H3BuildLogger.record_fill_results`.
     """
     client = get_dask_client()
     if client is None:
         raise GediError("_build_fill_products requires a registered dask Client")
     targets = {tuple(k): set(v) for k, v in targets.items() if v}
-    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': [], 'files': {}}
+    out = {'filled': {}, 'unavailable': {}, 'unlocated': {}, 'failed': {}, 'updated_files': [], 'releases': {}}
     if not targets:
         return out
     tmp_dir = os.path.join(tmp_dir or os.path.join(h3_dir, '.tmp'), _PRODUCT_FILL_DIRNAME)
@@ -5216,9 +5217,9 @@ def _build_fill_products(h3_dir, targets, soc_source, version=None, tmp_dir=None
         for bucket, prods in (('failed', failed), ('filled', set(h5) - failed)):
             if prods:
                 out[bucket][by_str[ot]] = sorted(prods)
-        if set(h5) - failed:
-            out['files'][by_str[ot]] = {p: os.path.basename(str(getattr(h5[p], 'path', h5[p])))
-                                        for p in set(h5) - failed}
+        tags = {p: gedi_release_tag(str(getattr(h5[p], 'path', h5[p]))) for p in set(h5) - failed}
+        if any(tags.values()):
+            out['releases'][by_str[ot]] = {p: t for p, t in tags.items() if t}
     out['updated_files'] = res['updated_files']
     logger.info(
         f"Product backfill: filled {len(out['filled'])} granule(s) across {len(res['updated_files'])} file(s); "
@@ -5675,7 +5676,29 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     granules_1 = log1.get('granules', [])
     granules_2 = log2.get('granules', [])
     merged_granules = granules_1.copy()
+    # Entries alike but for their recorded releases (one log predates them, or
+    # the databases read different files) become one entry that keeps each
+    # product's older release, so a re-release is reported, never hidden (#47).
+    def _sans_releases(e):
+        return {k: v for k, v in e.items() if k != 'releases'}
+
+    by_key = {}
+    for i, e in enumerate(merged_granules):
+        by_key.setdefault((e.get('orbit'), e.get('granule'), e.get('track')), []).append(i)
+    unpaired = []
     for g in granules_2:
+        key = (g.get('orbit'), g.get('granule'), g.get('track'))
+        same = next((i for i in by_key.get(key, ()) if _sans_releases(merged_granules[i]) == _sans_releases(g)), None)
+        if same is None:
+            unpaired.append(g)
+            continue
+        releases = dict(merged_granules[same].get('releases') or {})
+        for prod, tag in (g.get('releases') or {}).items():
+            if prod not in releases or gedi_release_rank(tag) < gedi_release_rank(releases[prod]):
+                releases[prod] = tag
+        if releases:
+            merged_granules[same] = {**merged_granules[same], 'releases': releases}
+    for g in unpaired:
         if g in merged_granules:
             continue
         # NO_DATA ("no rows under that database's scope") loses to any other

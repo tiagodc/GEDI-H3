@@ -125,7 +125,9 @@ def test_l2a_first_then_backfill(tmp_dir, _client):
     out = gb._build_fill_products(h3_dir, log.pending_product_fills(), soc_source=soc_dir, version=2,
                                   tmp_dir=tmp)
     assert out['filled'] == {b: ['L4A']} and not out['failed'] and not out['unavailable']
-    assert out['files'] == {b: {'L4A': _gedi_name('04_A', '2020200', *b)}}
+    from gedih3.gedidriver import gedi_release_tag
+    assert out['releases'] == {b: {'L4A': gedi_release_tag(_gedi_name('04_A', '2020200', *b))}}
+    assert out['releases'][b]['L4A']
 
     t = _db_table(h3_dir, 2020)
     assert t['agbd_l4a'].null_count == 0
@@ -529,40 +531,42 @@ def test_fill_results_are_recorded_and_given_up_on(tmp_dir):
     assert g[2]['products']['L4A'] == 'FAILED'
 
 
-def test_a_fill_records_the_file_it_read(tmp_dir):
+def test_a_fill_records_the_release_it_read(tmp_dir):
     log = _logger_with(tmp_dir, [
-        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'files': {'L2A': 'a.h5'},
+        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_01'},
          'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
         {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'INDEXED',
          'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}},
     ])
     a, b = (1, 1, 1), (2, 1, 1)
-    log.record_fill_results({'filled': {a: ['L4A'], b: ['L4A']}, 'files': {a: {'L4A': 'a4.h5'}}})
+    log.record_fill_results({'filled': {a: ['L4A'], b: ['L4A']}, 'releases': {a: {'L4A': '02_002_01'}}})
     g = {x['orbit']: x for x in log.granule_info}
-    assert g[1]['files'] == {'L2A': 'a.h5', 'L4A': 'a4.h5'}
-    assert 'files' not in g[2]                          # no source given: still unknown
+    assert g[1]['releases'] == {'L2A': '02_003_01', 'L4A': '02_002_01'}
+    assert 'releases' not in g[2]                       # no source given: still unknown
 
 
-def test_registration_records_files_of_granules_not_indexed_yet(tmp_dir):
-    """A granule takes the files of the listing until it is read; then it
-    keeps them, so a later re-release can be told apart (#47)."""
+def test_registration_never_replaces_a_recorded_release(tmp_dir):
+    """A granule not indexed yet gains releases only for products it has none
+    for: rows a killed run left may come from the release recorded first, and
+    an older tag is reported later where a newer one would hide them (#47)."""
     log = _logger_with(tmp_dir, [
-        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'files': {'L2A': 'old.h5'}},
-        {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'NO_DATA', 'files': {'L2A': 'old.h5'}},
+        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': '02_003_01'}},
+        {'orbit': 2, 'granule': 1, 'track': 1, 'status': 'NO_DATA', 'releases': {'L2A': '02_003_01'}},
         {'orbit': 3, 'granule': 1, 'track': 1},                                 # legacy: no status
-        {'orbit': 4, 'granule': 1, 'track': 1, 'status': 'PENDING', 'files': {'L2A': 'old.h5'}},
-        {'orbit': 5, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED'},
+        {'orbit': 4, 'granule': 1, 'track': 1, 'status': 'PENDING', 'releases': {'L2A': '02_003_01'}},
+        {'orbit': 5, 'granule': 1, 'track': 1, 'status': 'MERGE_FAILED', 'releases': {'L2A': '02_003_01'}},
+        {'orbit': 6, 'granule': 1, 'track': 1, 'status': 'FAILED'},
     ])
-    new = {'L2A': 'new.h5', 'L4A': 'new4.h5'}
-    log.register_pending_granules([{'orbit': o, 'granule': 1, 'track': 1, 'files': new} for o in range(1, 7)])
+    new = {'L2A': '02_004_01', 'L4A': '02_002_01'}
+    log.register_pending_granules([{'orbit': o, 'granule': 1, 'track': 1, 'releases': new} for o in range(1, 8)])
 
     g = {x['orbit']: x for x in log.granule_info}
-    assert g[1]['files'] == {'L2A': 'old.h5'} and g[2]['files'] == {'L2A': 'old.h5'}
-    assert 'files' not in g[3]
-    assert g[4]['files'] == new and g[5]['files'] == new
-    assert g[6] == {'orbit': 6, 'granule': 1, 'track': 1, 'files': new, 'status': 'PENDING'}
-    g[4]['files']['L2A'] = 'x'                          # a copy, not the caller's dict
-    assert new['L2A'] == 'new.h5'
+    assert g[1]['releases'] == {'L2A': '02_003_01'} and g[2]['releases'] == {'L2A': '02_003_01'}
+    assert 'releases' not in g[3]
+    assert g[4]['releases'] == g[5]['releases'] == {'L2A': '02_003_01', 'L4A': '02_002_01'}
+    assert g[6]['releases'] == new
+    assert g[7] == {'orbit': 7, 'granule': 1, 'track': 1, 'releases': new, 'status': 'PENDING'}
+    assert g[6]['releases'] is not new and g[7]['releases'] is not new
     # The skip list stays bare (orbit, granule, track) dicts.
     assert {tuple(sorted(d)) for d in log.get_finished_granules()} == {('granule', 'orbit', 'track')}
 
