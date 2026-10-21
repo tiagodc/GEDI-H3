@@ -139,7 +139,7 @@ def test_a_file_left_empty_is_removed_with_its_metadata_and_cell_summary(layout)
 
     assert not os.path.exists(os.path.dirname(dest))                   # file, metadata and year dir
     assert h3_merge_metadata(cell_dir) is None
-    assert os.listdir(cell_dir) == []                                  # no stale cell summary
+    assert not os.path.exists(cell_dir)                                # no stale summary, no empty cell
 
 
 def test_the_already_merged_skip_never_applies_while_replacing(layout):
@@ -203,3 +203,66 @@ def test_stale_rows_mask_reads_dictionary_columns(tmp_dir):
     for b in (batch, dict_batch):
         assert _stale_granule_rows(b, {_key(100): _new_files(100)}).tolist() == [True] * 3
         assert _stale_granule_rows(b, {_key(101): _new_files(101)}).tolist() == [False] * 3
+
+
+def test_new_rows_that_do_not_name_the_given_files_are_refused(layout):
+    """Idempotence holds only if the new rows name the files in the map: a
+    mismatch (a path, a wrong release, a null source) would make a re-run
+    delete them, so the merge refuses before touching the destination."""
+    from gedih3.exceptions import GediMergeError
+    from gedih3.gh3builder import h3_merge_files
+    in_dir, out_dir, dest = layout
+    _write(dest, _rows(100, range(0, 3), OLD, 1.0))
+    before = pq.read_table(dest)
+    frag = os.path.join(in_dir, 'O00100_G01_T01100.BEAM0000.parquet')
+    new = _rows(100, [0, 1], NEW, 9.0)
+    new.loc[1, 'root_file_l4a'] = None
+    _write(frag, new)
+
+    with pytest.raises(GediMergeError, match='do not come from the files'):
+        h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)})
+    assert pq.read_table(dest).equals(before) and os.path.exists(frag)
+    with pytest.raises(GediMergeError, match='basenames'):
+        h3_merge_files(in_dir, out_dir, replace_granules={
+            _key(100): {p: '/soc/2020/001/' + f for p, f in _new_files(100).items()}})
+    assert pq.read_table(dest).equals(before)
+
+
+def test_rows_without_a_gedi_source_name_are_kept(tmp_dir):
+    from gedih3.utils import parquet_merge_files
+    src = os.path.join(tmp_dir, 'a.parquet')
+    odd = _rows(100, range(0, 2), OLD, 2.0)
+    odd['root_file_l2a'] = [None, 'custom.h5']
+    _write(src, _rows(100, range(2, 4), OLD, 1.0), odd)
+    out = os.path.join(tmp_dir, 'b.parquet')
+    stats = parquet_merge_files(out, [src], replace_granules={_key(100): _new_files(100)})
+    assert stats['shot_count'] == 2 and set(pq.read_table(out)['agbd_l4a'].to_pylist()) == {2.0}
+
+
+def test_a_destination_without_a_product_source_column_checks_the_others(layout):
+    """No root_file_l4a column (a product added by a variable update): its
+    file cannot be checked, so L2A alone decides."""
+    from gedih3.gh3builder import h3_merge_files
+    in_dir, out_dir, dest = layout
+    _write(dest, _rows(100, range(0, 2), OLD, 1.0).drop(columns='root_file_l4a'))
+    _write(os.path.join(in_dir, 'O00100_G01_T01100.BEAM0000.parquet'),
+           _rows(100, [0], NEW, 9.0).drop(columns='root_file_l4a'))
+    h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)})
+    assert list(_table(dest).agbd_l4a) == [9.0]
+
+
+def test_a_zero_row_file_left_by_a_kill_is_removed_on_resume(layout):
+    from gedih3.gh3builder import h3_merge_files
+    in_dir, out_dir, dest = layout
+    _write(dest, _rows(100, range(0, 0), OLD, 1.0))                    # metadata gone, file emptied
+    assert h3_merge_files(in_dir, out_dir, replace_granules={_key(100): _new_files(100)}) is None
+    assert not os.path.exists(dest)
+
+
+def test_replace_granules_refuses_replace_true(layout):
+    from gedih3.exceptions import GediValidationError
+    from gedih3.gh3builder import h3_merge_files
+    in_dir, out_dir, dest = layout
+    _write(dest, _rows(100, range(0, 2), OLD, 1.0))
+    with pytest.raises(GediValidationError):
+        h3_merge_files(in_dir, out_dir, replace=True, replace_granules={_key(100): _new_files(100)})

@@ -588,7 +588,8 @@ def h3_merge_metadata(h3_subdir):
     str or None
         Path to the merged metadata JSON file, or None if no metadata
         files were found. With no year parquet left, a summary from an
-        earlier merge is removed.
+        earlier merge is removed, and so is the partition directory when
+        nothing else is left in it.
     """
     files = glob.glob(os.path.join(h3_subdir,'*','*.parquet'))
     if not files:
@@ -599,6 +600,10 @@ def h3_merge_metadata(h3_subdir):
                 os.unlink(stale)
             except OSError:
                 pass
+        try:
+            os.rmdir(h3_subdir)  # only when nothing else is left in it
+        except OSError:
+            pass
         return None
     year_metadata = [h3_read_metadata(f) for f in files]
     year_metadata = [m for m in year_metadata if m is not None]
@@ -851,7 +856,10 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules
         is rewritten even when ``in_dir`` holds no fragment (the granules'
         shots left this cell-year), the "already merged" skip never applies,
         and a file left with no row is removed with its metadata (and its
-        year directory, when empty). Re-running gives the same result.
+        year directory, when empty). Re-running gives the same result. An
+        unreadable existing file is handled as on any merge: the fragments
+        alone are written (without fragments, it is left as it is). Not
+        with ``replace=True`` (:class:`GediValidationError`).
 
     Returns
     -------
@@ -879,7 +887,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules
     # on an empty in_dir.
     promoted = not replace and _promote_orphan_merge_result(h3_file)
 
-    replacing = bool(replace_granules) and not replace and os.path.exists(out_file)
+    if replace_granules and replace:
+        raise GediValidationError("h3_merge_files: replace_granules needs replace=False (it edits the existing file)")
+    replacing = bool(replace_granules) and os.path.exists(out_file)
     if len(files) == 0 and not replacing:
         return h3_file if promoted else None
 
@@ -1003,7 +1013,9 @@ def h3_merge_files(in_dir, out_dir, rm_src=True, replace=False, replace_granules
     )
     if replacing and not stats['shot_count']:
         # Every row was a replaced granule's: no file, no metadata, no year.
-        for path in (out_file, h3_file.replace('.parquet', PARTITION_META_FILENAME)):
+        # Metadata first: a kill in between leaves a 0-row file, which the
+        # next run removes, rather than metadata listing gone granules.
+        for path in (h3_file.replace('.parquet', PARTITION_META_FILENAME), out_file):
             try:
                 os.unlink(path)
             except FileNotFoundError:

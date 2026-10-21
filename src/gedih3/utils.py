@@ -1977,15 +1977,19 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
       granules take their place: the re-indexing of re-released granules
       (#47). A row a replacement already wrote names the new files and is
       kept, so the merge can be re-run at any point with the same result,
-      with or without the fragments that held the new rows.
+      with or without the fragments that held the new rows. That holds only
+      if the new rows do name the given files, so it is enforced: a row of
+      a replaced granule in any other input that does not raises
+      :class:`GediMergeError` before the destination is touched.
 
     Parameters
     ----------
     replace_granules : dict, optional
         ``{(orbit, granule, track): {product: basename}}``: drop ``flist[0]``
         rows from these granules unless every ``root_file_<product>`` column
-        it has already names the given file. Requires ``shot_number`` and
-        ``root_file_l2a`` columns (:class:`GediMergeError` otherwise).
+        it has already names the given file. Values are basenames, as rows
+        store them. Requires ``shot_number`` and ``root_file_l2a`` columns
+        (:class:`GediMergeError` otherwise).
     rows_per_group : int, default 100_000
         Output row-group size and per-file iter batch size.
     bbox : list[float] or None
@@ -2038,6 +2042,10 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
     has_root_file = 'root_file_l2a' in schema.names
     if replace_granules and not (has_shot_number and has_root_file):
         raise GediMergeError(f"Cannot replace granules in {flist[0]}: it needs shot_number and root_file_l2a")
+    if replace_granules:
+        paths = [v for files in replace_granules.values() for v in files.values() if os.path.basename(v) != v]
+        if paths:
+            raise GediMergeError(f"replace_granules takes file basenames, as rows store them; got {paths[0]}")
     has_datetime = 'datetime' in schema.names
     stats = {
         'shot_count': 0,
@@ -2087,8 +2095,14 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
             }
             drop_stale = bool(replace_granules) and f == flist[0]
             for batch in _iter_batches_with_path(batch_iter, f):
-                if drop_stale and batch.num_rows:
+                if replace_granules and batch.num_rows:
                     stale = _stale_granule_rows(batch, replace_granules)
+                    if stale.any() and not drop_stale:
+                        # A new row a re-run would drop as stale: the map does
+                        # not describe what the fragments hold.
+                        raise GediMergeError(
+                            f"{int(stale.sum())} row(s) of a replaced granule in {f} do not come from the files "
+                            f"given in replace_granules; refusing to merge (a re-run would delete them)")
                     if stale.any():
                         batch = batch.filter(pa.array(~stale))
                         if not batch.num_rows:
