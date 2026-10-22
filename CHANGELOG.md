@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **`build_h3db` takes its arguments by position as 0.18.1 did.** `only_granules`, added in 0.20.4, sat before `status_callback`, so a call passing `status_callback` or a later argument by position bound it to the wrong parameter. It is now the last parameter.
+
 ## [0.21.0] - 2026-10-21
 
 ### Added
