@@ -5465,21 +5465,25 @@ def _year_file_replace_targets(year_pf, *, targets, products=()):
 _ROOT_FILE_KEY_RE = re.compile(r'_O(\d+)_(\d{2})_T(\d+)_')
 
 
-def _year_file_source_releases(year_pf, *, products):
-    """Worker: the source releases a (cell, year) file's rows name, per granule.
+def _year_file_source_releases(year_pf, *, products, targets, version=None):
+    """Worker: the source releases a (cell, year) file's rows name, per target granule.
 
-    Reads only the ``root_file_<prod>`` columns, dictionary-encoded and in
-    batches (a few distinct names per file: under a second for the largest
-    production file), and parses each name: the granule key and the release
-    tag (``gedi_release_tag``) are in it. Returns ``{granule key: {product:
-    [tags]}}``; a product listing more than one tag for a granule (a
-    replacement abandoned half way) is left to the caller.
+    Skips a file whose metadata lists none of ``targets`` (``soc_file_tree``
+    keys); one without metadata is read. Otherwise reads only the ``root_file_<prod>`` columns,
+    dictionary-encoded and in batches (a few hundred distinct names in the
+    largest production file: under a second, ~150 MB), and parses each name:
+    the granule key and the release tag (``gedi_release_tag``) are in it.
+    Only names of GEDI ``version`` count. Returns ``{granule key: {product:
+    [tags]}}`` for the targets; a product with more than one tag for a granule
+    (a replacement abandoned half way) is left to the caller.
     """
     import pyarrow.compute as pc
+    if (os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME))     # no sidecar: read it anyway
+            and not _year_file_target_granules(year_pf, targets=targets)):
+        return {}
     pf = pq.ParquetFile(year_pf)
     cols = {f"root_file_{p.lower()}": p for p in products}
     present = [c for c in cols if c in pf.schema_arrow.names]
-    out: Dict[str, Dict[str, set]] = {}
     if not present:
         return {}
     pf = pq.ParquetFile(year_pf, read_dictionary=present)
@@ -5487,25 +5491,28 @@ def _year_file_source_releases(year_pf, *, products):
     for batch in pf.iter_batches(batch_size=1_000_000, columns=present):
         for c in present:
             names[c].update(pc.unique(batch.column(c)).to_pylist())
+    suffix = f"_V{int(version):03d}" if version else None
+    out: Dict[str, Dict[str, set]] = {}
     for c, values in names.items():
         for name in values:
-            m = _ROOT_FILE_KEY_RE.search(os.path.basename(str(name))) if name else None
-            tag = gedi_release_tag(str(name)) if m else None
-            if tag:
-                key = f"O{int(m.group(1)):05d}_{int(m.group(2)):02d}_T{int(m.group(3)):05d}"
+            base = os.path.basename(str(name)) if name else ''
+            m = _ROOT_FILE_KEY_RE.search(base)
+            tag = gedi_release_tag(base) if m and (suffix is None or suffix in base) else None
+            key = f"O{int(m.group(1)):05d}_{int(m.group(2)):02d}_T{int(m.group(3)):05d}" if tag else None
+            if key in targets:
                 out.setdefault(key, {}).setdefault(cols[c], set()).add(tag)
     return {k: {p: sorted(t) for p, t in v.items()} for k, v in out.items()}
 
 
-def releases_from_rows(h3_dir: str, products) -> Tuple[Dict[Tuple[int, int, int], Dict[str, str]],
-                                                         Dict[Tuple[int, int, int], Dict[str, List[str]]]]:
-    """The source release of every granule product, read from the database's rows (#67).
+def releases_from_rows(h3_dir: str, products, keys, version: Optional[int] = None):
+    """The source release of granule products, read from the database's rows (#67).
 
     A database built before gedih3 0.20.10 records no release per granule,
     so re-released granules cannot be found from the build log. Every row
     names its source file per product (``root_file_<prod>``), and the file
     name holds the granule key and the release (PPDS, PGE, generation,
-    suffix): one worker task per (cell, year) file reads only those columns
+    suffix): one worker task per (cell, year) file reads its metadata and,
+    if it lists one of ``keys``, those columns only
     (:func:`_year_file_source_releases`). The files come from the
     database's ``_manifest.txt`` (:func:`smart_glob`).
 
@@ -5516,29 +5523,35 @@ def releases_from_rows(h3_dir: str, products) -> Tuple[Dict[Tuple[int, int, int]
     products : iterable of str
         Products to read, e.g. ``['L2A', 'L4A']``; one without a source
         column is skipped.
+    keys : iterable of tuple
+        ``(orbit, granule, track)`` of the granules to read.
+    version : int, optional
+        The database's GEDI version: names of another one are ignored.
 
     Returns
     -------
-    tuple of dict
-        ``(releases, mixed)``: ``{(orbit, granule, track): {product: tag}}``
-        for products whose rows name one release, and ``{key: {product:
-        [tags]}}`` for those naming several (left unknown, never guessed).
+    tuple
+        ``(releases, mixed, failed)``: ``{key: {product: tag}}`` for products
+        whose rows name one release; ``{key: {product: [tags]}}`` for those
+        naming several (left unknown, never guessed); and the files that
+        could not be read (skipped and reported: their rows are not counted).
         Requires a registered dask Client.
-
-    Raises
-    ------
-    GediDatabaseError
-        A file could not be read: a partial answer would leave granules out.
     """
     from .parallel import parallel_map
     from .utils import smart_glob
+    targets = frozenset(_granule_key_str(k) for k in keys)
+    if not targets:
+        return {}, {}, []
     files = sorted(smart_glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
     found: Dict[str, Dict[str, set]] = {}
-    fn = functools.partial(_year_file_source_releases, products=sorted(products))
+    failed = []
+    fn = functools.partial(_year_file_source_releases, products=sorted(products), targets=targets, version=version)
     for year_pf, res in parallel_map(files, fn, desc="Reading source releases", unit="file",
                                      batch_size=500 if len(files) > 10000 else 0):
         if isinstance(res, Exception):
-            raise GediDatabaseError(f"Cannot read the source columns of {year_pf} ({res}); no release was recorded")
+            failed.append(year_pf)
+            logger.warning(f"Reading source releases: skipped {year_pf} ({type(res).__name__}: {res})")
+            continue
         for key, prods in (res or {}).items():
             for p, tags in prods.items():
                 found.setdefault(key, {}).setdefault(p, set()).update(tags)
@@ -5550,7 +5563,7 @@ def releases_from_rows(h3_dir: str, products) -> Tuple[Dict[Tuple[int, int, int]
                 releases.setdefault(k, {})[p] = next(iter(tags))
             else:
                 mixed.setdefault(k, {})[p] = sorted(tags)
-    return releases, mixed
+    return releases, mixed, failed
 
 
 def replacement_abandon_hint(tmp_dir: str) -> str:
@@ -6339,9 +6352,6 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     exclude = list(dict.fromkeys(stored_exclude(log1) + stored_exclude(log2)))
     if exclude:
         merged_log['exclude'] = exclude
-    # The rows-read releases (#67) cover both logs' granules only if both ran it.
-    if not (log1.get('releases_from_rows') and log2.get('releases_from_rows')):
-        merged_log.pop('releases_from_rows', None)
     
     # Merge products and variables
     products_1 = log1.get('products', {})

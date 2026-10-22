@@ -257,31 +257,33 @@ def _warn_superseded_granules(h3_logger, soc_entries, logger):
 
 
 def _adopt_row_releases(h3_logger, h3_dir, logger):
-    """Read, once, the releases of granules indexed before gedih3 recorded them (#67).
+    """Read the releases of indexed granules the log has none for, from their rows (#67).
 
     A database built before 0.20.10 records no release per granule, so a
     re-release of one could not be found. Its rows name their source files
     (``root_file_<prod>``): ``releases_from_rows`` reads those columns on the
-    workers and the log adopts them (in memory; the caller saves it). Needs a
-    registered dask Client. Never fails the run: on an error the granules
-    stay unknown, as before. Returns whether the log changed (it is marked
-    so the scan runs once, even when the rows gave nothing).
+    workers, for the files whose metadata lists such a granule, and the log
+    adopts them (in memory; the caller saves it). Each granule read is marked
+    (a ``releases`` entry), so it is read once. Needs a registered dask
+    Client. Never fails the run: an unreadable file is skipped and reported.
+    Returns whether the log changed.
     """
     from gedih3.exceptions import GediError
     from gedih3.gh3builder import releases_from_rows, _granule_key_str
-    if not h3_logger.needs_row_releases():
+    keys = h3_logger.row_release_targets()
+    if not keys:
         return False
     columns = set(h3_logger.log_data.get('h3_columns') or [])
     products = [p for p in h3_logger.product_vars or {} if f"root_file_{p.lower()}" in columns]
-    logger.info("Reading the source releases of granules indexed before gedih3 recorded them, from their rows' "
-                "root_file columns (once per database)")
+    logger.info(f"Reading the source releases of {len(keys)} indexed granule(s) the build log has none for "
+                f"(built before gedih3 recorded them) from their rows' root_file columns")
     try:
-        releases, mixed = releases_from_rows(h3_dir, products)
+        releases, mixed, failed = releases_from_rows(h3_dir, products, keys, version=h3_logger.gedi_version)
     except (GediError, OSError) as e:
-        logger.warning(f"Could not read the source releases from the rows ({type(e).__name__}: {e}); granules "
-                       f"indexed before gedih3 recorded releases are not checked for re-releases")
+        logger.warning(f"Could not read the source releases from the rows ({type(e).__name__}: {e}); those "
+                       f"granules are not checked for re-releases")
         return False
-    n = h3_logger.adopt_row_releases(releases)
+    n = h3_logger.adopt_row_releases(releases, keys)
     logger.info(f"Recorded {n} source release(s) read from the rows")
     if mixed:
         key, prods = next(iter(sorted(mixed.items())))
@@ -289,6 +291,9 @@ def _adopt_row_releases(h3_logger, h3_dir, logger):
             f"{len(mixed)} granule(s) have rows from more than one release of a product (e.g. {_granule_key_str(key)} "
             f"{', '.join(f'{p}: {t}' for p, t in sorted(prods.items()))}), as a replacement left half done would: "
             f"their release stays unknown. Re-index them by name with gh3_build --replace-granules <key>")
+    if failed:
+        logger.warning(f"{len(failed)} database file(s) could not be read (e.g. {failed[0]}): the releases of rows "
+                       f"there are not recorded; check them with gh3_doctor --check parquet_health")
     return True
 
 
@@ -856,7 +861,7 @@ def main():
                 elif _flag_changed:
                     h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products, --exclude
                 logger.info("Database is already up-to-date with requested parameters")
-                if _local_files and h3_logger.needs_row_releases():
+                if _local_files and h3_logger.row_release_targets():
                     with dask_client(**parse_dask_args(args)):
                         if _adopt_row_releases(h3_logger, args.output, logger):
                             h3_logger.save_log('COMPLETED')

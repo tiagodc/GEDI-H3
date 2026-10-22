@@ -1314,11 +1314,6 @@ class H3BuildLogger:
         if getattr(self, 'exclude', None):
             log_dict['exclude'] = list(self.exclude)
 
-        # When the releases of granules indexed before they were recorded were
-        # read from the rows (#67), so the scan runs once.
-        if self.log_data.get('releases_from_rows'):
-            log_dict['releases_from_rows'] = self.log_data['releases_from_rows']
-
         if hasattr(self, 'date_range'):
             log_dict['date_range'] = self.date_range
 
@@ -1581,26 +1576,28 @@ class H3BuildLogger:
                         n += 1
         return n
 
-    def needs_row_releases(self):
-        """Whether indexed granules lack a recorded release their rows could give (#67).
+    def row_release_targets(self):
+        """Indexed granules whose releases were never recorded nor read from their rows (#67).
 
-        True when an ``INDEXED`` granule has no tag for an indexed product of
-        the database whose ``root_file_<prod>`` column exists (``h3_columns``) and
-        :meth:`adopt_row_releases` has not run on this log yet: databases
-        built before gedih3 0.20.10 recorded none. Log-only.
+        ``INDEXED`` granules with no ``releases`` key: a database built before
+        gedih3 0.20.10 recorded none, and an entry registered by such a version
+        before it was indexed keeps none (its rows may come from any file).
+        Their rows name their source files (``root_file_<prod>``), so
+        :meth:`adopt_row_releases` takes them from there. Empty when the
+        database has no source column. Log-only.
+
+        Returns
+        -------
+        set of tuple
+            ``(orbit, granule, track)`` keys.
         """
-        if self.log_data.get('releases_from_rows'):
-            return False
         columns = set(self.log_data.get('h3_columns') or [])
-        products = [p for p in (self.product_vars or {}) if f"root_file_{p.lower()}" in columns]
-        return bool(products) and any(
-            g.get('status') == PRODUCT_STATUS_INDEXED
-            and any(p not in (g.get('releases') or {})
-                    and (g.get('products') or {}).get(p, PRODUCT_STATUS_INDEXED) == PRODUCT_STATUS_INDEXED
-                    for p in products)
-            for g in getattr(self, 'granule_info', None) or [])
+        if not any(f"root_file_{p.lower()}" in columns for p in self.product_vars or {}):
+            return set()
+        return {(g['orbit'], g['granule'], g['track']) for g in getattr(self, 'granule_info', None) or []
+                if g.get('status') == PRODUCT_STATUS_INDEXED and 'releases' not in g}
 
-    def adopt_row_releases(self, releases):
+    def adopt_row_releases(self, releases, keys):
         """Record the releases the database's own rows were read from (does not save).
 
         Parameters
@@ -1610,26 +1607,28 @@ class H3BuildLogger:
             ``root_file_<prod>`` columns (``gh3builder.releases_from_rows``),
             for products whose rows name a single release. Unlike
             :meth:`record_releases` (the files a write is about to read), these
-            are what the rows hold, so a granule recorded before releases
-            existed takes them too. A product with a tag keeps it. Marks the
-            log so the scan is not repeated (:meth:`needs_row_releases`).
+            are what the rows hold.
+        keys : iterable of tuple
+            The granules that were read (:meth:`row_release_targets`). Each
+            gets a ``releases`` entry, empty when its rows named none, so it
+            is not read again; a product not ``INDEXED`` for it stays out.
 
         Returns
         -------
         int
             Number of tags added.
         """
-        n = 0
+        keys, n = set(keys), 0
         for g in getattr(self, 'granule_info', None) or []:
-            tags = releases.get((g['orbit'], g['granule'], g['track']))
-            if not tags or g.get('status') != PRODUCT_STATUS_INDEXED:
+            key = (g['orbit'], g['granule'], g['track'])
+            if key not in keys or g.get('status') != PRODUCT_STATUS_INDEXED:
                 continue
             known = g.setdefault('releases', {})
-            for product, tag in tags.items():
-                if product not in known:
+            for product, tag in (releases.get(key) or {}).items():
+                if (product not in known
+                        and (g.get('products') or {}).get(product, PRODUCT_STATUS_INDEXED) == PRODUCT_STATUS_INDEXED):
                     known[product] = tag
                     n += 1
-        self.log_data['releases_from_rows'] = now()
         return n
 
     def record_fill_results(self, result, max_attempts=3, count_failures=True):

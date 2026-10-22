@@ -49,25 +49,32 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if not version:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary='the build log records no GEDI version; skipping')
-    mixed, n_from_rows, rows_error = {}, None, None
-    if hasattr(log, 'needs_row_releases') and log.needs_row_releases():
-        from ...exceptions import GediError
+    mixed, n_from_rows, failed = {}, None, []
+    keys = log.row_release_targets() if hasattr(log, 'row_release_targets') else set()
+    if keys:
+        # Read-only: the releases are adopted into a copy, never into the
+        # shared logger a --fix would save; gh3_build records them.
+        import copy
         from ...gh3builder import releases_from_rows
         columns = set(log.log_data.get('h3_columns') or [])
+        from ...exceptions import GediError
         try:
-            releases, mixed = releases_from_rows(ctx.h3_dir, [p for p in log.product_vars or {}
-                                                              if f"root_file_{p.lower()}" in columns])
-            n_from_rows = log.adopt_row_releases(releases)
+            releases, mixed, failed = releases_from_rows(
+                ctx.h3_dir, [p for p in log.product_vars or {} if f"root_file_{p.lower()}" in columns], keys,
+                version=version)
         except (GediError, OSError) as e:
-            rows_error = f"{type(e).__name__}: {e}"
+            failed = [f"{type(e).__name__}: {e}"]
+        else:
+            log = copy.copy(log)
+            log.granule_info = copy.deepcopy(log.granule_info)
+            n_from_rows = log.adopt_row_releases(releases, keys)
     granules = getattr(log, 'granule_info', None) or []
     checked = [g for g in granules if g.get('status') in ('INDEXED', 'NO_DATA')]
     n_unknown = sum(1 for g in checked if not g.get('releases'))
     if len(checked) == n_unknown:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary=f"no recorded source releases to check ({n_unknown} granule(s) indexed before "
-                              f"gedih3 recorded them" + (f"; reading them from the rows failed: {rows_error}"
-                                                         if rows_error else "") + ")")
+                              f"gedih3 recorded them)")
 
     from ...gedidriver import soc_file_tree
     entries = soc_file_tree(ctx.soc_dir, to_list=True, require_all=False, glob_kwargs={'version': version},
@@ -92,6 +99,8 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if n_from_rows is not None:
         summary += (f" (releases of granules indexed before gedih3 recorded them read from the rows: "
                     f"{n_from_rows} tag(s); gh3_build records them on its next run)")
+    if failed:
+        summary += f"; {len(failed)} database file(s) unreadable, their rows not counted (e.g. {failed[0]})"
     if n_unknown:
         summary += f"; {n_unknown} granule(s) without a recorded release not checked"
     recommendations = []
