@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- **Re-released granules are found on databases built before gedih3 recorded releases.** A database built before 0.20.10 records no release per granule, so `gh3_build --replace-granules auto` found nothing, the re-release warnings stayed silent, and `gh3_doctor --check superseded_granules` only counted them. The first `gh3_build` that checks for re-releases (an update, an up-to-date run with a local SOC directory, or a replacement) now reads them from the rows' `root_file_<product>` columns, on the workers and only in the files that list such a granule, and records them in the build log, so each granule is read once (`releases_from_rows`); the doctor reads them the same way without saving. Granules are matched by key within the GEDI version, not by file name, so a newer PPDS, PGE or generation is found even when the indexed file was deleted or the new one downloaded outside gedih3. An unreadable partition file is skipped and reported, and the granules it may hold are read again on the next run, never recorded from their other files. A granule whose rows name two releases of a product (a replacement left half done) keeps both in the build log (`mixed_releases`), never one as its release: the doctor lists it, and `--replace-granules auto` re-indexes it whole once its newer release is listed. (#67)
+
 ## [0.21.1] - 2026-10-22
 
 ### Changed
