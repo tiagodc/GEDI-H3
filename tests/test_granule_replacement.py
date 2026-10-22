@@ -726,7 +726,7 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     old = _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
     _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098'))
     _gh3_build(soc_dir, h3_dir, tmp)
-    # What gedih3 before 0.21.2 left: no L4A source columns, no L4A release recorded.
+    # What an older gedih3 left: no L4A source columns, no L4A release recorded.
     import glob
     for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
         t = pq.read_table(f)

@@ -5474,8 +5474,8 @@ def check_replacement_sources(h3_dir: str, targets, tmp_dir: Optional[str] = Non
     """Refuse to replace a granule whose changed rows cannot be told from its old ones.
 
     A replacement merge keeps a row when every ``root_file_<prod>`` column
-    names the given file. A product added by a variable update of gedih3
-    before 0.21.2 has no such column (#68), so when it is the only product of
+    names the given file. A product added by a variable update of an older
+    gedih3 has no such column (#68), so when it is the only product of
     a granule with a new release, the merge would keep the old rows while
     the build log records the new release. A granule with another product
     re-released is fine: its rows are replaced whole. A granule with no
@@ -5532,8 +5532,8 @@ def check_replacement_sources(h3_dir: str, targets, tmp_dir: Optional[str] = Non
     products = sorted(products)
     cols = ', '.join(f'root_file_{p.lower()}' for p in products)
     msg = (f"Cannot replace {len(blind)} granule(s) ({', '.join(sorted(blind)[:5])}{' ...' if len(blind) > 5 else ''}): "
-           f"their rows have no {cols} column ({', '.join(products)} added by a variable update of gedih3 before "
-           f"0.21.2), and no other product of theirs is known to have a new release (none changed, or none "
+           f"their rows have no {cols} column ({', '.join(products)} added by a variable update of an older "
+           f"gedih3), and no other product of theirs is known to have a new release (none changed, or none "
            f"recorded), so their old rows cannot be told from the new ones. This run changed nothing. Leave them "
            f"out; only a fresh build records the source of {', '.join(products)}")
     if tmp_dir and os.path.exists(replacement_journal(tmp_dir)):
