@@ -5596,13 +5596,13 @@ def build_h3db(
     tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'),
     h3_dir: str = GH3_DEFAULT_H3_DIR,
     skip_granules: Optional[List[Dict]] = None,
-    only_granules: Optional[List[Dict]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     variable_only_update: bool = False,
     exclude: Optional[List[str]] = None,
     allow_missing_products: bool = False,
     granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None,
     stage1_outcome_callback: Optional[Callable[[set, set], None]] = None,
+    only_granules: Optional[List[Dict]] = None,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -5635,10 +5635,6 @@ def build_h3db(
         Output path for the H3-indexed parquet database.
     skip_granules : list of dict, optional
         List of granule identifiers to skip (from previous builds).
-    only_granules : list of dict, optional
-        If given, Stage 1 reads only these granules and leaves every other one
-        for a later build (``H3BuildLogger.stage1_only_granules``: a
-        spatial-only expansion reads only the added region).
     status_callback : callable, optional
         Called with status string at pipeline stage transitions.
     variable_only_update : bool, default False
@@ -5663,6 +5659,10 @@ def build_h3db(
         merge. Never called by the legacy writer (``GH3_WRITE_STREAMING``
         off, deprecated), by an interrupted drain, or when no granule is left
         to process.
+    only_granules : list of dict, optional
+        If given, Stage 1 reads only these granules and leaves every other one
+        for a later build (``H3BuildLogger.stage1_only_granules``: a
+        spatial-only expansion reads only the added region).
 
     Returns
     -------
