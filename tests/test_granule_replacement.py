@@ -235,8 +235,11 @@ def test_a_merge_never_uses_another_replacements_map(tmp_dir, monkeypatch):
     with pytest.raises(GediMergeError, match='changed'):
         gb._h3_merge_replacing('in/', 'out', rtmp, d1)
     os.remove(path)
-    with pytest.raises(GediMergeError, match='no journal'):
+    with pytest.raises(GediMergeError, match='changed or is gone'):
         gb._h3_merge_replacing('in/', 'out', rtmp, d1)
+    with pytest.raises(GediMergeError, match='no journal'):
+        gb._replacement_digest(rtmp)
+    assert gb.read_replacement_journal(rtmp) is None
 
 
 def test_a_granule_of_another_track_with_the_same_orbit_is_kept(tmp_dir):

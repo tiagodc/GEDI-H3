@@ -5412,9 +5412,10 @@ def read_replacement_journal(tmp_dir: str) -> Optional[Dict[Tuple[int, int, int]
     ``{(orbit, granule, track): {product: basename}}``, as passed to
     :func:`_replace_granules_build`.
     """
-    if not os.path.exists(replacement_journal(tmp_dir)):
+    try:
+        return _read_replacement_targets(tmp_dir)[1]
+    except FileNotFoundError:
         return None
-    return _read_replacement_targets(tmp_dir)[1]
 
 
 # Per worker process: the target map of the replacement read last, keyed by
@@ -5426,14 +5427,11 @@ def _read_replacement_targets(replacement_tmp: str) -> Tuple[str, Dict[Tuple[int
     """``(digest, targets)`` of the replacement journaled under ``replacement_tmp``.
 
     The digest is a SHA-256 of the journal's canonical JSON. Raises
-    ``GediMergeError`` when there is no journal.
+    ``FileNotFoundError`` when there is no journal.
     """
     import hashlib
-    try:
-        with open(replacement_journal(replacement_tmp)) as f:
-            entries = json.load(f)
-    except FileNotFoundError:
-        raise GediMergeError(f"Granule replacement: no journal under {replacement_tmp}; nothing was merged")
+    with open(replacement_journal(replacement_tmp)) as f:
+        entries = json.load(f)
     digest = hashlib.sha256(json.dumps(entries).encode()).hexdigest()
     targets = {}
     for ot, files in entries:
@@ -5444,7 +5442,10 @@ def _read_replacement_targets(replacement_tmp: str) -> Tuple[str, Dict[Tuple[int
 
 def _replacement_digest(replacement_tmp: str) -> str:
     """Content digest of a replacement's journal (see :func:`_read_replacement_targets`)."""
-    return _read_replacement_targets(replacement_tmp)[0]
+    try:
+        return _read_replacement_targets(replacement_tmp)[0]
+    except FileNotFoundError:
+        raise GediMergeError(f"Granule replacement: no journal under {replacement_tmp}; nothing was merged")
 
 
 def _h3_merge_replacing(in_dir, out_dir, replacement_tmp, digest, **kwargs):
@@ -5459,10 +5460,13 @@ def _h3_merge_replacing(in_dir, out_dir, replacement_tmp, digest, **kwargs):
     key = (replacement_journal(replacement_tmp), digest)
     rmap = _REPLACE_MAP_CACHE.get(key)
     if rmap is None:
-        found, rmap = _read_replacement_targets(replacement_tmp)
+        try:
+            found, rmap = _read_replacement_targets(replacement_tmp)
+        except FileNotFoundError:
+            found = None
         if found != digest:
-            raise GediMergeError(f"Granule replacement: the journal under {replacement_tmp} changed during the "
-                                 f"merge; nothing was merged for {in_dir}")
+            raise GediMergeError(f"Granule replacement: the journal under {replacement_tmp} changed or is gone "
+                                 f"during the merge; nothing was merged for {in_dir}")
         _REPLACE_MAP_CACHE.clear()
         _REPLACE_MAP_CACHE[key] = rmap
     return h3_merge_files(in_dir, out_dir, replace_granules=rmap, **kwargs)
