@@ -1305,6 +1305,30 @@ window.runMermaid = runMermaid;</script>
 </div>
 
 
+
+<div class="viewcode-block" id="stored_exclude">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.stored_exclude">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">stored_exclude</span><span class="p">(</span><span class="n">log_data</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The source exclusions a build log keeps (``gh3_build --exclude``).</span>
+
+<span class="sd">    A single pattern written by hand as a string is one pattern, never its</span>
+<span class="sd">    characters (``'*'`` alone would exclude every file).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        If ``exclude`` is neither a string nor a list of strings.</span>
+<span class="sd">    """</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">log_data</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'exclude'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="p">[</span><span class="n">value</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"The build log's 'exclude' must be a list of glob patterns (gh3_build --exclude), got </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">value</span><span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="H3BuildLogger">
 <a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">H3BuildLogger</span><span class="p">:</span>
@@ -1388,6 +1412,10 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># a database, persisted in its log so later runs keep admitting L2A</span>
         <span class="c1"># before the later products are published.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">allow_missing_products</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'allow_missing_products'</span><span class="p">))</span>
+        <span class="c1"># Source exclusions (gh3_build --exclude): persisted, so every later run</span>
+        <span class="c1"># and every listing that takes no --exclude (variable adds, gh3_doctor)</span>
+        <span class="c1"># leaves out the same files the database was built without.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exclude</span> <span class="o">=</span> <span class="n">stored_exclude</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span> <span class="o">=</span> <span class="n">product_vars</span>
@@ -2127,6 +2155,9 @@ window.runMermaid = runMermaid;</script>
 
         <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'allow_missing_products'</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
             <span class="n">log_dict</span><span class="p">[</span><span class="s1">'allow_missing_products'</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'exclude'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="n">log_dict</span><span class="p">[</span><span class="s1">'exclude'</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exclude</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'date_range'</span><span class="p">):</span>
             <span class="n">log_dict</span><span class="p">[</span><span class="s1">'date_range'</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">date_range</span>

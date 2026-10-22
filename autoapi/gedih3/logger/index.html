@@ -553,6 +553,9 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.logger.resolve_soc_version" title="gedih3.logger.resolve_soc_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_soc_version</span></code></a>(soc_dir)</p></td>
 <td><p>Return the GEDI data version a local SOC tree was populated with, or None.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.logger.stored_exclude" title="gedih3.logger.stored_exclude"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stored_exclude</span></code></a>(→ list)</p></td>
+<td><p>The source exclusions a build log keeps (<code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">--exclude</span></code>).</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -748,6 +751,22 @@ as successful.</p>
 
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="gedih3.logger.stored_exclude">
+<span class="sig-prename descclassname"><span class="pre">gedih3.logger.</span></span><span class="sig-name descname"><span class="pre">stored_exclude</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">log_data</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/logger.html#stored_exclude"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.stored_exclude" title="Link to this definition">#</a></dt>
+<dd><p>The source exclusions a build log keeps (<code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">--exclude</span></code>).</p>
+<p>A single pattern written by hand as a string is one pattern, never its
+characters (<code class="docutils literal notranslate"><span class="pre">'*'</span></code> alone would exclude every file).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>GediValidationError</dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">exclude</span></code> is neither a string nor a list of strings.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gedih3.logger.</span></span><span class="sig-name descname"><span class="pre">H3BuildLogger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">product_vars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spatial</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temporal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">res</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">part</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">source_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger" title="Link to this definition">#</a></dt>
@@ -804,6 +823,11 @@ as successful.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.allow_missing_products">
 <span class="sig-name descname"><span class="pre">allow_missing_products</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.allow_missing_products" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.exclude">
+<span class="sig-name descname"><span class="pre">exclude</span></span><a class="headerlink" href="#gedih3.logger.H3BuildLogger.exclude" title="Link to this definition">#</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -1237,6 +1261,7 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.SOCDownloadLogger.save_log"><code class="docutils literal notranslate"><span class="pre">SOCDownloadLogger.save_log()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.stored_exclude"><code class="docutils literal notranslate"><span class="pre">stored_exclude()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.default_products"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.default_products</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.preset_products"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.preset_products</span></code></a></li>
@@ -1249,6 +1274,7 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.build_start_time"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.build_start_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.previous_status"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.previous_status</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.allow_missing_products"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.allow_missing_products</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.exclude"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.exclude</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_spatial"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_spatial</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_temporal"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_temporal</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.new_product_vars"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.new_product_vars</span></code></a></li>

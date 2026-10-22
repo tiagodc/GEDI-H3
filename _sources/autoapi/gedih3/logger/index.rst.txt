@@ -36,6 +36,7 @@ Functions
    gedih3.logger.merge_temporal
    gedih3.logger.merge_product_vars
    gedih3.logger.resolve_soc_version
+   gedih3.logger.stored_exclude
 
 
 Module Contents
@@ -279,6 +280,35 @@ Module Contents
    .. py:method:: save_log(status)
 
 
+.. py:function:: stored_exclude(log_data) -> list
+
+   
+   The source exclusions a build log keeps (``gh3_build --exclude``).
+
+   A single pattern written by hand as a string is one pattern, never its
+   characters (``'*'`` alone would exclude every file).
+
+
+
+
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If ``exclude`` is neither a string nor a list of strings.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:class:: H3BuildLogger(product_vars, spatial=None, temporal=None, res: int = 12, part: int = 3, version: int = None, dir=None, source_mode=None)
 
    .. py:attribute:: default_products
@@ -318,6 +348,9 @@ Module Contents
 
 
    .. py:attribute:: allow_missing_products
+
+
+   .. py:attribute:: exclude
 
 
    .. py:attribute:: new_spatial

@@ -775,7 +775,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    the listed file.</span>
 
 <span class="sd">Compares the build log's recorded ``releases`` (gh3_build &gt;= 0.20.10) with</span>
-<span class="sd">the file a listing picks now. A granule indexed earlier has no recorded</span>
+<span class="sd">the file a listing picks now, leaving out the files the build excludes (the</span>
+<span class="sd">log's ``exclude``, gh3_build --exclude). A granule indexed earlier has no recorded</span>
 <span class="sd">release and cannot be checked; it is counted, not reported.</span>
 
 <span class="sd">Performance: one parallel SOC walk (``soc_file_tree``) and a log-only</span>
@@ -813,7 +814,8 @@ window.runMermaid = runMermaid;</script>
                               <span class="sa">f</span><span class="s2">"gedih3 recorded them)"</span><span class="p">)</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">...gedidriver</span><span class="w"> </span><span class="kn">import</span> <span class="n">soc_file_tree</span>
-    <span class="n">entries</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">})</span>
+    <span class="n">entries</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">soc_dir</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">},</span>
+                            <span class="n">exclude</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">log</span><span class="p">,</span> <span class="s1">'exclude'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">)</span>
     <span class="n">found</span> <span class="o">=</span> <span class="n">log</span><span class="o">.</span><span class="n">superseded_releases</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span>
 
     <span class="n">findings</span> <span class="o">=</span> <span class="p">[]</span>
@@ -834,7 +836,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
             <span class="s2">"Rows of these granules come from the older release: re-index them with gh3_build -i &lt;soc&gt; -o &lt;db&gt; "</span>
             <span class="s2">"--replace-granules auto. Until then, variables added and products filled later read the newer "</span>
-            <span class="s2">"files (adding variables does not apply --exclude, and this check does not either)"</span><span class="p">)</span>
+            <span class="s2">"files. Files matching the build's --exclude patterns (kept in its log) are left out"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">n_older</span><span class="p">:</span>
         <span class="n">recommendations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
             <span class="s2">"Restore the release these granules were indexed from before adding variables or filling products"</span><span class="p">)</span>

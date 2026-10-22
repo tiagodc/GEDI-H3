@@ -515,7 +515,8 @@ the listed file.</p></li>
 </dd>
 </dl>
 <p>Compares the build log’s recorded <code class="docutils literal notranslate"><span class="pre">releases</span></code> (gh3_build &gt;= 0.20.10) with
-the file a listing picks now. A granule indexed earlier has no recorded
+the file a listing picks now, leaving out the files the build excludes (the
+log’s <code class="docutils literal notranslate"><span class="pre">exclude</span></code>, gh3_build –exclude). A granule indexed earlier has no recorded
 release and cannot be checked; it is counted, not reported.</p>
 <p>Performance: one parallel SOC walk (<code class="docutils literal notranslate"><span class="pre">soc_file_tree</span></code>) and a log-only
 comparison; no HDF5 or parquet is opened.</p>

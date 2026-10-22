@@ -5696,7 +5696,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_add_variables</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">new_product_vars</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                         <span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                         <span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Add new variables to an existing H3 database via inverted fan-out.</span>
 
 <span class="sd">    **Architecture: read each granule ONCE, fan its shots to all owning</span>
@@ -5747,6 +5747,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    tmp_dir : str or None</span>
 <span class="sd">        Scratch root for intermediate fragments + sentinels. Defaults to</span>
 <span class="sd">        ``&lt;h3_dir&gt;/.tmp_var_update`` when not supplied by the caller.</span>
+<span class="sd">    exclude : list of str, optional</span>
+<span class="sd">        fnmatch patterns of source files to ignore (as ``gh3_build --exclude``),</span>
+<span class="sd">        so the new variables come from the files the database was built from.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -5830,9 +5833,10 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># later product and must still get the new variables of the ones it has.</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="n">glob_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'version'</span><span class="p">:</span> <span class="n">version</span><span class="p">}</span> <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="n">all_soc</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">all_soc</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">glob_kwargs</span><span class="o">=</span><span class="n">glob_kwargs</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-        <span class="n">all_soc</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">all_soc</span> <span class="o">=</span> <span class="n">soc_file_tree</span><span class="p">(</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">to_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">require_all</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">soc_source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Variable-only update requires a local SOC source (no S3 ETL support on this path)"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
@@ -6507,6 +6511,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If True, only add new variable columns to existing partition files</span>
 <span class="sd">        via shot_number join (``_build_add_variables``). Skips full pipeline.</span>
 <span class="sd">        The caller (CLI) determines this from the build logger state.</span>
+<span class="sd">    exclude : list of str, optional</span>
+<span class="sd">        fnmatch patterns of source file basenames to ignore (e.g.</span>
+<span class="sd">        ``['*_SGS.h5']``), in every listing. The patterns kept in an existing</span>
+<span class="sd">        database's build log (``gh3_build --exclude``) are always added.</span>
 <span class="sd">    allow_missing_products : bool, default False</span>
 <span class="sd">        Admit granules that have L2A but lack later products (L2B, L4A…</span>
 <span class="sd">        published after L2A). Their rows store those products' columns as</span>
@@ -6547,6 +6555,12 @@ window.runMermaid = runMermaid;</script>
     <span class="n">res</span><span class="p">,</span> <span class="n">part</span> <span class="o">=</span> <span class="n">validate_h3_params</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">version</span> <span class="o">=</span> <span class="n">_resolve_build_version</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">soc_source</span><span class="p">)</span>
+    <span class="c1"># The database's own exclusions (gh3_build --exclude, kept in its log) always apply.</span>
+    <span class="n">_log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">stored_exclude</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_read_cached</span>
+    <span class="n">_stored</span> <span class="o">=</span> <span class="n">stored_exclude</span><span class="p">(</span><span class="n">json_read_cached</span><span class="p">(</span><span class="n">_log_path</span><span class="p">))</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">_log_path</span><span class="p">)</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="n">exclude</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">_stored</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="n">exclude</span> <span class="ow">or</span> <span class="p">[])]))</span> <span class="ow">or</span> <span class="kc">None</span>
 
     <span class="c1"># Track temp directory for S3 download cleanup</span>
     <span class="n">_s3_tmp_dir</span> <span class="o">=</span> <span class="kc">None</span>
@@ -6575,7 +6589,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="p">)</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="n">_build_add_variables</span><span class="p">(</span>
                     <span class="n">h3_dir</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span>
-                    <span class="n">soc_source</span><span class="o">=</span><span class="n">_s3_tmp_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span>
+                    <span class="n">soc_source</span><span class="o">=</span><span class="n">_s3_tmp_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -6644,7 +6658,8 @@ window.runMermaid = runMermaid;</script>
 
         <span class="k">if</span> <span class="n">variable_only_update</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable-only update: adding </span><span class="si">{</span><span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2"> to existing database"</span><span class="p">)</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="n">_build_add_variables</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">_build_add_variables</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
+                                          <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">"Variable update completed but no partition files were modified. "</span>
@@ -6828,6 +6843,11 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># Start with log1 as base</span>
     <span class="n">merged_log</span> <span class="o">=</span> <span class="n">log1</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
     <span class="n">merged_log</span><span class="p">[</span><span class="s1">'last_modified'</span><span class="p">]</span> <span class="o">=</span> <span class="n">now</span><span class="p">()</span>
+    <span class="c1"># Source exclusions: a file either build left out stays out.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.logger</span><span class="w"> </span><span class="kn">import</span> <span class="n">stored_exclude</span>
+    <span class="n">exclude</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">stored_exclude</span><span class="p">(</span><span class="n">log1</span><span class="p">)</span> <span class="o">+</span> <span class="n">stored_exclude</span><span class="p">(</span><span class="n">log2</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">exclude</span><span class="p">:</span>
+        <span class="n">merged_log</span><span class="p">[</span><span class="s1">'exclude'</span><span class="p">]</span> <span class="o">=</span> <span class="n">exclude</span>
     
     <span class="c1"># Merge products and variables</span>
     <span class="n">products_1</span> <span class="o">=</span> <span class="n">log1</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">,</span> <span class="p">{})</span>

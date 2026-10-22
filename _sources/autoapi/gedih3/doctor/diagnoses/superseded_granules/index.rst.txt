@@ -18,7 +18,8 @@ gedih3.doctor.diagnoses.superseded_granules
        the listed file.
 
    Compares the build log's recorded ``releases`` (gh3_build >= 0.20.10) with
-   the file a listing picks now. A granule indexed earlier has no recorded
+   the file a listing picks now, leaving out the files the build excludes (the
+   log's ``exclude``, gh3_build --exclude). A granule indexed earlier has no recorded
    release and cannot be checked; it is counted, not reported.
 
    Performance: one parallel SOC walk (``soc_file_tree``) and a log-only

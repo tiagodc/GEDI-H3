@@ -1010,6 +1010,10 @@ Stage 1 schema is derived from files of exactly that release.</p>
 via shot_number join (<code class="docutils literal notranslate"><span class="pre">_build_add_variables</span></code>). Skips full pipeline.
 The caller (CLI) determines this from the build logger state.</p>
 </dd>
+<dt><strong>exclude</strong><span class="classifier">list of str, optional</span></dt><dd><p>fnmatch patterns of source file basenames to ignore (e.g.
+<code class="docutils literal notranslate"><span class="pre">['*_SGS.h5']</span></code>), in every listing. The patterns kept in an existing
+database’s build log (<code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">--exclude</span></code>) are always added.</p>
+</dd>
 <dt><strong>allow_missing_products</strong><span class="classifier">bool, default False</span></dt><dd><p>Admit granules that have L2A but lack later products (L2B, L4A…
 published after L2A). Their rows store those products’ columns as
 null, in the database’s types, until <code class="xref py py-func docutils literal notranslate"><span class="pre">_build_fill_products()</span></code>

@@ -696,6 +696,11 @@ Module Contents
            via shot_number join (``_build_add_variables``). Skips full pipeline.
            The caller (CLI) determines this from the build logger state.
 
+       **exclude** : list of str, optional
+           fnmatch patterns of source file basenames to ignore (e.g.
+           ``['*_SGS.h5']``), in every listing. The patterns kept in an existing
+           database's build log (``gh3_build --exclude``) are always added.
+
        **allow_missing_products** : bool, default False
            Admit granules that have L2A but lack later products (L2B, L4A…
            published after L2A). Their rows store those products' columns as
