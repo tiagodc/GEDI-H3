@@ -1009,3 +1009,14 @@ def test_build_h3db_applies_the_exclude_patterns_kept_in_the_build_log(tmp_dir, 
             gb.build_h3db({'L2A': ['rh_098']}, soc_source=soc_dir, h3_dir=h3_dir, tmp_dir=os.path.join(tmp_dir, 't'),
                           exclude=passed)
     assert seen == [['*_SGS.h5'], ['*_SGS.h5', '*_BETA.h5']]
+
+
+def test_build_h3db_keeps_the_published_positional_order():
+    """Parameters added since 0.18.1 (the release on PyPI and conda-forge) come
+    after its last one, so a call passing arguments by position binds them as
+    it did there."""
+    import inspect
+    from gedih3 import build_h3db
+    published = ['product_vars', 'res', 'part', 'spatial', 'temporal', 'soc_source', 'version', 'tmp_dir',
+                 'h3_dir', 'skip_granules', 'status_callback', 'variable_only_update', 'exclude']
+    assert list(inspect.signature(build_h3db).parameters)[:len(published)] == published
