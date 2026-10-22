@@ -133,26 +133,32 @@ def test_the_logs_exclude_is_a_list_of_patterns():
 
 def test_every_doctor_listing_applies_the_build_exclude(tmp_path, monkeypatch):
     """gh3_doctor's upstream check, both backfill fix paths and the dtype
-    reference sample take the patterns from the build log."""
+    reference sample take the patterns from the build log, down to the listing."""
     import types
+    import gedih3.gedidriver as gd
     import gedih3.gh3builder as gb
-    import gedih3.doctor.parallel as dparallel
     from gedih3.doctor import upstream
+    from gedih3.doctor.diagnoses import dtype_drift
     from gedih3.doctor.diagnoses.backfill import backfill_fix
-    from gedih3.doctor.diagnoses.dtype_drift import _sample_granule
     from gedih3.doctor.report import Report, Severity
     pats, seen = ['*_SGS.h5'], []
     soc_dir = str(tmp_path / 'soc')
     os.makedirs(soc_dir)
     log = types.SimpleNamespace(product_vars={'L2A': None}, granule_info=[], exclude=pats, gedi_version=2,
-                                spatial=None, temporal=None, log_data={'status': 'COMPLETED'},
-                                set_product_statuses=lambda updates: None)
+                                spatial=None, temporal=None, set_product_statuses=lambda updates: None,
+                                log_data={'status': 'COMPLETED', 'products': {'L2A': {}},
+                                          'date_range': [None, '2020-04-09']})
     ctx = types.SimpleNamespace(h3_logger=log, h3_dir=str(tmp_path), tmp_dir=str(tmp_path / 'tmp'),
                                 soc_dir=soc_dir, args=types.SimpleNamespace(s3=False))
 
+    def listing(site):
+        def tree(src, to_list=False, exclude=None, **k):
+            seen.append((site, exclude))
+            return [] if to_list else {}
+        return tree
+
     monkeypatch.setattr(upstream, 'query_available_granules', lambda *a, **k: {'L2A': set()})
-    monkeypatch.setattr(upstream, '_local_soc_keys_for_product',
-                        lambda soc, p, version=None, exclude=None: seen.append(('upstream', exclude)) or set())
+    monkeypatch.setattr(gb, 'soc_file_tree', listing('upstream'))
     upstream.gather_upstream(ctx)
 
     class _Stop(Exception):
@@ -167,14 +173,19 @@ def test_every_doctor_listing_applies_the_build_exclude(tmp_path, monkeypatch):
         backfill_fix(ctx, Report(name='backfill', severity=Severity.WARN,
                                  findings=[{'kind': 'missing_source', 'granule': g, 'products': ['L2A']}]))
 
-    monkeypatch.setattr(dparallel, 'parallel_map', lambda items, fn, exclude=None, **k: seen.append(('heal', exclude))
-                        or iter(()))
+    # The heal fan-out runs _heal_partition on the module's in-process workers.
+    monkeypatch.setattr(gb, 'soc_file_tree', listing('heal'))
     backfill_fix(ctx, Report(name='backfill', severity=Severity.WARN, findings=[
         {'kind': 'partial_nan', 'partition_dir': str(tmp_path / 'h3_03=x'), 'product': 'L2A', 'granule': g}]))
 
-    assert seen == [('upstream', pats), ('fill', pats), ('heal', pats)]
+    sample = dtype_drift._sample_granule
+    monkeypatch.setattr(dtype_drift, '_sample_granule',
+                        lambda *a, exclude=None, **k: seen.append(('dtype', exclude)) or None)
+    assert dtype_drift._reference_types(ctx)[0] is None
 
+    assert seen == [('upstream', pats), ('fill', pats), ('heal', pats), ('dtype', pats)]
+
+    monkeypatch.setattr(gd, 'soc_file_tree', listing('sample'))
     _touch(soc_dir, 100, '02_003_02')
-    _touch(soc_dir, 101, '02_003_02')
-    assert '_O00100_' in _sample_granule(soc_dir, 2, ['L2A'], latest='2020-04-09', exclude=['*_O00101_*'])['L2A']
-    assert '_O00101_' in _sample_granule(soc_dir, 2, ['L2A'], latest='2020-04-09', exclude=['*_O00100_*'])['L2A']
+    sample(soc_dir, 2, ['L2A'], latest='2020-04-09', exclude=pats)
+    assert seen[-1] == ('sample', pats)
