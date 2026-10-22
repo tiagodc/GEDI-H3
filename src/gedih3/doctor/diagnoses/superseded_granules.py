@@ -50,7 +50,7 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if not version:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary='the build log records no GEDI version; skipping')
-    n_from_rows, failed, n_unread = None, [], 0
+    n_from_rows, failed, read_error = None, [], None
     keys = log.row_release_targets() if hasattr(log, 'row_release_targets') else set()
     if keys:
         # Read-only: the releases are adopted into a copy, never into the
@@ -64,17 +64,16 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
                 ctx.h3_dir, [p for p in log.product_vars or {} if f"root_file_{p.lower()}" in columns], keys,
                 version=version)
         except (GediError, OSError) as e:
-            failed = [f"{type(e).__name__}: {e}"]
+            read_error = f"{type(e).__name__}: {e}"
         else:
             log = copy.copy(log)
             log.granule_info = copy.deepcopy(log.granule_info)
             n_from_rows = log.adopt_row_releases(releases, keys - unread, mixed=mixed)
-            n_unread = len(unread)
     mixed = log.mixed_release_granules() if hasattr(log, 'mixed_release_granules') else {}
     granules = getattr(log, 'granule_info', None) or []
     checked = [g for g in granules if g.get('status') in ('INDEXED', 'NO_DATA')]
     n_unknown = sum(1 for g in checked if not g.get('releases') and not g.get('mixed_releases'))
-    if len(checked) == n_unknown and not failed:
+    if len(checked) == n_unknown and not failed and not read_error:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary=f"no recorded source releases to check ({n_unknown} granule(s) indexed before "
                               f"gedih3 recorded them)")
@@ -102,9 +101,11 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if n_from_rows is not None:
         summary += (f" (releases of granules indexed before gedih3 recorded them read from the rows: "
                     f"{n_from_rows} tag(s); gh3_build records them on its next run)")
+    if read_error:
+        summary += f"; the releases of granules indexed before gedih3 recorded them could not be read ({read_error})"
     if failed:
         summary += (f"; {len(failed)} database file(s) unreadable (e.g. {failed[0] or 'a batch of files'}), "
-                    f"{n_unread} granule(s) they may hold not checked")
+                    f"the granules they may hold not checked")
     if n_unknown:
         summary += f"; {n_unknown} granule(s) without a recorded release not checked"
     recommendations = []
@@ -123,7 +124,8 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if n_older:
         recommendations.append(
             "Restore the release these granules were indexed from before adding variables or filling products")
-    return Report(name='superseded_granules', severity=Severity.WARN if findings or failed else Severity.INFO,
+    severity = Severity.WARN if findings or failed or read_error else Severity.INFO
+    return Report(name='superseded_granules', severity=severity,
                   findings=findings, summary=summary, recommendations=recommendations)
 
 

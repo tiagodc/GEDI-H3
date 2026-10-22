@@ -1058,3 +1058,20 @@ def test_the_doctor_reports_mixed_rows_when_no_release_is_known(tmp_dir):
         _mix_rows(f, 103, 'root_file_l4a')
     report = _doctor_superseded(h3_dir, soc_dir)
     assert [f['kind'] for f in report.findings] == ['mixed_releases'], report.summary
+
+
+def test_a_file_gone_since_the_listing_holds_no_granule(tmp_dir):
+    """A failed file that no longer exists (a stale manifest) blocks no key;
+    one with no metadata, or a lost batch, may hold any of them."""
+    from gedih3.gh3builder import _row_release_unread
+    keys = {(101, 1, 201), (103, 1, 203)}
+    targets = frozenset({'O00101_01_T00201', 'O00103_01_T00203'})
+    gone = os.path.join(tmp_dir, 'h3_03=x', 'year=2020', 'x.2020.0.parquet')
+    assert _row_release_unread([gone], targets, keys) == set()
+    os.makedirs(os.path.dirname(gone))
+    open(gone, 'wb').write(b'garbage')
+    assert _row_release_unread([gone], targets, keys) == keys
+    with open(gone.replace('.parquet', PARTITION_META_FILENAME), 'w') as f:
+        json.dump({'granules': [{'orbit': 103, 'granule': 1, 'track': 203}]}, f)
+    assert _row_release_unread([gone], targets, keys) == {(103, 1, 203)}
+    assert _row_release_unread([None], targets, keys) == keys

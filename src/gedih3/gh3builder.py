@@ -5587,7 +5587,8 @@ def _row_release_unread(failed, targets, keys):
     """The keys whose rows ``releases_from_rows`` could not all read.
 
     The granules each unreadable file's metadata lists (read here, on the
-    driver: a few small sidecars). Every key when a file has no readable
+    driver: a few small sidecars); a file gone since the listing holds none.
+    Every key when a file has no readable
     metadata, a whole batch failed (``None``), or too many files failed to
     look each one up.
     """
@@ -5597,6 +5598,8 @@ def _row_release_unread(failed, targets, keys):
         return set(keys)
     unread = set()
     for year_pf in failed:
+        if not os.path.exists(year_pf):
+            continue                               # gone since the listing (a stale manifest): no rows to read
         try:
             hits = _year_file_target_granules(year_pf, targets=targets)
             if hits is None and not os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME)):
