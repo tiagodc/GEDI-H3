@@ -145,7 +145,7 @@ def main():
             raise ValueError("No variables selected for extraction. Please specify variables with -l/--list or product-specific options.")
 
         # Build query
-        query_str = build_query_string(args)
+        query_str = build_query_string(args, columns=columns)
         if query_str:
             logger.info(f"Query filter: {query_str}")
 

@@ -1180,7 +1180,8 @@ rejects. So when a v3 query selects L4A and/or L4C but neither L2A nor L2B (L1B 
 not count), the always-applied L2A conditions leave out `degrade_flag == 0` and keep
 `l2a_quality_flag_rel3 == 1`. Selecting L2A or L2B as well keeps the full L2A
 conditions alongside the L4 ones, `degrade_flag == 0` included. Products are selected
-with their product flags or, without them, from the suffixes of `-l` variable names:
+with their product flags or, without them, from the suffixes of the columns the command
+reads (`-l` names, a `-l` file or wildcard, `gh3_aggregate`'s dict-form `-a` keys):
 
 | Query (v3) | Degrade conditions |
 |---|---|
@@ -1195,8 +1196,8 @@ a file or explicit names), so a database always stores the columns `--quality` r
 ::::{note}
 A v3 database built with an earlier gedih3 may lack `degrade_include_flag`. `--quality`
 then applies the remaining conditions, keeps `degrade_flag == 0` for every query and logs
-a warning, and updates keep indexing new
-granules without it so every file keeps one column set. Add it to the whole database
+a warning. Updates and `--replace-granules` keep writing new rows without it, so every
+file keeps one column set. Add it to the whole database
 with a variable update:
 `gh3_build -i <soc> -o <database> -l4a degrade_include_flag -l4c degrade_include_flag`.
 ::::

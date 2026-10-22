@@ -111,8 +111,11 @@ def _withhold_flags_absent_from_db(product_vars: Dict, h3_dir: str, version=None
     to every file at once.
 
     A-priori: reads only the build log's ``h3_columns``. A database without
-    one (a fresh build) and a product it does not hold yet (all its columns
-    are new) are left alone.
+    one (a fresh build) and a product it does not hold yet (no column with
+    its suffix: all its columns are new) are left alone. A product counts as
+    held by any column with its suffix, not by ``root_file_<p>``, which a
+    variable update of an older gedih3 did not write. A withheld flag is
+    logged with the variable update that adds it.
 
     Parameters
     ----------
@@ -135,12 +138,19 @@ def _withhold_flags_absent_from_db(product_vars: Dict, h3_dir: str, version=None
     for prod, val in product_vars.items():
         flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
         suffix = f"_{prod.lower()}"
-        if not columns or not flag_map or val is None or f"root_file{suffix}" not in columns:
+        if not columns or not flag_map or val is None or not any(c.endswith(suffix) for c in columns):
             continue
         absent = [f for f, _ in _get_versioned(flag_map, version) if f in val and f"{f}{suffix}" not in columns]
         if absent:
             val[:] = [v for v in val if v not in absent]
             withheld[prod] = absent
+    if withheld:
+        desc = ' '.join(f"-{p.lower()} {' '.join(fs)}" for p, fs in sorted(withheld.items()))
+        logger.warning(
+            f"The database predates quality flag(s) {withheld}: new rows are written without them, so "
+            f"every file keeps one column set and --quality skips them. Add them to the whole database "
+            f"with a variable update: gh3_build -i <soc> -o {h3_dir} {desc}"
+        )
     return withheld
 
 
@@ -5863,6 +5873,7 @@ def _replace_granules_build(
     # ── 3. Stage 1: the new files, in full, without the skip check ──
     product_vars = _expand_product_vars({p: list(v) for p, v in product_vars.items()}, list(targets.values()),
                                         version=version)
+    _withhold_flags_absent_from_db(product_vars, h3_dir, version=version)
     soc_files = [{p: f for p, f in files.items() if p in product_vars} for files in targets.values()]
     _pc = preclean_merge_failures(parquet_dir)
     if _pc['parquets_removed']:
@@ -6117,14 +6128,7 @@ def build_h3db(
 
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
-        withheld = _withhold_flags_absent_from_db(product_vars, h3_dir, version=version)
-        if withheld:
-            desc = ' '.join(f"-{p.lower()} {' '.join(fs)}" for p, fs in sorted(withheld.items()))
-            logger.warning(
-                f"The database predates quality flag(s) {withheld}: new granules are indexed without them, so "
-                f"every file keeps one column set and --quality skips them. Add them to the whole database "
-                f"with a variable update: gh3_build -i <soc> -o {h3_dir} {desc}"
-            )
+        _withhold_flags_absent_from_db(product_vars, h3_dir, version=version)
 
         # Scope fingerprint over the EXPANDED variables. The expansion edits
         # the caller's dict in place, and that dict is the build log's: what

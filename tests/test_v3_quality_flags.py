@@ -119,9 +119,31 @@ def _client():
     cluster.close()
 
 
-def test_an_update_after_the_flag_table_grew_keeps_one_column_set(tmp_dir, _client, monkeypatch):
+def _drop_l4a_source_columns(h3_dir):
+    """A database whose L4A an older gedih3 added by a variable update: no ``root_file_l4a`` / ``root_beam_l4a``."""
+    from gedih3.gh3builder import _refresh_year_columns_meta, h3_merge_metadata
+    drop = {'root_file_l4a', 'root_beam_l4a'}
+    for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
+        t = pq.ParquetFile(f).read()  # not read_table: it adds the hive partition column of the path
+        pq.write_table(t.drop_columns([c for c in t.column_names if c in drop]), f)
+        _refresh_year_columns_meta(f)
+    for d in glob.glob(os.path.join(h3_dir, 'h3_*')):
+        h3_merge_metadata(d)
+    path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    with open(path) as f:
+        log = json.load(f)
+    log['h3_columns'] = [c for c in log['h3_columns'] if c not in drop]
+    log['h3_columns_dtypes'] = {k: v for k, v in (log.get('h3_columns_dtypes') or {}).items() if k not in drop}
+    with open(path, 'w') as f:
+        json.dump(log, f)
+
+
+@pytest.mark.parametrize('without_source_columns', [False, True])
+def test_an_update_after_the_flag_table_grew_keeps_one_column_set(tmp_dir, _client, monkeypatch,
+                                                                  without_source_columns):
     """Without the guard, new cells held the new flag and older files did not:
-    every read naming it (``--quality``) failed on the older files."""
+    every read naming it (``--quality``) failed on the older files. A product an
+    older variable update added has no ``root_file_<p>`` and is still held."""
     import h5py
     import numpy as np
     import gedih3.gh3builder as gb
@@ -148,6 +170,8 @@ def test_an_update_after_the_flag_table_grew_keeps_one_column_set(tmp_dir, _clie
     gb.build_h3db(product_vars=log.product_vars, **kw)
     log.set_post_build_info()
     log.save_log('COMPLETED')
+    if without_source_columns:
+        _drop_l4a_source_columns(h3_dir)
 
     # The flag table grows, then the database takes a granule in its cells and one in a new cell.
     monkeypatch.setitem(_PRODUCT_QUALITY_FLAGS['L4A'], 2, _PRODUCT_QUALITY_FLAGS['L4A'][2] + [('new_flag', '== 1')])
@@ -160,10 +184,13 @@ def test_an_update_after_the_flag_table_grew_keeps_one_column_set(tmp_dir, _clie
     log.save_log('COMPLETED')
 
     files = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
-    assert len({tuple(sorted(pq.read_schema(f).names)) for f in files}) == 1
     assert not any('new_flag_l4a' in pq.read_schema(f).names for f in files)
     with open(os.path.join(h3_dir, BUILD_LOG_FILENAME)) as f:
         assert 'new_flag_l4a' not in json.load(f)['h3_columns']
+    # An update of a database without source columns also writes root_file_l4a / root_beam_l4a to
+    # new cells only, whatever the flag table: that drift is not the one this test is about.
+    source = {'root_file_l4a', 'root_beam_l4a'} if without_source_columns else set()
+    assert len({tuple(sorted(set(pq.read_schema(f).names) - source)) for f in files}) == 1
     cols = ['agbd_l4a', 'l4_quality_flag_l4a']
     assert len(gh3_load(h3_dir, columns=cols).compute()) == 3 * len(GEDI_BEAMS) * N_SHOTS
 
@@ -247,3 +274,84 @@ def test_l4_only_query_keeps_a_shot_its_inclusion_flag_admits():
     df['elev_highestreturn_outlier_flag_l4c'] = 0
     assert len(df.query(_query(V3_COLS, l4a=['minimal']))) == 2
     assert len(df.query(_query(V3_COLS, l2a=['minimal'], l4a=['minimal']))) == 1
+
+
+# gh3_build with the L4A table grown, as after a gedih3 upgrade. Dask workers import
+# this module too: the table grows in each, and only the main process runs the build.
+_GROWN_TABLE_RUNNER = """
+import sys
+from gedih3 import config
+if ('new_flag', '== 1') not in config._PRODUCT_QUALITY_FLAGS['L4A'][2]:
+    config._PRODUCT_QUALITY_FLAGS['L4A'][2] = config._PRODUCT_QUALITY_FLAGS['L4A'][2] + [('new_flag', '== 1')]
+if __name__ == '__main__':
+    from gedih3.cli import gh3_build
+    sys.exit(gh3_build.main())
+"""
+
+
+def test_a_replacement_after_the_flag_table_grew_keeps_one_column_set(tmp_dir):
+    """Replaced rows moved into a cell-year the database did not hold must not start the new flag's column there."""
+    import subprocess
+    import h5py
+    import numpy as np
+    from gedih3.config import GEDI_BEAMS
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_granule_replacement import NEW, OLD, _gh3_build, _write_release
+
+    soc, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+
+    def new_flag_in_l4a():
+        for fn in glob.glob(os.path.join(soc, '*', '*', 'GEDI04_A*.h5')):
+            with h5py.File(fn, 'a') as f:
+                for b in GEDI_BEAMS:
+                    if 'new_flag' not in f[b]:
+                        f[b]['new_flag'] = np.ones(f[b]['shot_number'].shape[0], dtype='u1')
+
+    moved = (101, 1, 201)
+    _write_release(soc, moved, OLD, lon0=-50.9, seed=1)
+    _write_release(soc, (103, 1, 203), OLD, lon0=-49.6, seed=3)
+    new_flag_in_l4a()
+    _gh3_build(soc, h3_dir, tmp)
+    before = {os.path.relpath(f, h3_dir) for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))}
+
+    # The re-release moves the granule's shots north, into cells the database does not hold yet.
+    names = _write_release(soc, moved, NEW, lon0=-50.3, seed=11, n=15, first=3)
+    with h5py.File(os.path.join(soc, '2020', '100', names['L2A']), 'a') as f:
+        for b in GEDI_BEAMS:
+            f[b]['lat_lowestmode'][...] = f[b]['lat_lowestmode'][...] + 0.5
+    new_flag_in_l4a()
+    runner = os.path.join(tmp_dir, 'grown_table_gh3_build.py')
+    with open(runner, 'w') as f:
+        f.write(_GROWN_TABLE_RUNNER)
+    cmd = [sys.executable, runner, '-i', soc, '-o', h3_dir, '-t', tmp, '--gedi-version', '2', '-N', '2', '-T', '1',
+           '-M', '2', '-P', '0', '--no-bbox-index', '-l2a', 'rh_098', '-l4a', 'agbd', '--region=-51,0,-49,1',
+           '--replace-granules', 'auto']
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    assert res.returncode == 0, (res.stdout + res.stderr)[-4000:]
+
+    files = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
+    assert {os.path.relpath(f, h3_dir) for f in files} - before      # the replacement did create files
+    assert len({tuple(sorted(pq.read_schema(f).names)) for f in files}) == 1
+    with open(os.path.join(h3_dir, BUILD_LOG_FILENAME)) as f:
+        assert 'new_flag_l4a' not in json.load(f)['h3_columns']
+
+
+# ---------------------------------------------------------------------------
+# products inferred from the columns a command reads
+# ---------------------------------------------------------------------------
+
+def test_quality_products_are_inferred_from_a_list_file_wildcards_and_resolved_columns(tmp_dir):
+    from gedih3.cliutils import build_query_string
+    vars_file = os.path.join(tmp_dir, 'vars.txt')
+    with open(vars_file, 'w') as f:
+        f.write('# biomass\nagbd_l4a\n')
+    for list_ in ([vars_file], ['agbd*']):
+        q = _query(V3_COLS, list_=list_)
+        assert '`l4a_quality_flag_rel3_l4a` == 1' in q and '`degrade_include_flag_l4a` == 1' in q, list_
+    # gh3_aggregate's dict-form -a names columns that no -l lists: the caller passes the resolved columns.
+    import types
+    from gedih3.config import GEDI_PRODUCTS
+    args = types.SimpleNamespace(quality=True, list=None, database=None, time_start=None, time_end=None,
+                                 beam_type=None, query=None, **{p.lower(): None for p in GEDI_PRODUCTS})
+    q = build_query_string(args, available_columns=V3_COLS, columns=['wsci_l4c', 'geometry'])
+    assert '`l4c_quality_flag_rel3_l4c` == 1' in q and 'degrade_flag_l2a' not in q

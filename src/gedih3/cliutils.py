@@ -1653,7 +1653,7 @@ def quality_conditions_for_selection(selected_products, version, available_colum
     return conditions
 
 
-def build_query_string(args, available_columns=None):
+def build_query_string(args, available_columns=None, columns=None):
     """Build the pandas query string of a CLI's filter arguments.
 
     Parameters
@@ -1664,13 +1664,19 @@ def build_query_string(args, available_columns=None):
     available_columns : list of str, optional
         Database columns; read from the build log of ``args.database`` when
         omitted.
+    columns : list of str, optional
+        The resolved columns the command reads (e.g. :func:`collect_columns`
+        plus dict-form ``-a`` keys). Without product flags, ``--quality``
+        selects the products these columns' suffixes name. When omitted, the
+        ``-l`` names are used, a file of names read and wildcards matched
+        against ``available_columns``.
 
     Returns
     -------
     str or None
         The conditions joined with ``&`` (``None`` when there are none). With
         ``--quality`` they are :func:`quality_conditions_for_selection` for the
-        products selected by product flags, or else by ``-l`` name suffixes.
+        products selected by product flags, or else by column suffixes.
     """
     if available_columns is None:
         from .gh3driver import gh3_read_meta
@@ -1683,10 +1689,19 @@ def build_query_string(args, available_columns=None):
     if args.quality:
         selected_products = [p for p in GEDI_PRODUCTS if getattr(args, p.lower(), None) is not None]
 
-        # Infer products from -l/--list variable name suffixes when no product flags used.
+        # Infer products from the columns' suffixes when no product flags used.
         if not selected_products:
             product_suffixes = {p.lower(): p for p in GEDI_PRODUCTS}
-            for var in (getattr(args, 'list', None) or []):
+            names = columns
+            if names is None:
+                import fnmatch
+                names = list(getattr(args, 'list', None) or [])
+                if len(names) == 1 and os.path.isfile(names[0]):
+                    with open(names[0]) as f:
+                        names = [ln.strip() for ln in f if ln.strip() and not ln.strip().startswith('#')]
+                names = [m for v in names
+                         for m in (fnmatch.filter(available_columns, v) if any(c in v for c in '*?[]') else [v])]
+            for var in names:
                 for suffix, prod in product_suffixes.items():
                     if var.endswith(f'_{suffix}'):
                         if prod not in selected_products:
