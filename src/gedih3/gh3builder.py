@@ -5649,6 +5649,10 @@ def build_h3db(
         If True, only add new variable columns to existing partition files
         via shot_number join (``_build_add_variables``). Skips full pipeline.
         The caller (CLI) determines this from the build logger state.
+    exclude : list of str, optional
+        fnmatch patterns of source file basenames to ignore (e.g.
+        ``['*_SGS.h5']``), in every listing. The patterns kept in an existing
+        database's build log (``gh3_build --exclude``) are always added.
     allow_missing_products : bool, default False
         Admit granules that have L2A but lack later products (L2B, L4A…
         published after L2A). Their rows store those products' columns as
@@ -5685,6 +5689,10 @@ def build_h3db(
     res, part = validate_h3_params(res, part)
     if version is None:
         version = _resolve_build_version(h3_dir, soc_source)
+    # The database's own exclusions (gh3_build --exclude, kept in its log) always apply.
+    _log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    _stored = (json_read(_log_path) or {}).get('exclude') if os.path.isfile(_log_path) else None
+    exclude = list(dict.fromkeys([*(_stored or []), *(exclude or [])])) or None
 
     # Track temp directory for S3 download cleanup
     _s3_tmp_dir = None

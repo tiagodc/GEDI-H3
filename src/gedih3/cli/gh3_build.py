@@ -329,6 +329,11 @@ def _replace_granules(args, h3_logger, soc_source, logger, tmp_dir):
         sys.exit(1)
 
 
+def _exclude_changed(h3_logger):
+    """Whether this run's ``--exclude`` adds patterns the build log does not keep yet."""
+    return h3_logger.exclude != list(h3_logger.log_data.get('exclude') or [])
+
+
 def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     """Re-index granules from their new release, or resume that (#47).
 
@@ -381,6 +386,8 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
         if (h3_logger.previous_status == 'COMPLETED' and os.path.exists(os.path.join(rtmp, _REPLACE_MERGING))
                 and all(_recorded(k, f) for k, f in journal.items())):
             # Finished and logged; only the cleanup was cut short.
+            if _exclude_changed(h3_logger):
+                h3_logger.save_log('COMPLETED')
             shutil.rmtree(rtmp, ignore_errors=True)
             logger.info("The re-indexing started earlier had finished; removed its scratch files")
             return
@@ -431,6 +438,8 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
             if len(skipped) > 5:
                 logger.warning(f"... and {len(skipped) - 5} more granule(s) not re-indexed")
             if not targets:
+                if _exclude_changed(h3_logger):
+                    h3_logger.save_log('COMPLETED')     # remember --exclude, as an up-to-date run does
                 logger.info("No granule to re-index")
                 return
 
@@ -696,10 +705,13 @@ def main():
     # run applies them all. Leaving --exclude out never re-admits a file the
     # database was built without (an _SGS variant would otherwise outrank it).
     _stored_exclude = list(h3_logger.exclude)
-    h3_logger.exclude = _stored_exclude + [p for p in (args.exclude or []) if p not in _stored_exclude]
+    h3_logger.exclude = list(dict.fromkeys(_stored_exclude + (args.exclude or [])))
     if set(_stored_exclude) - set(args.exclude or []):
         logger.info(f"Source files matching {', '.join(_stored_exclude)} are excluded for this database "
                     f"(build log); remove a pattern from the log's 'exclude' to admit them again")
+    if _added_exclude := [p for p in h3_logger.exclude if p not in _stored_exclude]:
+        logger.info(f"Source files matching {', '.join(_added_exclude)} are excluded for this database from now "
+                    f"on: the build log keeps the pattern for every later run")
     args.exclude = h3_logger.exclude or None
     # This run's choice; the logger attribute is what the log keeps.
     allow_missing = h3_logger.allow_missing_products
@@ -775,7 +787,7 @@ def main():
             if not _has_new_local_granules(soc_source, h3_logger, files=_local_files):
                 _flag_changed = ((args.allow_missing_products is not None
                                   and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
-                                 or h3_logger.exclude != list(h3_logger.log_data.get('exclude') or []))
+                                 or _exclude_changed(h3_logger))
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
