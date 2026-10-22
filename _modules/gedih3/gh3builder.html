@@ -6400,13 +6400,13 @@ window.runMermaid = runMermaid;</script>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">GH3_DEFAULT_TMP_DIR</span><span class="p">,</span> <span class="s1">'gh3_build'</span><span class="p">),</span>
     <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">GH3_DEFAULT_H3_DIR</span><span class="p">,</span>
     <span class="n">skip_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">only_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">status_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">variable_only_update</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">exclude</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">allow_missing_products</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">granule_products_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">stage1_outcome_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">set</span><span class="p">,</span> <span class="nb">set</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">only_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Build an H3-indexed GEDI database from local SOC files or S3 download.</span>
@@ -6439,10 +6439,6 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Output path for the H3-indexed parquet database.</span>
 <span class="sd">    skip_granules : list of dict, optional</span>
 <span class="sd">        List of granule identifiers to skip (from previous builds).</span>
-<span class="sd">    only_granules : list of dict, optional</span>
-<span class="sd">        If given, Stage 1 reads only these granules and leaves every other one</span>
-<span class="sd">        for a later build (``H3BuildLogger.stage1_only_granules``: a</span>
-<span class="sd">        spatial-only expansion reads only the added region).</span>
 <span class="sd">    status_callback : callable, optional</span>
 <span class="sd">        Called with status string at pipeline stage transitions.</span>
 <span class="sd">    variable_only_update : bool, default False</span>
@@ -6467,6 +6463,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        merge. Never called by the legacy writer (``GH3_WRITE_STREAMING``</span>
 <span class="sd">        off, deprecated), by an interrupted drain, or when no granule is left</span>
 <span class="sd">        to process.</span>
+<span class="sd">    only_granules : list of dict, optional</span>
+<span class="sd">        If given, Stage 1 reads only these granules and leaves every other one</span>
+<span class="sd">        for a later build (``H3BuildLogger.stage1_only_granules``: a</span>
+<span class="sd">        spatial-only expansion reads only the added region).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
