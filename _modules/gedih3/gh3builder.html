@@ -4833,8 +4833,9 @@ window.runMermaid = runMermaid;</script>
 <span class="k">def</span><span class="w"> </span><span class="nf">_merge_and_finalize</span><span class="p">(</span>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">replace_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">replacement_tmp</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">extra_dirs</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">replacement_digest</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Merge temporary partitioned files into the final H3 database.</span>
@@ -4850,13 +4851,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Temporary directory containing partitioned files</span>
 <span class="sd">    h3_dir : str</span>
 <span class="sd">        Final output directory for H3 database</span>
-<span class="sd">    replace_granules : dict, optional</span>
-<span class="sd">        Passed to every :func:`h3_merge_files`: the granules being re-indexed</span>
-<span class="sd">        (#47), ``{(orbit, granule, track): {product: basename}}``.</span>
+<span class="sd">    replacement_tmp : str, optional</span>
+<span class="sd">        The build tmp dir holding a granule replacement's journal (#47), as</span>
+<span class="sd">        passed to :func:`read_replacement_journal`: every merge replaces the</span>
+<span class="sd">        journaled granules, read once per worker process and checked against</span>
+<span class="sd">        ``replacement_digest`` (:func:`_h3_merge_replacing`), so no task</span>
+<span class="sd">        carries the whole target map.</span>
 <span class="sd">    extra_dirs : list of str, optional</span>
 <span class="sd">        More ``&lt;tmp_dir&gt;/h3_&lt;p&gt;=&lt;cell&gt;/year=&lt;year&gt;`` targets, with or without</span>
 <span class="sd">        fragments: the (cell, year) files holding a replaced granule's old</span>
 <span class="sd">        rows, which are rewritten even when no new row lands there.</span>
+<span class="sd">    replacement_digest : str, optional</span>
+<span class="sd">        :func:`_targets_digest` of the targets the caller indexed, so every</span>
+<span class="sd">        merge uses exactly those; when omitted, the journal's own digest.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -4948,10 +4955,11 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># (this phase keeps every future alive for its whole duration, so</span>
         <span class="c1"># any same-process resubmission of a dir would otherwise get the</span>
         <span class="c1"># cached outcome without re-executing).</span>
-        <span class="c1"># A replacement map is baked into a partial: dask may read the tuple</span>
-        <span class="c1"># keys of a kwarg dict as task keys (see _write_partitioned_streaming).</span>
-        <span class="n">merge_fn</span> <span class="o">=</span> <span class="p">(</span><span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">h3_merge_files</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="n">replace_granules</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">replace_granules</span> <span class="k">else</span> <span class="n">h3_merge_files</span><span class="p">)</span>
+        <span class="c1"># A replacement's targets come from its journal, not inside each task:</span>
+        <span class="c1"># a 10k-granule map added ~7 ms of serialization per task.</span>
+        <span class="n">merge_fn</span> <span class="o">=</span> <span class="p">(</span><span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_h3_merge_replacing</span><span class="p">,</span> <span class="n">replacement_tmp</span><span class="o">=</span><span class="n">replacement_tmp</span><span class="p">,</span>
+                                      <span class="n">digest</span><span class="o">=</span><span class="n">replacement_digest</span> <span class="ow">or</span> <span class="n">_replacement_digest</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">replacement_tmp</span> <span class="k">else</span> <span class="n">h3_merge_files</span><span class="p">)</span>
         <span class="n">futures_list</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
             <span class="n">merge_fn</span><span class="p">,</span>
             <span class="n">remaining_dirs</span><span class="p">,</span>
@@ -5054,7 +5062,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">h3_subdirs_set</span><span class="p">:</span> <span class="nb">set</span> <span class="o">=</span> <span class="p">{</span>
         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="o">+</span> <span class="s1">'/'</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">h3_files</span>
     <span class="p">}</span>
-    <span class="k">if</span> <span class="n">replace_granules</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">replacement_tmp</span><span class="p">:</span>
         <span class="c1"># A replacement may have emptied some; their cells still get their</span>
         <span class="c1"># summary recompiled (or removed) below.</span>
         <span class="n">h3_files</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">h3_files</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">f</span><span class="p">)]</span>
@@ -6210,16 +6218,69 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    :func:`_replace_granules_build`.</span>
 <span class="sd">    """</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">replacement_journal</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">entries</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_read_replacement_targets</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<span class="c1"># Per worker process: the target map of the replacement read last, keyed by</span>
+<span class="c1"># the journal's path and content digest (#47). One map at most is kept.</span>
+<span class="n">_REPLACE_MAP_CACHE</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_replacement_targets</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""``(digest, targets)`` of the replacement journaled under ``replacement_tmp``.</span>
+
+<span class="sd">    The digest is a SHA-256 of the journal's canonical JSON. Raises</span>
+<span class="sd">    ``FileNotFoundError`` when there is no journal.</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">replacement_journal</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">))</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="n">_targets_digest</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">ot</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
         <span class="n">orbit</span><span class="p">,</span> <span class="n">granule</span><span class="p">,</span> <span class="n">track</span> <span class="o">=</span> <span class="n">ot</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
-        <span class="n">out</span><span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">orbit</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">granule</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">track</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">out</span></div>
+        <span class="n">targets</span><span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">orbit</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">granule</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">track</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">digest</span><span class="p">,</span> <span class="n">targets</span>
 
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_targets_digest</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""SHA-256 of a replacement's journal entries, as written or as read back."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">entries</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_replacement_digest</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Content digest of a replacement's journal (see :func:`_read_replacement_targets`)."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_read_replacement_targets</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: no journal under </span><span class="si">{</span><span class="n">replacement_tmp</span><span class="si">}</span><span class="s2">; nothing was merged"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_h3_merge_replacing</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">replacement_tmp</span><span class="p">,</span> <span class="n">digest</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">""":func:`h3_merge_files` replacing the granules journaled under ``replacement_tmp``.</span>
+
+<span class="sd">    The merge task of a granule replacement: the target map is read from the</span>
+<span class="sd">    journal once per worker process, rather than serialized into every task.</span>
+<span class="sd">    It is cached by the content ``digest`` the driver read, never by file</span>
+<span class="sd">    stamps, and a journal whose content differs (or is gone) fails the merge:</span>
+<span class="sd">    a task never merges with another replacement's map.</span>
+<span class="sd">    """</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">replacement_journal</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">),</span> <span class="n">digest</span><span class="p">)</span>
+    <span class="n">rmap</span> <span class="o">=</span> <span class="n">_REPLACE_MAP_CACHE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rmap</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">found</span><span class="p">,</span> <span class="n">rmap</span> <span class="o">=</span> <span class="n">_read_replacement_targets</span><span class="p">(</span><span class="n">replacement_tmp</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">found</span> <span class="o">!=</span> <span class="n">digest</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: the journal under </span><span class="si">{</span><span class="n">replacement_tmp</span><span class="si">}</span><span class="s2"> changed or is gone "</span>
+                                 <span class="sa">f</span><span class="s2">"during the merge; nothing was merged for </span><span class="si">{</span><span class="n">in_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">_REPLACE_MAP_CACHE</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">_REPLACE_MAP_CACHE</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rmap</span>
+    <span class="k">return</span> <span class="n">h3_merge_files</span><span class="p">(</span><span class="n">in_dir</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="n">rmap</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_replace_granules_build</span><span class="p">(</span>
@@ -6379,7 +6440,8 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># ── 4. One atomic rewrite per affected cell-year ──</span>
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_MERGING</span><span class="p">),</span> <span class="s1">'w'</span><span class="p">):</span>
         <span class="k">pass</span>
-    <span class="n">files</span> <span class="o">=</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">replace_granules</span><span class="o">=</span><span class="n">rmap</span><span class="p">,</span> <span class="n">extra_dirs</span><span class="o">=</span><span class="n">old_dirs</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="n">_merge_and_finalize</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">replacement_tmp</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">rtmp</span><span class="p">),</span> <span class="n">extra_dirs</span><span class="o">=</span><span class="n">old_dirs</span><span class="p">,</span>
+                                <span class="n">replacement_digest</span><span class="o">=</span><span class="n">_targets_digest</span><span class="p">(</span><span class="n">entries</span><span class="p">))</span>
     <span class="n">failed</span> <span class="o">=</span> <span class="n">_scan_merge_failure_sentinels</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">failed</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition merge(s) failed; re-run gh3_build to "</span>
