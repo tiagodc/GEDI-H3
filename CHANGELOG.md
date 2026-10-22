@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
-- **A granule replacement's merge tasks no longer carry the whole target map.** Each worker process reads it once from the replacement's journal, checked against a digest of the journal the driver read: a task never merges with another replacement's map, whatever the file's timestamps; a worker that finds the journal changed or gone fails the merge. Serializing it into every task cost about 7 ms per task with 10,000 target granules (15.4 s against 1.1 s for 2,000 tasks), on the driver and the scheduler, so a large replacement spent minutes before merging anything.
+- **A granule replacement's merge tasks no longer carry the whole target map.** Each worker process reads it once from the replacement's journal, checked against a digest of the targets the run indexed: a task never merges with another replacement's map, whatever the file's timestamps; a worker that finds the journal changed or gone fails the merge. Serializing it into every task cost about 7 ms per task with 10,000 target granules (15.4 s against 1.1 s for 2,000 tasks), on the driver and the scheduler, so a large replacement spent minutes before merging anything.
 
 ### Fixed
 - **`build_h3db` takes its arguments by position as 0.18.1 did.** `only_granules`, added in 0.20.4, sat before `status_callback`, so a call passing `status_callback` or a later argument by position bound it to the wrong parameter. It is now the last parameter.
