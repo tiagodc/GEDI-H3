@@ -756,12 +756,9 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     with open(gb.replacement_journal(tmp), 'w') as f:
         json.dump([[gb._granule_key_str(key), sorted({'L2A': old['L2A'], 'L4A': new['L4A']}.items())]], f)
     open(os.path.join(tmp, '_replace', gb._REPLACE_MERGING), 'w').close()
-    log = json.load(open(path))
-    log['granules'][0]['releases']['L4A'] = OLD
-    json.dump(log, open(path, 'w'))
-    out = _gh3_build(soc_dir, h3_dir, tmp, products=())
+    out = _gh3_build(soc_dir, h3_dir, tmp, products=())     # no L4A release recorded: none is invented
     assert 'finishing the run started earlier' in out and '1 granule(s) re-indexed' in out
-    assert json.load(open(path))['granules'][0]['releases'] == {'L2A': OLD, 'L4A': OLD}
+    assert json.load(open(path))['granules'][0]['releases'] == {'L2A': OLD}
     assert not os.path.exists(gb.replacement_journal(tmp))
 
     _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098', '-l4a', 'agbd', 'agbd_se'))
@@ -796,7 +793,7 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
 
     _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')        # auto leaves it out
-    assert 'leaving out 1 granule(s) (O00101_01_T00201) cannot be replaced' in out
+    assert 'leaving out 1 granule(s) (O00101_01_T00201) cannot be replaced' in out and 'No granule to re-index' in out
     assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201', ok=False)   # named: refused
     assert 'Cannot replace granules: 1 granule(s) (O00101_01_T00201)' in out and 'This run changed nothing' in out
