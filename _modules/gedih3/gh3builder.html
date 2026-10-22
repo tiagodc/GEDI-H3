@@ -5232,8 +5232,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    written on failure, so the next resume retries the granule.</span>
 
 <span class="sd">    ``include_source=True`` also emits each product's ``root_file_&lt;prod&gt;``</span>
-<span class="sd">    column, as a build writes it — the product fill needs it; a</span>
-<span class="sd">    variable-add does not.</span>
+<span class="sd">    and ``root_beam_&lt;prod&gt;`` columns, as a build writes them; a collection</span>
+<span class="sd">    of products emits them for those products only. The product fill needs</span>
+<span class="sd">    them, and so does a variable add of a product the database had no</span>
+<span class="sd">    source columns for (#68): they are what a granule replacement matches.</span>
 
 <span class="sd">    ``split_products=True`` (product fill) fans each product on its own —</span>
 <span class="sd">    fragments ``&lt;granule_key&gt;.&lt;prod&gt;.parquet``, each product's frame freed</span>
@@ -5275,8 +5277,9 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">var_list</span><span class="p">:</span>
             <span class="k">continue</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">df</span> <span class="o">=</span> <span class="n">load_h5</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">+</span> <span class="n">var_list</span><span class="p">,</span>
-                         <span class="n">shots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">include_source</span><span class="o">=</span><span class="n">include_source</span><span class="p">)</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">load_h5</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">+</span> <span class="n">var_list</span><span class="p">,</span> <span class="n">shots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">include_source</span><span class="o">=</span><span class="p">(</span><span class="n">include_source</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">include_source</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+                                         <span class="k">else</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">include_source</span><span class="p">))</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{</span>
                 <span class="s1">'granule'</span><span class="p">:</span> <span class="n">granule_key</span><span class="p">,</span>
@@ -5438,7 +5441,12 @@ window.runMermaid = runMermaid;</script>
         <span class="n">h3_write_metadata</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_var_source_schema</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">variables</span><span class="p">):</span>
+<span class="c1"># The per-product provenance columns a build writes (``load_h5(include_source=True)``,</span>
+<span class="c1"># product-suffixed): the source file's basename and the beam.</span>
+<span class="n">_SOURCE_COLUMNS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'root_file'</span><span class="p">,</span> <span class="s1">'root_beam'</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_var_source_schema</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">prod</span><span class="p">,</span> <span class="n">variables</span><span class="p">,</span> <span class="n">include_source</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Worker: the schema a variable update's fan writes for one product.</span>
 
 <span class="sd">    Reads ``variables`` of one granule's ``prod`` file exactly as</span>
@@ -5447,18 +5455,19 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    between products can upcast them.</span>
 <span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
-    <span class="n">df</span> <span class="o">=</span> <span class="n">load_h5</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">variables</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">include_source</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">load_h5</span><span class="p">(</span><span class="n">h5_path</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">'shot_number'</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">variables</span><span class="p">),</span> <span class="n">shots</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">include_source</span><span class="o">=</span><span class="n">include_source</span><span class="p">)</span>
     <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
     <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">x</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">Schema</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(),</span> <span class="n">preserve_index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">remove_metadata</span><span class="p">()</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_var_new_columns_schema</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_var_new_columns_schema</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">source_products</span><span class="o">=</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">"""One schema for every file a variable update writes, from one granule per product.</span>
 
 <span class="sd">    Deterministic (the first granule key holding the product), so a resumed</span>
 <span class="sd">    run derives the same schema. A product no granule has a file for is left</span>
 <span class="sd">    out, with a warning: no file gets its columns, so the files stay alike.</span>
+<span class="sd">    ``source_products`` also get their source columns (``_SOURCE_COLUMNS``).</span>
 <span class="sd">    """</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
     <span class="n">futures</span> <span class="o">=</span> <span class="p">{}</span>
@@ -5471,7 +5480,8 @@ window.runMermaid = runMermaid;</script>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable update: no granule has a local </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2"> file; </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2"> variables are not added. "</span>
                            <span class="sa">f</span><span class="s2">"Download </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2"> and re-run to add them"</span><span class="p">)</span>
             <span class="k">continue</span>
-        <span class="n">futures</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">_var_source_schema</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">prod</span><span class="o">=</span><span class="n">prod</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="n">variables</span><span class="p">,</span> <span class="n">pure</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">futures</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">_var_source_schema</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">prod</span><span class="o">=</span><span class="n">prod</span><span class="p">,</span> <span class="n">variables</span><span class="o">=</span><span class="n">variables</span><span class="p">,</span>
+                                      <span class="n">include_source</span><span class="o">=</span><span class="n">prod</span> <span class="ow">in</span> <span class="n">source_products</span><span class="p">,</span> <span class="n">pure</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">fields</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">fut</span> <span class="ow">in</span> <span class="n">futures</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fut</span><span class="o">.</span><span class="n">result</span><span class="p">():</span>
@@ -5481,7 +5491,8 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">schema</span><span class="p">([</span><span class="n">fields</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">'shot_number'</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">fields</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_fan_merge_products</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">gran_year_pfs</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">year_pfs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_fan_merge_products</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">gran_year_pfs</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">year_pfs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">source_products</span><span class="o">=</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">"""Stages 1-3 of the inverted granule fan-out, shared by variable-add and product-fill.</span>
 
 <span class="sd">    Reads each granule's product h5(s) exactly once and fans its shots to the</span>
@@ -5511,6 +5522,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        Variable-add: every file still lacking the new columns. Files no</span>
 <span class="sd">        granule routes rows to are merged too, so they get the columns as</span>
 <span class="sd">        null (:func:`_var_merge_cell_year`).</span>
+<span class="sd">    source_products : collection of str, optional</span>
+<span class="sd">        Variable-add: products whose ``root_file_&lt;prod&gt;`` / ``root_beam_&lt;prod&gt;``</span>
+<span class="sd">        columns are written too (a fill always writes them).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -5532,7 +5546,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># ── Stage 1: fan — read each granule ONCE, write per-cell fragments ──</span>
     <span class="n">fan_fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span>
         <span class="n">_var_fan_granule</span><span class="p">,</span> <span class="n">new_product_vars</span><span class="o">=</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span>
-        <span class="n">include_source</span><span class="o">=</span><span class="n">fill</span><span class="p">,</span> <span class="n">split_products</span><span class="o">=</span><span class="n">fill</span><span class="p">,</span>
+        <span class="n">include_source</span><span class="o">=</span><span class="kc">True</span> <span class="k">if</span> <span class="n">fill</span> <span class="k">else</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">source_products</span><span class="p">),</span> <span class="n">split_products</span><span class="o">=</span><span class="n">fill</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">fan_tasks</span> <span class="o">=</span> <span class="p">[(</span><span class="n">ot</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">[</span><span class="n">ot</span><span class="p">],</span> <span class="n">gran_year_pfs</span><span class="p">[</span><span class="n">ot</span><span class="p">])</span> <span class="k">for</span> <span class="n">ot</span> <span class="ow">in</span> <span class="n">gran_year_pfs</span><span class="p">]</span>
     <span class="n">fan_futures</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">fan_fn</span><span class="p">,</span> <span class="n">fan_tasks</span><span class="p">,</span> <span class="n">pure</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -5600,7 +5614,8 @@ window.runMermaid = runMermaid;</script>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Resuming merge: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">merged_set</span><span class="p">)</span><span class="si">}</span><span class="s2"> (cell, year) already merged"</span><span class="p">)</span>
     <span class="n">remaining</span> <span class="o">=</span> <span class="p">[</span><span class="n">yp</span> <span class="k">for</span> <span class="n">yp</span> <span class="ow">in</span> <span class="n">touched_year_pfs</span> <span class="k">if</span> <span class="n">yp</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">merged_set</span><span class="p">]</span>
 
-    <span class="n">new_schema</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">fill</span> <span class="k">else</span> <span class="n">_var_new_columns_schema</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">)</span>
+    <span class="n">new_schema</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">fill</span> <span class="k">else</span> <span class="n">_var_new_columns_schema</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span>
+                                                           <span class="n">source_products</span><span class="o">=</span><span class="n">source_products</span><span class="p">)</span>
     <span class="n">merge_fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_var_merge_cell_year</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="n">fill</span><span class="p">,</span> <span class="n">new_schema</span><span class="o">=</span><span class="n">new_schema</span><span class="p">)</span>
     <span class="n">updated_files</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">touched_cells</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -5696,7 +5711,7 @@ window.runMermaid = runMermaid;</script>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_add_variables</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">new_product_vars</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                         <span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                         <span class="n">tmp_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">releases_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Add new variables to an existing H3 database via inverted fan-out.</span>
 
 <span class="sd">    **Architecture: read each granule ONCE, fan its shots to all owning</span>
@@ -5750,6 +5765,20 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    exclude : list of str, optional</span>
 <span class="sd">        fnmatch patterns of source files to ignore (as ``gh3_build --exclude``),</span>
 <span class="sd">        so the new variables come from the files the database was built from.</span>
+<span class="sd">    releases_callback : callable, optional</span>
+<span class="sd">        Called once, before the first write, with ``{key: {product: tag}}``</span>
+<span class="sd">        (``gedi_release_tag``) of the files read for each product new to the</span>
+<span class="sd">        database, as :func:`_build_fill_products` does.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Each granule's latest listed release is read. A product new to the</span>
+<span class="sd">    database (no column of it in the build log's ``h3_columns``) gets</span>
+<span class="sd">    ``root_file_&lt;prod&gt;`` and ``root_beam_&lt;prod&gt;`` too, as a build writes them</span>
+<span class="sd">    (#68): a granule replacement matches its rows by them, and the file each</span>
+<span class="sd">    row came from is known. A product an earlier variable add added without</span>
+<span class="sd">    them does not get them (its columns may come from an older release than</span>
+<span class="sd">    the one read now); :func:`_replace_granules_build` refuses to replace it.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -5812,6 +5841,22 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">v</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span>
                 <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">var_list</span> <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="s1">'shot_number'</span>
             <span class="p">)</span>
+    <span class="c1"># A product new to the database gets its source columns too (#68), from</span>
+    <span class="c1"># the file its values are read from. Not one it already holds columns of</span>
+    <span class="c1"># without them (added by an earlier variable add): its other columns may</span>
+    <span class="c1"># come from an older release, which a source column naming this one would</span>
+    <span class="c1"># hide from a granule replacement. A file lacking them is not done.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_read_cached</span>
+    <span class="n">h3_columns</span> <span class="o">=</span> <span class="p">(</span><span class="n">json_read_cached</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">))</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">h3_columns</span><span class="p">:</span>                              <span class="c1"># a log too old to list them: one footer answers</span>
+        <span class="n">h3_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">read_parquet_schema</span><span class="p">(</span><span class="n">year_files</span><span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="s1">'column'</span><span class="p">])</span>
+    <span class="n">source_products</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">new_product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                             <span class="k">if</span> <span class="n">v</span> <span class="ow">and</span> <span class="n">h3_columns</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">h3_columns</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">source_products</span><span class="p">:</span>
+        <span class="n">new_cols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_SOURCE_COLUMNS</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">source_products</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable update: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">source_products</span><span class="p">)</span><span class="si">}</span><span class="s2"> rows also get their source file and beam "</span>
+                    <span class="sa">f</span><span class="s2">"columns (</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">'root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s1">'</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">source_products</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Scanning year files for resume state and granule lists"</span><span class="p">)</span>
     <span class="n">scan_futures</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">map</span><span class="p">(</span>
@@ -5885,9 +5930,21 @@ window.runMermaid = runMermaid;</script>
         <span class="sa">f</span><span class="s2">"already-done=</span><span class="si">{</span><span class="n">skipped</span><span class="si">}</span><span class="s2">)"</span>
     <span class="p">)</span>
 
+    <span class="k">if</span> <span class="n">releases_callback</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">source_products</span><span class="p">:</span>
+        <span class="c1"># Before the first write, as a fill records them: rows of these files</span>
+        <span class="c1"># may be committed by a run killed part-way.</span>
+        <span class="n">tags</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">ot</span><span class="p">,</span> <span class="n">h5</span> <span class="ow">in</span> <span class="n">gran_h5</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="n">tag</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">source_products</span>
+                 <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">h5</span> <span class="ow">and</span> <span class="p">(</span><span class="n">tag</span> <span class="o">:=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">h5</span><span class="p">[</span><span class="n">p</span><span class="p">],</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">h5</span><span class="p">[</span><span class="n">p</span><span class="p">]))))}</span>
+            <span class="k">if</span> <span class="n">t</span><span class="p">:</span>
+                <span class="n">orbit</span><span class="p">,</span> <span class="n">granule</span><span class="p">,</span> <span class="n">track</span> <span class="o">=</span> <span class="n">ot</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">'_'</span><span class="p">)</span>
+                <span class="n">tags</span><span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">orbit</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">granule</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">track</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))]</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="n">releases_callback</span><span class="p">(</span><span class="n">tags</span><span class="p">)</span>
+
     <span class="n">pending</span> <span class="o">=</span> <span class="p">[</span><span class="n">pf</span> <span class="k">for</span> <span class="n">pf</span><span class="p">,</span> <span class="n">granules</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">year_files</span><span class="p">,</span> <span class="n">scan_results</span><span class="p">)</span> <span class="k">if</span> <span class="n">granules</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">_fan_merge_products</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">gran_h5</span><span class="p">,</span> <span class="n">gran_year_pfs</span><span class="p">,</span> <span class="n">new_product_vars</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">,</span>
-                               <span class="n">year_pfs</span><span class="o">=</span><span class="n">pending</span><span class="p">)[</span><span class="s1">'updated_files'</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span>
+                               <span class="n">year_pfs</span><span class="o">=</span><span class="n">pending</span><span class="p">,</span> <span class="n">source_products</span><span class="o">=</span><span class="n">source_products</span><span class="p">)[</span><span class="s1">'updated_files'</span><span class="p">]</span> <span class="ow">or</span> <span class="kc">None</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_granule_key_str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -6176,17 +6233,26 @@ window.runMermaid = runMermaid;</script>
 <span class="n">_REPLACE_MERGING</span> <span class="o">=</span> <span class="s1">'_merging'</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_year_file_replace_targets</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">targets</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_year_file_replace_targets</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">products</span><span class="o">=</span><span class="p">()):</span>
 <span class="w">    </span><span class="sd">"""Worker: :func:`_year_file_target_granules`, for a replacement.</span>
 
 <span class="sd">    A year file whose metadata is missing cannot be ruled out as holding a</span>
 <span class="sd">    target's rows (a lost sidecar, or a file a killed replacement emptied</span>
 <span class="sd">    between its two unlinks), so it is rewritten too rather than read as "no</span>
 <span class="sd">    data that year": the merge decides from the rows' own source columns.</span>
+
+<span class="sd">    Returns ``(hits, unsourced)``: ``unsourced``, the ``products`` with no</span>
+<span class="sd">    ``root_file_&lt;prod&gt;`` column in a file that holds a target (its footer,</span>
+<span class="sd">    the file's own truth: files of one database can differ, #68).</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">PARTITION_META_FILENAME</span><span class="p">)):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="s1">'(no metadata)'</span><span class="p">]</span>
-    <span class="k">return</span> <span class="n">_year_file_target_granules</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
+        <span class="n">hits</span> <span class="o">=</span> <span class="p">[</span><span class="s1">'(no metadata)'</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">hits</span> <span class="o">=</span> <span class="n">_year_file_target_granules</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">hits</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">products</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hits</span><span class="p">,</span> <span class="p">[]</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">read_parquet_schema</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)[</span><span class="s1">'column'</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">hits</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span> <span class="k">if</span> <span class="sa">f</span><span class="s2">"root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="replacement_abandon_hint">
@@ -6198,6 +6264,108 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"removing </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2"> abandons it, but some database files were already rewritten: those granules "</span>
                 <span class="sa">f</span><span class="s2">"stay partly re-indexed until they are re-indexed again"</span><span class="p">)</span>
     <span class="k">return</span> <span class="sa">f</span><span class="s2">"removing </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2"> abandons it safely: no database file was rewritten yet"</span></div>
+
+
+
+<div class="viewcode-block" id="blind_replacement_targets">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.blind_replacement_targets">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">blind_replacement_targets</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span>
+                              <span class="n">unsourced_by_key</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">set</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+                              <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Granules a replacement cannot tell old rows from new ones for (#68).</span>
+
+<span class="sd">    A replacement merge keeps a row when every ``root_file_&lt;prod&gt;`` column</span>
+<span class="sd">    names the given file. A product added by a variable update of an older</span>
+<span class="sd">    gedih3 has no such column, so when it is the only product of a granule</span>
+<span class="sd">    with a new release, the merge would keep the old rows while the build log</span>
+<span class="sd">    records the new release. A granule with another product re-released is</span>
+<span class="sd">    fine: its rows are replaced whole. One with no recorded release (indexed</span>
+<span class="sd">    before gedih3 recorded them) cannot be shown to be fine, so it counts.</span>
+<span class="sd">    Answered from the build log (``h3_columns``, the union of every file's</span>
+<span class="sd">    columns, and the recorded releases), and from ``unsourced_by_key`` for</span>
+<span class="sd">    files that differ.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Database root.</span>
+<span class="sd">    targets : dict</span>
+<span class="sd">        ``{(orbit, granule, track): {product: file}}``, as passed to</span>
+<span class="sd">        :func:`_replace_granules_build`.</span>
+<span class="sd">    unsourced_by_key : dict, optional</span>
+<span class="sd">        ``{(orbit, granule, track): products}`` lacking a source column in a</span>
+<span class="sd">        file holding that granule (a database expanded after a product was</span>
+<span class="sd">        added without one has it in some files only), from the files'</span>
+<span class="sd">        footers (:func:`_year_file_replace_targets`).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        ``{(orbit, granule, track): [product, ...]}``, the unsourced products</span>
+<span class="sd">        of each such granule.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_read_cached</span>
+    <span class="n">log</span> <span class="o">=</span> <span class="n">json_read_cached</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">))</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">h3_columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">log</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="n">by_key</span> <span class="o">=</span> <span class="p">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="nb">set</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">(</span><span class="n">unsourced_by_key</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">h3_columns</span><span class="p">:</span>
+        <span class="n">everywhere</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="sa">f</span><span class="s2">"root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">h3_columns</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">everywhere</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
+                <span class="n">by_key</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">everywhere</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">by_key</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="n">recorded</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">log</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'granules'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]}</span>
+    <span class="n">blind</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">unsourced</span> <span class="o">=</span> <span class="n">by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="nb">set</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">unsourced</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">rel</span> <span class="o">=</span> <span class="n">recorded</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="p">{})</span>
+        <span class="c1"># Unknown (no recorded release) counts as unchanged: nothing proves the rows go.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">rel</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rel</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">!=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">files</span><span class="p">[</span><span class="n">p</span><span class="p">],</span> <span class="s1">'path'</span><span class="p">,</span> <span class="n">files</span><span class="p">[</span><span class="n">p</span><span class="p">]))))</span>
+                   <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">unsourced</span><span class="p">):</span>
+            <span class="n">blind</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">key</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">unsourced</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">blind</span></div>
+
+
+
+<div class="viewcode-block" id="blind_replacement_message">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.blind_replacement_message">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">blind_replacement_message</span><span class="p">(</span><span class="n">blind</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Why the granules of :func:`blind_replacement_targets` are not replaced."""</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">blind</span><span class="p">)</span>
+    <span class="n">products</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">p</span> <span class="k">for</span> <span class="n">prods</span> <span class="ow">in</span> <span class="n">blind</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">prods</span><span class="p">})</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) (</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">keys</span><span class="p">[:</span><span class="mi">5</span><span class="p">])</span><span class="si">}{</span><span class="s1">' ...'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">) cannot be replaced: "</span>
+           <span class="sa">f</span><span class="s2">"their rows have no </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">'root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s1">'</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">products</span><span class="p">)</span><span class="si">}</span><span class="s2"> column (</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">products</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+           <span class="sa">f</span><span class="s2">"added by a variable update of an older gedih3), and no other product of theirs is known to have a new "</span>
+           <span class="sa">f</span><span class="s2">"release (none changed, or none recorded), so their old rows cannot be told from the new ones. Only a "</span>
+           <span class="sa">f</span><span class="s2">"fresh build records the source of </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">products</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">tmp_dir</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">replacement_journal</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)):</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">". An unfinished replacement is journaled: </span><span class="si">{</span><span class="n">replacement_abandon_hint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="n">msg</span></div>
+
+
+
+<div class="viewcode-block" id="check_replacement_sources">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.check_replacement_sources">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_replacement_sources</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                              <span class="n">unsourced_by_key</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">set</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Refuse to replace a granule whose changed rows cannot be told from its old ones.</span>
+
+<span class="sd">    See :func:`blind_replacement_targets`; the parameters are the same, and</span>
+<span class="sd">    ``tmp_dir`` (the build tmp dir) points the message at an unfinished</span>
+<span class="sd">    replacement's journal.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    GediValidationError</span>
+<span class="sd">        If such a granule is among ``targets``. Nothing was changed.</span>
+<span class="sd">    """</span>
+    <span class="n">blind</span> <span class="o">=</span> <span class="n">blind_replacement_targets</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">unsourced_by_key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">blind</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span><span class="s2">"Cannot replace granules: "</span> <span class="o">+</span> <span class="n">blind_replacement_message</span><span class="p">(</span><span class="n">blind</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="p">)</span>
+                                  <span class="o">+</span> <span class="s2">". This run changed nothing; leave them out"</span><span class="p">)</span></div>
 
 
 
@@ -6296,17 +6464,20 @@ window.runMermaid = runMermaid;</script>
     <span class="n">spatial</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">version</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">tmp_dir</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">skip_blind</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Re-index granules from new source files, replacing their rows (#47).</span>
 
 <span class="sd">    For granules NASA re-released within the database's GEDI version:</span>
 
-<span class="sd">    1. **Journal.** The target set is written to</span>
-<span class="sd">       :func:`replacement_journal` before anything destructive; a run with a</span>
-<span class="sd">       different target set while one is unfinished is refused.</span>
-<span class="sd">    2. **Old rows.** Every ``(cell, year)`` file whose metadata lists a</span>
+<span class="sd">    1. **Old rows.** Every ``(cell, year)`` file whose metadata lists a</span>
 <span class="sd">       target is found from the metadata alone (every partition of the build</span>
 <span class="sd">       log, so it does not depend on a region, and needs no ring-1 rule).</span>
+<span class="sd">       A target whose rows cannot be told from its new ones is refused here</span>
+<span class="sd">       (:func:`check_replacement_sources`, with those files' footers).</span>
+<span class="sd">    2. **Journal.** The target set is written to</span>
+<span class="sd">       :func:`replacement_journal` before anything destructive; a run with a</span>
+<span class="sd">       different target set while one is unfinished is refused first.</span>
 <span class="sd">    3. **New rows.** Stage 1 reads the new files in full, under the</span>
 <span class="sd">       database's region, with the skip check off, into</span>
 <span class="sd">       ``&lt;tmp_dir&gt;/_replace/partitions`` (its own sentinels, resumable).</span>
@@ -6337,18 +6508,27 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        The database's GEDI version.</span>
 <span class="sd">    tmp_dir : str, optional</span>
 <span class="sd">        The build's tmp dir (default ``&lt;h3_dir&gt;/.tmp``).</span>
+<span class="sd">    skip_blind : bool, default False</span>
+<span class="sd">        Leave out, rather than refuse, the targets whose old rows cannot be</span>
+<span class="sd">        told from their new ones (:func:`blind_replacement_targets`): for</span>
+<span class="sd">        targets chosen by ``auto``, not named ones.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    dict</span>
-<span class="sd">        ``{'replaced': set of keys, 'empty': set of keys, 'files': list}``:</span>
-<span class="sd">        ``empty``, the granules with no row in the region any more (now</span>
-<span class="sd">        ``NO_DATA``); ``files``, the database files written.</span>
+<span class="sd">        ``{'replaced': set of keys, 'empty': set of keys, 'files': list,</span>
+<span class="sd">        'blind': dict}``: ``empty``, the granules with no row in the region any</span>
+<span class="sd">        more (now ``NO_DATA``); ``files``, the database files written;</span>
+<span class="sd">        ``blind``, ``{key: products}`` left out (``skip_blind``), or replaced</span>
+<span class="sd">        by a resumed run that had already started merging (an older gedih3</span>
+<span class="sd">        journaled it): their rows of those products keep their old values,</span>
+<span class="sd">        so the caller keeps those products' recorded releases.</span>
 
 <span class="sd">    Raises</span>
 <span class="sd">    ------</span>
 <span class="sd">    GediValidationError</span>
-<span class="sd">        Another replacement is unfinished under ``tmp_dir``.</span>
+<span class="sd">        Another replacement is unfinished under ``tmp_dir``, or a target's</span>
+<span class="sd">        rows cannot be told from its new ones (:func:`check_replacement_sources`).</span>
 <span class="sd">    GediDatabaseError</span>
 <span class="sd">        A year file's metadata is unreadable.</span>
 <span class="sd">    GediProcessingError</span>
@@ -6364,7 +6544,6 @@ window.runMermaid = runMermaid;</script>
             <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
     <span class="n">entries</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rmap</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
 
-    <span class="c1"># ── 1. Journal, before the first destructive step ──</span>
     <span class="n">journal</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_JOURNAL</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">journal</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -6375,15 +6554,8 @@ window.runMermaid = runMermaid;</script>
         <span class="k">raise</span> <span class="n">GediValidationError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"Another granule replacement is unfinished in </span><span class="si">{</span><span class="n">rtmp</span><span class="si">}</span><span class="s2">: gh3_build resumes it; finish it first, "</span>
             <span class="sa">f</span><span class="s2">"or remove that directory to abandon it"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">previous</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">journal</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
-            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">invalidate_bbox_index</span>
-    <span class="n">invalidate_bbox_index</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">)</span>
 
-    <span class="c1"># ── 2. The (cell, year) files holding their old rows: metadata only ──</span>
+    <span class="c1"># ── 1. The (cell, year) files holding their old rows: metadata only ──</span>
     <span class="n">log</span> <span class="o">=</span> <span class="n">json_read</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">))</span> <span class="ow">or</span> <span class="p">{}</span>
     <span class="c1"># The log's partitions, and any partition directory on disk it misses: one</span>
     <span class="c1"># readdir of the root, so a stale list cannot hide old rows.</span>
@@ -6406,17 +6578,53 @@ window.runMermaid = runMermaid;</script>
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: locating </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">rmap</span><span class="p">)</span><span class="si">}</span><span class="s2"> granule(s) in </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span><span class="si">}</span><span class="s2"> candidate "</span>
                 <span class="sa">f</span><span class="s2">"(cell, year) file(s), metadata only"</span><span class="p">)</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
-    <span class="n">scan_fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_year_file_replace_targets</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">))</span>
-    <span class="n">old_dirs</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">year_pf</span><span class="p">,</span> <span class="n">hits</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">scan_fn</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Locating granules"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">,</span>
-                                      <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10000</span> <span class="k">else</span> <span class="mi">0</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hits</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="n">GediDatabaseError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: cannot read the metadata of </span><span class="si">{</span><span class="n">year_pf</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">hits</span><span class="si">}</span><span class="s2">); "</span>
+    <span class="n">scan_fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_year_file_replace_targets</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="nb">frozenset</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">),</span>
+                                <span class="n">products</span><span class="o">=</span><span class="nb">sorted</span><span class="p">({</span><span class="n">p</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">rmap</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">files</span><span class="p">}))</span>
+    <span class="n">old_dirs</span> <span class="o">=</span> <span class="p">{}</span>                                   <span class="c1"># tmp dir -&gt; target keys its file holds (None: any)</span>
+    <span class="n">by_str</span> <span class="o">=</span> <span class="p">{</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">):</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">rmap</span><span class="p">}</span>
+    <span class="n">unsourced_by_key</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">set</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">year_pf</span><span class="p">,</span> <span class="n">found</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">candidates</span><span class="p">,</span> <span class="n">scan_fn</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Locating granules"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">,</span>
+                                       <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidates</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10000</span> <span class="k">else</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">GediDatabaseError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: cannot read the metadata of </span><span class="si">{</span><span class="n">year_pf</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">found</span><span class="si">}</span><span class="s2">); "</span>
                                     <span class="sa">f</span><span class="s2">"the replacement did not go on"</span><span class="p">)</span>
+        <span class="n">hits</span><span class="p">,</span> <span class="n">unsourced</span> <span class="o">=</span> <span class="n">found</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="n">rmap</span> <span class="k">if</span> <span class="n">hits</span> <span class="o">==</span> <span class="p">[</span><span class="s1">'(no metadata)'</span><span class="p">]</span> <span class="k">else</span> <span class="p">[</span><span class="n">by_str</span><span class="p">[</span><span class="n">h</span><span class="p">]</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">hits</span> <span class="ow">or</span> <span class="p">[]])</span> <span class="k">if</span> <span class="n">unsourced</span> <span class="k">else</span> <span class="p">():</span>
+            <span class="n">unsourced_by_key</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">unsourced</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">hits</span><span class="p">:</span>
             <span class="n">year_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span>
-            <span class="n">old_dirs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)),</span>
-                                         <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)))</span>
+            <span class="n">old_dirs</span><span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">year_dir</span><span class="p">)),</span>
+                                  <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">year_dir</span><span class="p">))]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="kc">None</span> <span class="k">if</span> <span class="n">hits</span> <span class="o">==</span> <span class="p">[</span><span class="s1">'(no metadata)'</span><span class="p">]</span> <span class="k">else</span> <span class="p">{</span><span class="n">by_str</span><span class="p">[</span><span class="n">h</span><span class="p">]</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="n">hits</span><span class="p">})</span>
+
+    <span class="c1"># A product whose rows record no source file, in any file of a granule (#68).</span>
+    <span class="n">blind</span> <span class="o">=</span> <span class="n">blind_replacement_targets</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">rmap</span><span class="p">,</span> <span class="n">unsourced_by_key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">blind</span> <span class="ow">and</span> <span class="n">previous</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">_REPLACE_MERGING</span><span class="p">)):</span>
+        <span class="c1"># Journaled by an older gedih3 and already rewriting files: finish it,</span>
+        <span class="c1"># as that version would have; refusing would strand it half done.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: finishing the run started earlier, but "</span>
+                       <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">blind_replacement_message</span><span class="p">(</span><span class="n">blind</span><span class="p">)</span><span class="si">}</span><span class="s2">; their rows of those products keep their old values"</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">blind</span> <span class="ow">and</span> <span class="n">skip_blind</span> <span class="ow">and</span> <span class="n">previous</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>      <span class="c1"># a journal already written holds them: refuse below</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: leaving out </span><span class="si">{</span><span class="n">blind_replacement_message</span><span class="p">(</span><span class="n">blind</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">blind</span><span class="p">:</span>
+            <span class="n">rmap</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">!=</span> <span class="n">key</span><span class="p">}</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rmap</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">old_dirs</span> <span class="o">=</span> <span class="p">{</span><span class="n">d</span><span class="p">:</span> <span class="n">keys</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">keys</span> <span class="ow">in</span> <span class="n">old_dirs</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">keys</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">)}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rmap</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">'replaced'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span> <span class="s1">'files'</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">'blind'</span><span class="p">:</span> <span class="n">blind</span><span class="p">}</span>
+    <span class="k">elif</span> <span class="n">blind</span><span class="p">:</span>
+        <span class="n">check_replacement_sources</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">rmap</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">rtmp</span><span class="p">),</span> <span class="n">unsourced_by_key</span><span class="o">=</span><span class="n">unsourced_by_key</span><span class="p">)</span>
+    <span class="n">old_dirs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">old_dirs</span><span class="p">)</span>
+
+    <span class="c1"># ── 2. Journal, before the first destructive step ──</span>
+    <span class="k">if</span> <span class="n">previous</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">rtmp</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">AtomicFileWriter</span><span class="p">(</span><span class="n">journal</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp_path</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">invalidate_bbox_index</span>
+    <span class="n">invalidate_bbox_index</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">)</span>
 
     <span class="c1"># ── 3. Stage 1: the new files, in full, without the skip check ──</span>
     <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span> <span class="nb">list</span><span class="p">(</span><span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
@@ -6450,7 +6658,7 @@ window.runMermaid = runMermaid;</script>
     <span class="k">if</span> <span class="n">failed</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">GediMergeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Granule replacement: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span><span class="si">}</span><span class="s2"> partition merge(s) failed; re-run gh3_build to "</span>
                              <span class="sa">f</span><span class="s2">"finish the replacement"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s1">'replaced'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="n">outcome</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'files'</span><span class="p">:</span> <span class="n">files</span><span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s1">'replaced'</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'empty'</span><span class="p">:</span> <span class="n">outcome</span><span class="p">[</span><span class="s1">'empty'</span><span class="p">]</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">rmap</span><span class="p">),</span> <span class="s1">'files'</span><span class="p">:</span> <span class="n">files</span><span class="p">,</span> <span class="s1">'blind'</span><span class="p">:</span> <span class="n">blind</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="build_h3db">
@@ -6473,6 +6681,7 @@ window.runMermaid = runMermaid;</script>
     <span class="n">granule_products_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">stage1_outcome_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">set</span><span class="p">,</span> <span class="nb">set</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">only_granules</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">releases_callback</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Build an H3-indexed GEDI database from local SOC files or S3 download.</span>
@@ -6537,6 +6746,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        If given, Stage 1 reads only these granules and leaves every other one</span>
 <span class="sd">        for a later build (``H3BuildLogger.stage1_only_granules``: a</span>
 <span class="sd">        spatial-only expansion reads only the added region).</span>
+<span class="sd">    releases_callback : callable, optional</span>
+<span class="sd">        ``variable_only_update`` only: called before the first write with the</span>
+<span class="sd">        source releases (``{(orbit, granule, track): {product: tag}}``) read</span>
+<span class="sd">        for each product new to the database, which gets source columns too</span>
+<span class="sd">        (see :func:`_build_add_variables`), so the caller can record them</span>
+<span class="sd">        (:meth:`H3BuildLogger.record_releases`).</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -6590,6 +6805,7 @@ window.runMermaid = runMermaid;</script>
                 <span class="n">result</span> <span class="o">=</span> <span class="n">_build_add_variables</span><span class="p">(</span>
                     <span class="n">h3_dir</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span>
                     <span class="n">soc_source</span><span class="o">=</span><span class="n">_s3_tmp_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span> <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span>
+                    <span class="n">releases_callback</span><span class="o">=</span><span class="n">releases_callback</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -6659,7 +6875,7 @@ window.runMermaid = runMermaid;</script>
         <span class="k">if</span> <span class="n">variable_only_update</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable-only update: adding </span><span class="si">{</span><span class="nb">set</span><span class="p">(</span><span class="n">product_vars</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2"> to existing database"</span><span class="p">)</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">_build_add_variables</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">product_vars</span><span class="p">,</span> <span class="n">soc_source</span><span class="o">=</span><span class="n">soc_source</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
-                                          <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">)</span>
+                                          <span class="n">tmp_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span> <span class="n">releases_callback</span><span class="o">=</span><span class="n">releases_callback</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">"Variable update completed but no partition files were modified. "</span>

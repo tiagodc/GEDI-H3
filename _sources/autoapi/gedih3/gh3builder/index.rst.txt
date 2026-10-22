@@ -31,6 +31,9 @@ Functions
    gedih3.gh3builder.preclean_merge_failures
    gedih3.gh3builder.apply_merge_failures_to_logger
    gedih3.gh3builder.replacement_abandon_hint
+   gedih3.gh3builder.blind_replacement_targets
+   gedih3.gh3builder.blind_replacement_message
+   gedih3.gh3builder.check_replacement_sources
    gedih3.gh3builder.replacement_journal
    gedih3.gh3builder.read_replacement_journal
    gedih3.gh3builder.build_h3db
@@ -594,6 +597,111 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
+.. py:function:: blind_replacement_targets(h3_dir: str, targets, unsourced_by_key: Optional[Dict[Tuple[int, int, int], set]] = None) -> Dict[Tuple[int, int, int], List[str]]
+
+   
+   Granules a replacement cannot tell old rows from new ones for (#68).
+
+   A replacement merge keeps a row when every ``root_file_<prod>`` column
+   names the given file. A product added by a variable update of an older
+   gedih3 has no such column, so when it is the only product of a granule
+   with a new release, the merge would keep the old rows while the build log
+   records the new release. A granule with another product re-released is
+   fine: its rows are replaced whole. One with no recorded release (indexed
+   before gedih3 recorded them) cannot be shown to be fine, so it counts.
+   Answered from the build log (``h3_columns``, the union of every file's
+   columns, and the recorded releases), and from ``unsourced_by_key`` for
+   files that differ.
+
+   :Parameters:
+
+       **h3_dir** : str
+           Database root.
+
+       **targets** : dict
+           ``{(orbit, granule, track): {product: file}}``, as passed to
+           :func:`_replace_granules_build`.
+
+       **unsourced_by_key** : dict, optional
+           ``{(orbit, granule, track): products}`` lacking a source column in a
+           file holding that granule (a database expanded after a product was
+           added without one has it in some files only), from the files'
+           footers (:func:`_year_file_replace_targets`).
+
+
+
+   :Returns:
+
+       dict
+           ``{(orbit, granule, track): [product, ...]}``, the unsourced products
+           of each such granule.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: blind_replacement_message(blind, tmp_dir: Optional[str] = None) -> str
+
+   
+   Why the granules of :func:`blind_replacement_targets` are not replaced.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: check_replacement_sources(h3_dir: str, targets, tmp_dir: Optional[str] = None, unsourced_by_key: Optional[Dict[Tuple[int, int, int], set]] = None) -> None
+
+   
+   Refuse to replace a granule whose changed rows cannot be told from its old ones.
+
+   See :func:`blind_replacement_targets`; the parameters are the same, and
+   ``tmp_dir`` (the build tmp dir) points the message at an unfinished
+   replacement's journal.
+
+
+
+
+
+
+
+
+   :Raises:
+
+       GediValidationError
+           If such a granule is among ``targets``. Nothing was changed.
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: replacement_journal(tmp_dir: str) -> str
 
    
@@ -644,7 +752,7 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None, allow_missing_products: bool = False, granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None, stage1_outcome_callback: Optional[Callable[[set, set], None]] = None, only_granules: Optional[List[Dict]] = None) -> Optional[List[str]]
+.. py:function:: build_h3db(product_vars: Dict[str, List[str]], res: int = 12, part: int = 3, spatial=None, temporal=None, soc_source: Union[str, List, None] = None, version: Optional[int] = None, tmp_dir: str = os.path.join(GH3_DEFAULT_TMP_DIR, 'gh3_build'), h3_dir: str = GH3_DEFAULT_H3_DIR, skip_granules: Optional[List[Dict]] = None, status_callback: Optional[Callable[[str], None]] = None, variable_only_update: bool = False, exclude: Optional[List[str]] = None, allow_missing_products: bool = False, granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None, stage1_outcome_callback: Optional[Callable[[set, set], None]] = None, only_granules: Optional[List[Dict]] = None, releases_callback: Optional[Callable[[Dict[Tuple[int, int, int], Dict[str, str]]], None]] = None) -> Optional[List[str]]
 
    
    Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -726,6 +834,13 @@ Module Contents
            If given, Stage 1 reads only these granules and leaves every other one
            for a later build (``H3BuildLogger.stage1_only_granules``: a
            spatial-only expansion reads only the added region).
+
+       **releases_callback** : callable, optional
+           ``variable_only_update`` only: called before the first write with the
+           source releases (``{(orbit, granule, track): {product: tag}}``) read
+           for each product new to the database, which gets source columns too
+           (see :func:`_build_add_variables`), so the caller can record them
+           (:meth:`H3BuildLogger.record_releases`).
 
 
 
