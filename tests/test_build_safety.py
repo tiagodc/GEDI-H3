@@ -983,3 +983,29 @@ class TestMixedUpdate:
             log = json.load(f)
         assert log['status'] == 'COMPLETED'
         assert 'update_history' in log
+
+
+def test_build_h3db_applies_the_exclude_patterns_kept_in_the_build_log(tmp_dir, monkeypatch):
+    """The Python API adds the database's stored --exclude patterns to its own,
+    as gh3_build does, so it never lists a file the database was built without."""
+    import gedih3.gh3builder as gb
+    from gedih3.config import BUILD_LOG_FILENAME
+    h3_dir, soc_dir = os.path.join(tmp_dir, 'db'), os.path.join(tmp_dir, 'soc')
+    os.makedirs(h3_dir)
+    os.makedirs(soc_dir)
+    with open(os.path.join(h3_dir, BUILD_LOG_FILENAME), 'w') as f:
+        json.dump({'gedi_version': 2, 'exclude': ['*_SGS.h5']}, f)
+    seen = []
+
+    class Listed(Exception):
+        pass
+
+    def listing(*args, exclude=None, **kwargs):
+        seen.append(exclude)
+        raise Listed
+    monkeypatch.setattr(gb, 'soc_file_tree', listing)
+    for passed in (None, ['*_BETA.h5', '*_SGS.h5']):
+        with pytest.raises(Listed):
+            gb.build_h3db({'L2A': ['rh_098']}, soc_source=soc_dir, h3_dir=h3_dir, tmp_dir=os.path.join(tmp_dir, 't'),
+                          exclude=passed)
+    assert seen == [['*_SGS.h5'], ['*_SGS.h5', '*_BETA.h5']]

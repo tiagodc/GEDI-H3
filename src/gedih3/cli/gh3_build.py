@@ -710,8 +710,8 @@ def main():
         logger.info(f"Source files matching {', '.join(_stored_exclude)} are excluded for this database "
                     f"(build log); remove a pattern from the log's 'exclude' to admit them again")
     if _added_exclude := [p for p in h3_logger.exclude if p not in _stored_exclude]:
-        logger.info(f"Source files matching {', '.join(_added_exclude)} are excluded for this database from now "
-                    f"on: the build log keeps the pattern for every later run")
+        logger.info(f"Source files matching {', '.join(_added_exclude)} are excluded: once this run saves the "
+                    f"build log, every later run excludes them too")
     args.exclude = h3_logger.exclude or None
     # This run's choice; the logger attribute is what the log keeps.
     allow_missing = h3_logger.allow_missing_products
