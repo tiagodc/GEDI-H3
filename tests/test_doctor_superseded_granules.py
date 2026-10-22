@@ -81,3 +81,39 @@ def test_an_s3_soc_dir_says_detection_is_local_only(tmp_path):
 def test_runs_with_the_soc_group():
     assert 'superseded_granules' in ALIAS_GROUPS['soc']
     assert 'superseded_granules' not in ALIAS_GROUPS['db']
+
+
+def test_files_the_build_excludes_are_not_a_newer_release(tmp_path):
+    """An _SGS variant outranks the indexed file, but the build excluded it
+    (gh3_build --exclude, kept in the log): it is not reported."""
+    import json
+    h3_dir, soc_dir = str(tmp_path / 'db'), str(tmp_path / 'soc')
+    os.makedirs(h3_dir)
+    log_path = _make_build_log(h3_dir, granules=[
+        {'orbit': 100, 'granule': 1, 'track': 100, 'status': 'INDEXED', 'releases': {'L2A': '02_003_02'}}])
+    _touch(soc_dir, 100, '02_003_02')
+    d = os.path.join(soc_dir, '2020', '100')
+    plain = os.listdir(d)[0]
+    open(os.path.join(d, plain.replace('_V002.h5', '_V002_SGS.h5')), 'w').close()
+
+    assert _check(_ctx(h3_dir, soc_dir=soc_dir)).findings                     # not excluded: reported
+    log = json.load(open(log_path))
+    log['exclude'] = ['*_SGS.h5']
+    json.dump(log, open(log_path, 'w'))
+    report = _check(_ctx(h3_dir, soc_dir=soc_dir))
+    assert report.severity == Severity.INFO and not report.findings
+
+
+def test_backfill_reads_no_file_the_build_excludes(tmp_path):
+    """The backfill fix's listing applies the log's exclude patterns, so a gap is
+    filled from the file the granule was built from, not from an _SGS variant."""
+    from gedih3.doctor.diagnoses.backfill import _get_soc_tree
+    soc_dir = str(tmp_path / 'soc')
+    _touch(soc_dir, 100, '02_003_02')
+    d = os.path.join(soc_dir, '2020', '100')
+    plain = os.listdir(d)[0]
+    open(os.path.join(d, plain.replace('_V002.h5', '_V002_SGS.h5')), 'w').close()
+
+    assert _get_soc_tree(soc_dir, version=2)['O00100_01_T00100']['L2A'].endswith('_SGS.h5')
+    tree = _get_soc_tree(soc_dir, version=2, exclude=['*_SGS.h5'])
+    assert os.path.basename(tree['O00100_01_T00100']['L2A']) == plain

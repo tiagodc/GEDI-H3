@@ -51,6 +51,7 @@ gh3_build --s3 -r region.shp -l4a agbd  # Build directly from S3
 | `-d` | Output H3 database directory |
 | `--no-bbox-index` | Skip the automatic `_bbox_index.parquet` build after a successful build (see [`gh3_bbox_index`](#gh3_bbox_index)) |
 | `--allow-missing-products` | Index granules that have L2A before their later products (L2B, L4A, L4C) are published; those columns stay null until a later `gh3_build` fills them automatically (see {ref}`phased updates <phased-updates>`). Remembered in the build log; `--no-allow-missing-products` turns it off. Needs a local SOC directory |
+| `--exclude PATTERN` | Leave out source files whose name matches the fnmatch pattern (repeatable), e.g. `--exclude '*_SGS.h5'`. Kept in the build log: later runs, variable adds, replacements and `gh3_doctor` apply it without the flag |
 | `--replace-granules SPEC` | Re-index granules NASA re-released within the database's GEDI version, replacing their rows with the new files' rows. `auto` takes every granule with a newer release in the SOC directory (as `gh3_doctor --check superseded_granules` lists them); otherwise granule keys (`O12345_01_T00123`, comma-separated) or a file of them. A run of its own, on a completed database with a local SOC directory; an interrupted run is finished by the next `gh3_build` (see the user guide, re-released granules) |
 
 ---

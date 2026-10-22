@@ -176,7 +176,8 @@ def get_cmd_args():
     p.add_argument("--exclude", dest="exclude", action='append', default=None,
                    metavar='PATTERN',
                    help="exclude files whose basename matches the given fnmatch pattern. "
-                        "Repeat the flag for multiple patterns. "
+                        "Repeat the flag for multiple patterns. Remembered in the build log: later "
+                        "runs, variable adds and gh3_doctor exclude the same files. "
                         "Example: --exclude '*_SGS.h5' --exclude '*_BETA.h5'")
     p.add_argument("--allow-missing-products", dest="allow_missing_products",
                    action=argparse.BooleanOptionalAction, default=None,
@@ -691,6 +692,15 @@ def main():
     elif h3_logger.allow_missing_products:
         logger.info("Phased updates are on for this database (build log): granules with L2A are indexed "
                     "before their later products; --no-allow-missing-products turns it off")
+    # Source exclusions: the build log keeps every pattern ever passed, and this
+    # run applies them all. Leaving --exclude out never re-admits a file the
+    # database was built without (an _SGS variant would otherwise outrank it).
+    _stored_exclude = list(h3_logger.exclude)
+    h3_logger.exclude = _stored_exclude + [p for p in (args.exclude or []) if p not in _stored_exclude]
+    if set(_stored_exclude) - set(args.exclude or []):
+        logger.info(f"Source files matching {', '.join(_stored_exclude)} are excluded for this database "
+                    f"(build log); remove a pattern from the log's 'exclude' to admit them again")
+    args.exclude = h3_logger.exclude or None
     # This run's choice; the logger attribute is what the log keeps.
     allow_missing = h3_logger.allow_missing_products
     if allow_missing and args.s3:
@@ -763,13 +773,14 @@ def main():
             # Local mode: check SOC directory for new HDF5 files
             _local_files = _local_soc_files(soc_source, h3_logger, exclude=args.exclude)
             if not _has_new_local_granules(soc_source, h3_logger, files=_local_files):
-                _flag_changed = (args.allow_missing_products is not None
-                                 and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
+                _flag_changed = ((args.allow_missing_products is not None
+                                  and args.allow_missing_products != bool(h3_logger.log_data.get('allow_missing_products')))
+                                 or h3_logger.exclude != list(h3_logger.log_data.get('exclude') or []))
                 if h3_logger.previous_status != 'COMPLETED':
                     h3_logger.set_post_build_info()
                     h3_logger.save_log('COMPLETED')
                 elif _flag_changed:
-                    h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products
+                    h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products, --exclude
                 logger.info("Database is already up-to-date with requested parameters")
                 if _local_files:
                     _warn_superseded_granules(h3_logger, _soc_files_by_product(_local_files), logger)

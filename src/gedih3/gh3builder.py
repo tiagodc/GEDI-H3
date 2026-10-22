@@ -4895,7 +4895,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None,
-                         tmp_dir=None):
+                         tmp_dir=None, exclude=None):
     """Add new variables to an existing H3 database via inverted fan-out.
 
     **Architecture: read each granule ONCE, fan its shots to all owning
@@ -4946,6 +4946,9 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     tmp_dir : str or None
         Scratch root for intermediate fragments + sentinels. Defaults to
         ``<h3_dir>/.tmp_var_update`` when not supplied by the caller.
+    exclude : list of str, optional
+        fnmatch patterns of source files to ignore (as ``gh3_build --exclude``),
+        so the new variables come from the files the database was built from.
 
     Returns
     -------
@@ -5029,9 +5032,10 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     # later product and must still get the new variables of the ones it has.
     if isinstance(soc_source, str):
         glob_kwargs = {'version': version} if version is not None else None
-        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False)
+        all_soc = soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False,
+                                exclude=exclude)
     elif isinstance(soc_source, list):
-        all_soc = soc_file_tree(soc_source, to_list=False, require_all=False)
+        all_soc = soc_file_tree(soc_source, to_list=False, require_all=False, exclude=exclude)
     elif soc_source is None:
         logger.warning("Variable-only update requires a local SOC source (no S3 ETL support on this path)")
         return None
@@ -5709,7 +5713,7 @@ def build_h3db(
                 )
                 result = _build_add_variables(
                     h3_dir, product_vars,
-                    soc_source=_s3_tmp_dir, version=version, tmp_dir=tmp_dir,
+                    soc_source=_s3_tmp_dir, version=version, tmp_dir=tmp_dir, exclude=exclude,
                 )
                 if not result:
                     logger.warning(
@@ -5778,7 +5782,8 @@ def build_h3db(
 
         if variable_only_update:
             logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
-            result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version, tmp_dir=tmp_dir)
+            result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version,
+                                          tmp_dir=tmp_dir, exclude=exclude)
             if not result:
                 logger.warning(
                     "Variable update completed but no partition files were modified. "
@@ -5959,6 +5964,11 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     # Start with log1 as base
     merged_log = log1.copy()
     merged_log['last_modified'] = now()
+    # Source exclusions: a file either build left out stays out.
+    exclude = list(log1.get('exclude') or [])
+    exclude += [p for p in log2.get('exclude') or [] if p not in exclude]
+    if exclude:
+        merged_log['exclude'] = exclude
     
     # Merge products and variables
     products_1 = log1.get('products', {})

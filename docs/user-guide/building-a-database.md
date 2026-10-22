@@ -436,6 +436,8 @@ Notes:
 
 NASA sometimes re-releases a granule within the same GEDI version, with a new PPDS, PGE or generation in its file name, to fix faulty data. When a SOC directory holds more than one file for a granule product, `gh3_build` reads the latest release (PPDS first, then PGE, then generation, then any suffix such as `_SGS`) and logs the duplicates.
 
+To leave a variant out, pass `--exclude` (e.g. `--exclude '*_SGS.h5'`). The build log keeps the patterns, and every later `gh3_build` (replacements and variable adds included) and `gh3_doctor` apply them, so leaving the flag out later never brings those files back. Patterns passed later are added; to drop one, remove it from the log's `exclude` list. A database built before gedih3 kept them has none recorded: pass `--exclude` once, and it is kept from then on.
+
 The build log records the release each granule was read from. When the SOC directory later holds a newer release of an indexed granule, `gh3_build` warns that its rows come from the older file. Until they are re-indexed, variables added and products filled later read the newer file. A granule whose indexed file is gone and that has only an older release listed is reported too; an older release is never applied over a newer one. That includes a granule indexed from a suffixed file such as `_SGS` that is later excluded or removed: the plain file ranks below it.
 
 To re-index them, run `gh3_build` with `--replace-granules`:
