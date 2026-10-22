@@ -1150,15 +1150,17 @@ and renames `wsci_quality_flag_aX` → `l4c_quality_flag_rel3_aX` in wsci_predic
 ## Quality Filtering
 
 The `--quality` / `-y` flag applies recommended quality conditions for each product
-present in your query. L2A conditions (including `degrade_flag == 0`) are **always**
-applied since L2A data is present in every database.
+present in your query, all combined with AND. L2A conditions are **always** applied
+since L2A data is present in every database (L2A alone when no product is detected).
+The one exception is `degrade_flag == 0` for a v3 query on L4A or L4C without an L2
+product (see below).
 
 | Product | Version | Conditions Applied |
 |---|---|---|
 | L1B | v2 | `stale_return_flag == 0` |
 | L1B | v3 | `stale_return_flag == 0` AND `rx_clipflag == 0` |
 | L2A (always) | v2 | `quality_flag == 1` AND `degrade_flag == 0` |
-| L2A (always) | v3 | `l2a_quality_flag_rel3 == 1` AND `degrade_flag == 0` |
+| L2A (always) | v3 | `l2a_quality_flag_rel3 == 1` AND `degrade_flag == 0` (`degrade_flag` left out for an L4A/L4C v3 query with no L2A or L2B) |
 | L2B | v2 | `l2b_quality_flag == 1` |
 | L2B | v3 | `l2b_quality_flag_rel3 == 1` |
 | L4A | v2 | `l4_quality_flag == 1` |
@@ -1166,20 +1168,34 @@ applied since L2A data is present in every database.
 | L4C | v2 | `wsci_quality_flag == 1` (includes degrade+sensitivity+surface internally) |
 | L4C | v3 | `l4c_quality_flag_rel3 == 1` AND `degrade_include_flag == 1` AND `elev_highestreturn_outlier_flag == 0` |
 
-`degrade_flag == 0` is always applied through L2A regardless of which products are
-selected. L4C v2's `wsci_quality_flag` already encapsulates degrade, sensitivity, and
-surface checks internally.
+L4C v2's `wsci_quality_flag` already encapsulates degrade, sensitivity, and surface
+checks internally.
 
 L4A and L4C v3 carry two flags meant to be applied together: `degrade_include_flag`
 (`1` = pointing and positioning quality acceptable for inclusion) and
 `elev_highestreturn_outlier_flag` (`1` = the shot lies on an orbit section whose canopy
-elevation metrics are large outliers). Every flag in this table is appended to the
+elevation metrics are large outliers). `degrade_include_flag` is the products' own
+pointing and positioning filter, and it admits some shots that `degrade_flag == 0`
+rejects. So when a v3 query selects L4A and/or L4C but neither L2A nor L2B (L1B does
+not count), the always-applied L2A conditions leave out `degrade_flag == 0` and keep
+`l2a_quality_flag_rel3 == 1`. Selecting L2A or L2B as well keeps the full L2A
+conditions alongside the L4 ones, `degrade_flag == 0` included. Products are selected
+with their product flags or, without them, from the suffixes of `-l` variable names:
+
+| Query (v3) | Degrade conditions |
+|---|---|
+| `-l agbd_l4a` (L4A only), or L4C only, or L1B with L4A/L4C | `degrade_include_flag == 1` |
+| `-l agbd_l4a rh_098_l2a` (L2A + L4A), or L2B + L4A | `degrade_flag == 0` AND `degrade_include_flag == 1` |
+| no product detected, L2A only, L2B only | `degrade_flag == 0` |
+
+Every flag in this table is appended to the
 product's variable list at build time, whatever list you give (`minimal`, `default`,
 a file or explicit names), so a database always stores the columns `--quality` reads.
 
 ::::{note}
 A v3 database built with an earlier gedih3 may lack `degrade_include_flag`. `--quality`
-then applies the remaining conditions and logs a warning, and updates keep indexing new
+then applies the remaining conditions, keeps `degrade_flag == 0` for every query and logs
+a warning, and updates keep indexing new
 granules without it so every file keeps one column set. Add it to the whole database
 with a variable update:
 `gh3_build -i <soc> -o <database> -l4a degrade_include_flag -l4c degrade_include_flag`.

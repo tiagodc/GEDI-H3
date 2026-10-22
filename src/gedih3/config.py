@@ -182,7 +182,8 @@ _GEDI_MIN_VARS = {
 # degrade_flag lives in L2A only (always present via essentials). L4A and L4C v3
 # carry their own pointing/positioning inclusion flag (degrade_include_flag,
 # 1 = include) and orbit-segment outlier flag (elev_highestreturn_outlier_flag,
-# 1 = outlier); the two are meant to be applied together.
+# 1 = outlier); the two are meant to be applied together. How a query selecting
+# them combines with L2A's degrade_flag: cliutils.quality_conditions_for_selection.
 # Use _get_versioned() to resolve for a given version.
 _PRODUCT_QUALITY_FLAGS = {
     'L1B': {

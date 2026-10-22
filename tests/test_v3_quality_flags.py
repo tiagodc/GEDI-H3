@@ -166,3 +166,84 @@ def test_an_update_after_the_flag_table_grew_keeps_one_column_set(tmp_dir, _clie
         assert 'new_flag_l4a' not in json.load(f)['h3_columns']
     cols = ['agbd_l4a', 'l4_quality_flag_l4a']
     assert len(gh3_load(h3_dir, columns=cols).compute()) == 3 * len(GEDI_BEAMS) * N_SHOTS
+
+
+# ---------------------------------------------------------------------------
+# which degrade condition a selection gets
+# ---------------------------------------------------------------------------
+
+V3_COLS = ['l2a_quality_flag_rel3_l2a', 'degrade_flag_l2a', 'l2b_quality_flag_rel3_l2b',
+           'l4a_quality_flag_rel3_l4a', 'degrade_include_flag_l4a', 'elev_highestreturn_outlier_flag_l4a',
+           'l4c_quality_flag_rel3_l4c', 'degrade_include_flag_l4c', 'elev_highestreturn_outlier_flag_l4c',
+           'agbd_l4a', 'wsci_l4c', 'rh_098_l2a', 'cover_l2b', 'rx_clipflag_l1b', 'stale_return_flag_l1b']
+
+
+def _query(cols, list_=None, **products):
+    """``build_query_string`` with no database: no build log, so the column names give the release."""
+    import types
+    from gedih3.cliutils import build_query_string
+    from gedih3.config import GEDI_PRODUCTS
+    args = types.SimpleNamespace(quality=True, list=list_, database=None, time_start=None, time_end=None,
+                                 beam_type=None, query=None,
+                                 **{p.lower(): products.get(p.lower()) for p in GEDI_PRODUCTS})
+    return build_query_string(args, available_columns=cols)
+
+
+def _conds(selected, cols=V3_COLS, version=3):
+    from gedih3.cliutils import quality_conditions_for_selection
+    return set(quality_conditions_for_selection(selected, version, cols))
+
+
+@pytest.mark.parametrize('prod', ['L4A', 'L4C'])
+def test_v3_l4_only_selection_uses_the_l4_inclusion_flag_not_degrade_flag(prod):
+    sfx = f'_{prod.lower()}'
+    got = _conds([prod])
+    assert ('degrade_flag_l2a', '== 0') not in got
+    assert {('l2a_quality_flag_rel3_l2a', '== 1'), (L4_V3[prod] + sfx, '== 1'),
+            ('degrade_include_flag' + sfx, '== 1'), ('elev_highestreturn_outlier_flag' + sfx, '== 0')} == got
+    q = _query(V3_COLS, **{prod.lower(): ['minimal']})
+    assert 'degrade_flag_l2a' not in q and f'`degrade_include_flag{sfx}` == 1' in q
+
+
+@pytest.mark.parametrize('l2', ['L2A', 'L2B'])
+def test_v3_l2_and_l4a_selection_applies_both_degrade_conditions(l2):
+    got = _conds([l2, 'L4A'])
+    assert {('degrade_flag_l2a', '== 0'), ('degrade_include_flag_l4a', '== 1'),
+            ('l2a_quality_flag_rel3_l2a', '== 1')} <= got
+    if l2 == 'L2B':
+        assert ('l2b_quality_flag_rel3_l2b', '== 1') in got
+
+
+def test_v3_l4a_without_the_inclusion_column_keeps_degrade_flag():
+    cols = [c for c in V3_COLS if c != 'degrade_include_flag_l4a']
+    got = _conds(['L4A'], cols=cols)
+    assert ('degrade_flag_l2a', '== 0') in got
+    assert not any(c.startswith('degrade_include_flag') for c, _ in got)
+
+
+def test_v2_l4a_selection_is_unchanged():
+    cols = ['quality_flag_l2a', 'degrade_flag_l2a', 'l4_quality_flag_l4a', 'agbd_l4a']
+    assert _conds(['L4A'], cols=cols, version=2) == {
+        ('quality_flag_l2a', '== 1'), ('degrade_flag_l2a', '== 0'), ('l4_quality_flag_l4a', '== 1')}
+    assert '`degrade_flag_l2a` == 0' in _query(cols, l4a=['agbd'])
+
+
+def test_l1b_with_l4a_counts_as_no_l2_and_no_product_keeps_full_l2a():
+    assert ('degrade_flag_l2a', '== 0') not in _conds(['L1B', 'L4A'])
+    assert _conds([]) == {('l2a_quality_flag_rel3_l2a', '== 1'), ('degrade_flag_l2a', '== 0')}
+
+
+def test_products_inferred_from_list_suffixes_follow_the_same_rule():
+    assert 'degrade_flag_l2a' not in _query(V3_COLS, list_=['agbd_l4a'])
+    assert '`degrade_flag_l2a` == 0' in _query(V3_COLS, list_=['agbd_l4a', 'rh_098_l2a'])
+
+
+def test_l4_only_query_keeps_a_shot_its_inclusion_flag_admits():
+    import pandas as pd
+    # degrade_flag 30 with inclusion 1: admitted by the L4 flag, rejected by degrade_flag == 0.
+    df = pd.DataFrame({c: [1, 1] for c in V3_COLS})
+    df['degrade_flag_l2a'] = [0, 30]
+    df['elev_highestreturn_outlier_flag_l4a'] = 0
+    df['elev_highestreturn_outlier_flag_l4c'] = 0
+    assert len(df.query(_query(V3_COLS, l4a=['minimal']))) == 2
+    assert len(df.query(_query(V3_COLS, l2a=['minimal'], l4a=['minimal']))) == 1

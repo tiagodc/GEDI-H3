@@ -1612,17 +1612,74 @@ def get_product_quality_conditions(selected_products, version, available_columns
     return result
 
 
+def quality_conditions_for_selection(selected_products, version, available_columns):
+    """Quality conditions ``--quality`` applies to a product selection.
+
+    Every selected product's conditions apply (ANDed), and L2A's are always
+    added, since every database stores the L2A essentials: no product
+    detected means L2A's conditions alone.
+
+    One exception, for a selection with no L2 product: when the selection has
+    neither L2A nor L2B (L1B with an L4 product counts as none), and a
+    selected L4 product's own ``degrade_include_flag`` condition applies
+    (GEDI release 3 L4A and L4C), the implicit L2A conditions leave out
+    ``degrade_flag == 0``. The L4 product's flag is its pointing/positioning
+    filter, and it admits shots that ``degrade_flag == 0`` rejects. Selecting
+    L2A or L2B keeps L2A's full conditions, ``degrade_flag == 0`` among them,
+    alongside the L4 flags. A database without the ``degrade_include_flag``
+    column keeps ``degrade_flag == 0``, so degrade filtering never lapses.
+
+    Parameters
+    ----------
+    selected_products : list[str]
+        Products the query selected (e.g. ``['L4A']``), possibly empty.
+    version : int or None
+        GEDI release of the database, as for :func:`get_product_quality_conditions`.
+    available_columns : list[str]
+        Columns present in the database (suffixed form).
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        ``(column, condition)`` pairs, all to be ANDed.
+    """
+    selected = [p.upper() for p in selected_products]
+    conditions = get_product_quality_conditions(list(dict.fromkeys(['L2A'] + selected)), version, available_columns)
+    if not selected or {'L2A', 'L2B'} & set(selected):
+        return conditions
+    l4_inclusion = {f"degrade_include_flag_{p.lower()}" for p in ('L4A', 'L4C') if p in selected}
+    if any(col in l4_inclusion for col, _ in conditions):
+        conditions = [(col, op) for col, op in conditions if col != 'degrade_flag_l2a']
+    return conditions
+
+
 def build_query_string(args, available_columns=None):
-    """Build pandas query string from arguments"""
+    """Build the pandas query string of a CLI's filter arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed arguments: ``quality``, the product flags, ``list``,
+        ``database``, ``time_start``/``time_end``, ``beam_type``, ``query``.
+    available_columns : list of str, optional
+        Database columns; read from the build log of ``args.database`` when
+        omitted.
+
+    Returns
+    -------
+    str or None
+        The conditions joined with ``&`` (``None`` when there are none). With
+        ``--quality`` they are :func:`quality_conditions_for_selection` for the
+        products selected by product flags, or else by ``-l`` name suffixes.
+    """
     if available_columns is None:
         from .gh3driver import gh3_read_meta
         available_columns = gh3_read_meta('h3_columns', gh3_root_dir=args.database)
     queries = []
 
-    # Quality filter — apply minimal conditions for each selected product + version.
-    # L2A conditions (incl. degrade_flag) are always applied since L2A essentials
-    # are present in every database.  When no product flags are given, infer
-    # products from -l/--list variable name suffixes (e.g. "wsci_l4c" → L4C).
+    # Quality filter — the selected products' conditions for the database's
+    # release (see quality_conditions_for_selection). When no product flags are
+    # given, infer products from -l/--list variable name suffixes (e.g. "wsci_l4c" → L4C).
     if args.quality:
         selected_products = [p for p in GEDI_PRODUCTS if getattr(args, p.lower(), None) is not None]
 
@@ -1645,9 +1702,9 @@ def build_query_string(args, available_columns=None):
             except Exception:
                 pass
 
-        # Always include L2A conditions; fall back to L2A-only if no products detected
-        products_for_quality = list(dict.fromkeys(['L2A'] + selected_products))
-        quality_conditions = get_product_quality_conditions(products_for_quality, version, available_columns)
+        # L2A conditions always apply (L2A alone when no product is detected),
+        # except degrade_flag for an L4-only selection whose own inclusion flag applies.
+        quality_conditions = quality_conditions_for_selection(selected_products, version, available_columns)
         queries += [f"`{col}` {op}" for col, op in quality_conditions]
 
     # Temporal filters
