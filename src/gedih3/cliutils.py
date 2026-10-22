@@ -1569,6 +1569,8 @@ def get_product_quality_conditions(selected_products, version, available_columns
         identify the release, so this never mixes versions.
     available_columns : list[str]
         Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
+        A flag column that is absent drops its condition with a warning,
+        never the whole product's filter.
 
     Returns
     -------
@@ -1591,14 +1593,21 @@ def get_product_quality_conditions(selected_products, version, available_columns
         # with the most flags present; ties keep the resolved release first.
         # A partial match on a shared name (degrade_flag exists in every
         # L2A release) must not shadow the release the other columns name.
-        best, best_score = [], (False, 0)
+        best, best_score, best_flags = [], (False, 0), []
         for flags in candidates:
             present = [(f"{flag_name}_{prod.lower()}", condition)
                        for flag_name, condition in flags
                        if f"{flag_name}_{prod.lower()}" in available]
             score = (len(present) == len(flags) and bool(present), len(present))
             if score > best_score:
-                best, best_score = present, score
+                best, best_score, best_flags = present, score, flags
+        if best and len(best) < len(best_flags):
+            from .logging_config import get_logger
+            skipped = sorted({f"{f}_{prod.lower()}" for f, _ in best_flags} - {c for c, _ in best})
+            get_logger(__name__).warning(
+                f"Quality filter for {prod}: column(s) {skipped} are not in the data, so their conditions "
+                f"are not applied (a database built before gedih3 stored them can add them with a "
+                f"variable update)")
         result.extend(best)
     return result
 

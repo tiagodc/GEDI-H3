@@ -99,6 +99,51 @@ def _ensure_download_essentials(product_vars: Dict, version=None, ensure_l2a: bo
     return product_vars
 
 
+def _withhold_flags_absent_from_db(product_vars: Dict, h3_dir: str, version=None) -> Dict[str, List[str]]:
+    """Drop quality flags an existing database does not store from an update's lists, in place.
+
+    :func:`_complete_essentials_and_flags` appends every quality flag of the
+    release to each list. A database built before a flag joined that table
+    stores no column for it, and an update must not start one: the merge
+    keeps the existing files' column set, so only new cells would hold the
+    column, and every read naming it (``--quality`` among them) would fail
+    on the older files. The flag is left to a variable update, which adds it
+    to every file at once.
+
+    A-priori: reads only the build log's ``h3_columns``. A database without
+    one (a fresh build) and a product it does not hold yet (all its columns
+    are new) are left alone.
+
+    Parameters
+    ----------
+    product_vars : dict
+        Expanded ``{product: [variable, ...]}`` lists, edited in place.
+    h3_dir : str
+        Database root.
+    version : int, optional
+        GEDI release of the database.
+
+    Returns
+    -------
+    dict
+        ``{product: [flag, ...]}`` withheld, empty when nothing was.
+    """
+    log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    from .utils import json_read_cached
+    columns = set((json_read_cached(log_path) or {}).get('h3_columns') or []) if os.path.isfile(log_path) else set()
+    withheld = {}
+    for prod, val in product_vars.items():
+        flag_map = _PRODUCT_QUALITY_FLAGS.get(prod)
+        suffix = f"_{prod.lower()}"
+        if not columns or not flag_map or val is None or f"root_file{suffix}" not in columns:
+            continue
+        absent = [f for f, _ in _get_versioned(flag_map, version) if f in val and f"{f}{suffix}" not in columns]
+        if absent:
+            val[:] = [v for v in val if v not in absent]
+            withheld[prod] = absent
+    return withheld
+
+
 def download_soc(product_vars: Dict, spatial=None, temporal=None, direct_access=False, update=False, version=None, odir=GH3_DEFAULT_SOC_DIR, n_jobs=5, on_granule_complete=None, ensure_l2a=True):
     """
     Download GEDI HDF5 files in SOC (Science Operation Center) format.
@@ -6072,6 +6117,14 @@ def build_h3db(
 
         # Expand variable specifications and ensure L2A essentials
         product_vars = _expand_product_vars(product_vars, all_soc_files, version=version)
+        withheld = _withhold_flags_absent_from_db(product_vars, h3_dir, version=version)
+        if withheld:
+            desc = ' '.join(f"-{p.lower()} {' '.join(fs)}" for p, fs in sorted(withheld.items()))
+            logger.warning(
+                f"The database predates quality flag(s) {withheld}: new granules are indexed without them, so "
+                f"every file keeps one column set and --quality skips them. Add them to the whole database "
+                f"with a variable update: gh3_build -i <soc> -o {h3_dir} {desc}"
+            )
 
         # Scope fingerprint over the EXPANDED variables. The expansion edits
         # the caller's dict in place, and that dict is the build log's: what
