@@ -1,6 +1,6 @@
 # Landing PRs on main
 > main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
-updated: 2026-10-20T22:59:03-04:00
+updated: 2026-10-22T08:41:07-04:00
 
 Repo `tiagodc/GEDI-H3`. `main` requires one approving code-owner review; the owner can't approve their own PRs,
 so PRs land via `gh pr merge N --squash --admin --subject "<PR title> (#N)"`. `enforce_admins` is off, so the
@@ -21,6 +21,10 @@ forward-merge stacked branches). Merge or push to main only on an explicit reque
    `git merge origin/main` for the bump; retarget with `gh pr edit N --base main`. Verified on #50→#54/#55.
 6. After the squash, `git rev-parse origin/main^{tree}` must equal the PR tip's tree: proof nothing else changed.
 7. Squash-merged branches need `git branch -D`.
+
+8. **Claude Code auto mode blocks the admin merge.** `gh pr merge --admin` is refused by the auto-mode classifier
+   ("Merge Without Review") even when the owner asked for the merge in that session (2026-10-22, #64). The owner merges,
+   or adds a Bash permission rule for it. Don't route around it (no direct push of the change to main).
 
 ## Verify
 - `git diff --stat origin/main...HEAD` on a synced branch lists only that PR's own files.
