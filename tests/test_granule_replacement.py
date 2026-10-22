@@ -208,6 +208,37 @@ def test_merge_tasks_read_the_targets_from_the_journal(layout, monkeypatch):
     assert len(other) == 4 and set(other.agbd_l4a) == {2.0}
 
 
+def test_a_merge_never_uses_another_replacements_map(tmp_dir, monkeypatch):
+    """Two journals with the same path, size and mtime (coarse or cached file
+    stamps): each task still merges with the map the driver read, and a journal
+    that changed or is gone fails the merge instead of merging another map."""
+    import gedih3.gh3builder as gb
+    from gedih3.exceptions import GediMergeError
+    monkeypatch.setattr(gb, 'h3_merge_files', lambda in_dir, out_dir, replace_granules=None, **kw: replace_granules)
+    rtmp, path = str(tmp_dir), gb.replacement_journal(str(tmp_dir))
+    os.makedirs(os.path.dirname(path))
+
+    def journal(targets, mtime_ns=None):
+        with open(path, 'w') as f:
+            json.dump(sorted([gb._granule_key_str(k), sorted(v.items())] for k, v in targets.items()), f)
+        if mtime_ns is not None:
+            os.utime(path, ns=(mtime_ns, mtime_ns))
+        return gb._replacement_digest(rtmp)
+
+    first, second = {_key(100): _new_files(100)}, {_key(200): _new_files(200)}
+    d1 = journal(first)
+    stamp = (os.stat(path).st_size, os.stat(path).st_mtime_ns)
+    assert gb._h3_merge_replacing('in/', 'out', rtmp, d1) == first
+    d2 = journal(second, mtime_ns=stamp[1])
+    assert (os.stat(path).st_size, os.stat(path).st_mtime_ns) == stamp and d2 != d1
+    assert gb._h3_merge_replacing('in/', 'out', rtmp, d2) == second
+    with pytest.raises(GediMergeError, match='changed'):
+        gb._h3_merge_replacing('in/', 'out', rtmp, d1)
+    os.remove(path)
+    with pytest.raises(GediMergeError, match='no journal'):
+        gb._h3_merge_replacing('in/', 'out', rtmp, d1)
+
+
 def test_a_granule_of_another_track_with_the_same_orbit_is_kept(tmp_dir):
     """Orbit and granule come from the shot number; the track from the file."""
     from gedih3.utils import parquet_merge_files

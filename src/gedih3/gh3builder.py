@@ -4058,10 +4058,11 @@ def _merge_and_finalize(
     h3_dir : str
         Final output directory for H3 database
     replacement_tmp : str, optional
-        The tmp dir of a granule replacement (#47): every merge replaces the
-        granules of its journal (:func:`read_replacement_journal`), read once
-        per worker process (:func:`_h3_merge_replacing`), so no task carries
-        the whole target map.
+        The build tmp dir holding a granule replacement's journal (#47), as
+        passed to :func:`read_replacement_journal`: every merge replaces the
+        journaled granules, read once per worker process and checked against
+        the digest the driver reads here (:func:`_h3_merge_replacing`), so no
+        task carries the whole target map.
     extra_dirs : list of str, optional
         More ``<tmp_dir>/h3_<p>=<cell>/year=<year>`` targets, with or without
         fragments: the (cell, year) files holding a replaced granule's old
@@ -4159,7 +4160,8 @@ def _merge_and_finalize(
         # cached outcome without re-executing).
         # A replacement's targets come from its journal, not inside each task:
         # a 10k-granule map added ~7 ms of serialization per task.
-        merge_fn = (functools.partial(_h3_merge_replacing, replacement_tmp=replacement_tmp)
+        merge_fn = (functools.partial(_h3_merge_replacing, replacement_tmp=replacement_tmp,
+                                      digest=_replacement_digest(replacement_tmp))
                     if replacement_tmp else h3_merge_files)
         futures_list = client.map(
             merge_fn,
@@ -5410,38 +5412,59 @@ def read_replacement_journal(tmp_dir: str) -> Optional[Dict[Tuple[int, int, int]
     ``{(orbit, granule, track): {product: basename}}``, as passed to
     :func:`_replace_granules_build`.
     """
+    if not os.path.exists(replacement_journal(tmp_dir)):
+        return None
+    return _read_replacement_targets(tmp_dir)[1]
+
+
+# Per worker process: the target map of the replacement read last, keyed by
+# the journal's path and content digest (#47). One map at most is kept.
+_REPLACE_MAP_CACHE: Dict[Tuple[str, str], Dict[Tuple[int, int, int], Dict[str, str]]] = {}
+
+
+def _read_replacement_targets(replacement_tmp: str) -> Tuple[str, Dict[Tuple[int, int, int], Dict[str, str]]]:
+    """``(digest, targets)`` of the replacement journaled under ``replacement_tmp``.
+
+    The digest is a SHA-256 of the journal's canonical JSON. Raises
+    ``GediMergeError`` when there is no journal.
+    """
+    import hashlib
     try:
-        with open(replacement_journal(tmp_dir)) as f:
+        with open(replacement_journal(replacement_tmp)) as f:
             entries = json.load(f)
     except FileNotFoundError:
-        return None
-    out = {}
+        raise GediMergeError(f"Granule replacement: no journal under {replacement_tmp}; nothing was merged")
+    digest = hashlib.sha256(json.dumps(entries).encode()).hexdigest()
+    targets = {}
     for ot, files in entries:
         orbit, granule, track = ot.split('_')
-        out[(int(orbit[1:]), int(granule), int(track[1:]))] = dict(files)
-    return out
+        targets[(int(orbit[1:]), int(granule), int(track[1:]))] = dict(files)
+    return digest, targets
 
 
-# Per worker process: the target map of the replacement whose journal was read
-# last, keyed by the journal's path, mtime and size (#47).
-_REPLACE_MAP_CACHE: Dict[Tuple[str, int, int], Dict[Tuple[int, int, int], Dict[str, str]]] = {}
+def _replacement_digest(replacement_tmp: str) -> str:
+    """Content digest of a replacement's journal (see :func:`_read_replacement_targets`)."""
+    return _read_replacement_targets(replacement_tmp)[0]
 
 
-def _h3_merge_replacing(in_dir, out_dir, replacement_tmp, **kwargs):
+def _h3_merge_replacing(in_dir, out_dir, replacement_tmp, digest, **kwargs):
     """:func:`h3_merge_files` replacing the granules journaled under ``replacement_tmp``.
 
     The merge task of a granule replacement: the target map is read from the
     journal once per worker process, rather than serialized into every task.
-    The journal never changes while a replacement runs, and a new one has
-    another mtime or size.
+    It is cached by the content ``digest`` the driver read, never by file
+    stamps, and a journal whose content differs (or is gone) fails the merge:
+    a task never merges with another replacement's map.
     """
-    journal = replacement_journal(replacement_tmp)
-    st = os.stat(journal)
-    key = (journal, st.st_mtime_ns, st.st_size)
+    key = (replacement_journal(replacement_tmp), digest)
     rmap = _REPLACE_MAP_CACHE.get(key)
     if rmap is None:
+        found, rmap = _read_replacement_targets(replacement_tmp)
+        if found != digest:
+            raise GediMergeError(f"Granule replacement: the journal under {replacement_tmp} changed during the "
+                                 f"merge; nothing was merged for {in_dir}")
         _REPLACE_MAP_CACHE.clear()
-        rmap = _REPLACE_MAP_CACHE[key] = read_replacement_journal(replacement_tmp)
+        _REPLACE_MAP_CACHE[key] = rmap
     return h3_merge_files(in_dir, out_dir, replace_granules=rmap, **kwargs)
 
 
