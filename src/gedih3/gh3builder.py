@@ -4040,7 +4040,7 @@ def _cleanup_merged_tmp(tmp_dir: str, merge_failed: bool) -> None:
 def _merge_and_finalize(
     tmp_dir: str,
     h3_dir: str,
-    replace_granules: Optional[Dict[Tuple[int, int, int], Dict[str, str]]] = None,
+    replacement_tmp: Optional[str] = None,
     extra_dirs: Optional[List[str]] = None,
 ) -> List[str]:
     """
@@ -4057,9 +4057,11 @@ def _merge_and_finalize(
         Temporary directory containing partitioned files
     h3_dir : str
         Final output directory for H3 database
-    replace_granules : dict, optional
-        Passed to every :func:`h3_merge_files`: the granules being re-indexed
-        (#47), ``{(orbit, granule, track): {product: basename}}``.
+    replacement_tmp : str, optional
+        The tmp dir of a granule replacement (#47): every merge replaces the
+        granules of its journal (:func:`read_replacement_journal`), read once
+        per worker process (:func:`_h3_merge_replacing`), so no task carries
+        the whole target map.
     extra_dirs : list of str, optional
         More ``<tmp_dir>/h3_<p>=<cell>/year=<year>`` targets, with or without
         fragments: the (cell, year) files holding a replaced granule's old
@@ -4155,10 +4157,10 @@ def _merge_and_finalize(
         # (this phase keeps every future alive for its whole duration, so
         # any same-process resubmission of a dir would otherwise get the
         # cached outcome without re-executing).
-        # A replacement map is baked into a partial: dask may read the tuple
-        # keys of a kwarg dict as task keys (see _write_partitioned_streaming).
-        merge_fn = (functools.partial(h3_merge_files, replace_granules=replace_granules)
-                    if replace_granules else h3_merge_files)
+        # A replacement's targets come from its journal, not inside each task:
+        # a 10k-granule map added ~7 ms of serialization per task.
+        merge_fn = (functools.partial(_h3_merge_replacing, replacement_tmp=replacement_tmp)
+                    if replacement_tmp else h3_merge_files)
         futures_list = client.map(
             merge_fn,
             remaining_dirs,
@@ -4261,7 +4263,7 @@ def _merge_and_finalize(
     h3_subdirs_set: set = {
         os.path.dirname(os.path.dirname(p)) + '/' for p in h3_files
     }
-    if replace_granules:
+    if replacement_tmp:
         # A replacement may have emptied some; their cells still get their
         # summary recompiled (or removed) below.
         h3_files = [f for f in h3_files if os.path.exists(f)]
@@ -5420,6 +5422,29 @@ def read_replacement_journal(tmp_dir: str) -> Optional[Dict[Tuple[int, int, int]
     return out
 
 
+# Per worker process: the target map of the replacement whose journal was read
+# last, keyed by the journal's path, mtime and size (#47).
+_REPLACE_MAP_CACHE: Dict[Tuple[str, int, int], Dict[Tuple[int, int, int], Dict[str, str]]] = {}
+
+
+def _h3_merge_replacing(in_dir, out_dir, replacement_tmp, **kwargs):
+    """:func:`h3_merge_files` replacing the granules journaled under ``replacement_tmp``.
+
+    The merge task of a granule replacement: the target map is read from the
+    journal once per worker process, rather than serialized into every task.
+    The journal never changes while a replacement runs, and a new one has
+    another mtime or size.
+    """
+    journal = replacement_journal(replacement_tmp)
+    st = os.stat(journal)
+    key = (journal, st.st_mtime_ns, st.st_size)
+    rmap = _REPLACE_MAP_CACHE.get(key)
+    if rmap is None:
+        _REPLACE_MAP_CACHE.clear()
+        rmap = _REPLACE_MAP_CACHE[key] = read_replacement_journal(replacement_tmp)
+    return h3_merge_files(in_dir, out_dir, replace_granules=rmap, **kwargs)
+
+
 def _replace_granules_build(
     h3_dir: str,
     targets: Dict[Tuple[int, int, int], Dict[str, str]],
@@ -5577,7 +5602,7 @@ def _replace_granules_build(
     # ── 4. One atomic rewrite per affected cell-year ──
     with open(os.path.join(rtmp, _REPLACE_MERGING), 'w'):
         pass
-    files = _merge_and_finalize(parquet_dir, h3_dir, replace_granules=rmap, extra_dirs=old_dirs)
+    files = _merge_and_finalize(parquet_dir, h3_dir, replacement_tmp=os.path.dirname(rtmp), extra_dirs=old_dirs)
     failed = _scan_merge_failure_sentinels(parquet_dir)
     if failed:
         raise GediMergeError(f"Granule replacement: {len(failed)} partition merge(s) failed; re-run gh3_build to "

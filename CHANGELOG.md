@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **A granule replacement's merge tasks no longer carry the whole target map.** Each worker process reads it once from the replacement's journal. Serializing it into every task cost about 7 ms per task with 10,000 target granules (15.4 s against 1.1 s for 2,000 tasks), on the driver and the scheduler, so a large replacement spent minutes before merging anything.
+
 ## [0.21.0] - 2026-10-21
 
 ### Added
