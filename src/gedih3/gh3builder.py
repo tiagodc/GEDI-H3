@@ -4042,6 +4042,7 @@ def _merge_and_finalize(
     h3_dir: str,
     replacement_tmp: Optional[str] = None,
     extra_dirs: Optional[List[str]] = None,
+    replacement_digest: Optional[str] = None,
 ) -> List[str]:
     """
     Merge temporary partitioned files into the final H3 database.
@@ -4061,12 +4062,15 @@ def _merge_and_finalize(
         The build tmp dir holding a granule replacement's journal (#47), as
         passed to :func:`read_replacement_journal`: every merge replaces the
         journaled granules, read once per worker process and checked against
-        the digest the driver reads here (:func:`_h3_merge_replacing`), so no
-        task carries the whole target map.
+        ``replacement_digest`` (:func:`_h3_merge_replacing`), so no task
+        carries the whole target map.
     extra_dirs : list of str, optional
         More ``<tmp_dir>/h3_<p>=<cell>/year=<year>`` targets, with or without
         fragments: the (cell, year) files holding a replaced granule's old
         rows, which are rewritten even when no new row lands there.
+    replacement_digest : str, optional
+        :func:`_targets_digest` of the targets the caller indexed, so every
+        merge uses exactly those; when omitted, the journal's own digest.
 
     Returns
     -------
@@ -4161,7 +4165,7 @@ def _merge_and_finalize(
         # A replacement's targets come from its journal, not inside each task:
         # a 10k-granule map added ~7 ms of serialization per task.
         merge_fn = (functools.partial(_h3_merge_replacing, replacement_tmp=replacement_tmp,
-                                      digest=_replacement_digest(replacement_tmp))
+                                      digest=replacement_digest or _replacement_digest(replacement_tmp))
                     if replacement_tmp else h3_merge_files)
         futures_list = client.map(
             merge_fn,
@@ -5429,15 +5433,20 @@ def _read_replacement_targets(replacement_tmp: str) -> Tuple[str, Dict[Tuple[int
     The digest is a SHA-256 of the journal's canonical JSON. Raises
     ``FileNotFoundError`` when there is no journal.
     """
-    import hashlib
     with open(replacement_journal(replacement_tmp)) as f:
         entries = json.load(f)
-    digest = hashlib.sha256(json.dumps(entries).encode()).hexdigest()
+    digest = _targets_digest(entries)
     targets = {}
     for ot, files in entries:
         orbit, granule, track = ot.split('_')
         targets[(int(orbit[1:]), int(granule), int(track[1:]))] = dict(files)
     return digest, targets
+
+
+def _targets_digest(entries) -> str:
+    """SHA-256 of a replacement's journal entries, as written or as read back."""
+    import hashlib
+    return hashlib.sha256(json.dumps(entries).encode()).hexdigest()
 
 
 def _replacement_digest(replacement_tmp: str) -> str:
@@ -5629,7 +5638,8 @@ def _replace_granules_build(
     # ── 4. One atomic rewrite per affected cell-year ──
     with open(os.path.join(rtmp, _REPLACE_MERGING), 'w'):
         pass
-    files = _merge_and_finalize(parquet_dir, h3_dir, replacement_tmp=os.path.dirname(rtmp), extra_dirs=old_dirs)
+    files = _merge_and_finalize(parquet_dir, h3_dir, replacement_tmp=os.path.dirname(rtmp), extra_dirs=old_dirs,
+                                replacement_digest=_targets_digest(entries))
     failed = _scan_merge_failure_sentinels(parquet_dir)
     if failed:
         raise GediMergeError(f"Granule replacement: {len(failed)} partition merge(s) failed; re-run gh3_build to "

@@ -219,10 +219,12 @@ def test_a_merge_never_uses_another_replacements_map(tmp_dir, monkeypatch):
     os.makedirs(os.path.dirname(path))
 
     def journal(targets, mtime_ns=None):
+        entries = sorted([gb._granule_key_str(k), sorted(v.items())] for k, v in targets.items())
         with open(path, 'w') as f:
-            json.dump(sorted([gb._granule_key_str(k), sorted(v.items())] for k, v in targets.items()), f)
+            json.dump(entries, f)
         if mtime_ns is not None:
             os.utime(path, ns=(mtime_ns, mtime_ns))
+        assert gb._targets_digest(entries) == gb._replacement_digest(rtmp)   # what the driver passes
         return gb._replacement_digest(rtmp)
 
     first, second = {_key(100): _new_files(100)}, {_key(200): _new_files(200)}
