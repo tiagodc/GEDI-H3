@@ -172,6 +172,78 @@ def test_without_replace_granules_existing_rows_still_win(layout):
     assert list(t.agbd_l4a) == [1.0, 1.0, 1.0, 9.0]                    # shot 0 kept, shot 5 added
 
 
+def test_merge_tasks_read_the_targets_from_the_journal(layout, monkeypatch):
+    """A replacement's merges take the target map from its journal, once per
+    worker process: no task carries it, whatever the number of targets."""
+    import cloudpickle
+    from dask.distributed import Client, LocalCluster
+    import gedih3.gh3builder as gb
+    in_dir, out_dir, dest = layout
+    parquet_dir = os.path.dirname(os.path.dirname(in_dir.rstrip('/')))
+    rtmp = os.path.join(os.path.dirname(parquet_dir), 'replace_tmp')
+    _write(dest, _rows(100, range(0, 6), OLD, 1.0), _rows(200, range(0, 4), OLD, 2.0))
+    _write(os.path.join(in_dir, 'O00100_G01_T01100.BEAM0000.parquet'), _rows(100, [0, 1, 6], NEW, 9.0))
+    targets = {_key(o): _new_files(o) for o in range(1000, 6000)}
+    targets[_key(100)] = _new_files(100)
+    os.makedirs(os.path.dirname(gb.replacement_journal(rtmp)))
+    with open(gb.replacement_journal(rtmp), 'w') as f:
+        json.dump(sorted([gb._granule_key_str(k), sorted(v.items())] for k, v in targets.items()), f)
+    assert gb.read_replacement_journal(rtmp) == targets
+
+    payloads = []
+    with LocalCluster(n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None,
+                      silence_logs='ERROR') as cluster, Client(cluster) as client:
+        real_map = client.map
+
+        def recording_map(fn, *args, **kwargs):
+            payloads.append(len(cloudpickle.dumps(fn)))
+            return real_map(fn, *args, **kwargs)
+        monkeypatch.setattr(client, 'map', recording_map)
+        gb._merge_and_finalize(parquet_dir, out_dir, replacement_tmp=rtmp)
+
+    assert payloads and max(payloads) < 4096 < len(cloudpickle.dumps(targets))
+    t = _table(dest)
+    replaced, other = t[t.shot_number // 10**13 == 100], t[t.shot_number // 10**13 == 200]
+    assert sorted(replaced.shot_number) == _shots(100, [0, 1, 6]) and set(replaced.agbd_l4a) == {9.0}
+    assert len(other) == 4 and set(other.agbd_l4a) == {2.0}
+
+
+def test_a_merge_never_uses_another_replacements_map(tmp_dir, monkeypatch):
+    """Two journals with the same path, size and mtime (coarse or cached file
+    stamps): each task still merges with the map the driver read, and a journal
+    that changed or is gone fails the merge instead of merging another map."""
+    import gedih3.gh3builder as gb
+    from gedih3.exceptions import GediMergeError
+    monkeypatch.setattr(gb, 'h3_merge_files', lambda in_dir, out_dir, replace_granules=None, **kw: replace_granules)
+    rtmp, path = str(tmp_dir), gb.replacement_journal(str(tmp_dir))
+    os.makedirs(os.path.dirname(path))
+
+    def journal(targets, mtime_ns=None):
+        entries = sorted([gb._granule_key_str(k), sorted(v.items())] for k, v in targets.items())
+        with open(path, 'w') as f:
+            json.dump(entries, f)
+        if mtime_ns is not None:
+            os.utime(path, ns=(mtime_ns, mtime_ns))
+        assert gb._targets_digest(entries) == gb._replacement_digest(rtmp)   # what the driver passes
+        return gb._replacement_digest(rtmp)
+
+    first, second = {_key(100): _new_files(100)}, {_key(200): _new_files(200)}
+    d1 = journal(first)
+    stamp = (os.stat(path).st_size, os.stat(path).st_mtime_ns)
+    assert gb._h3_merge_replacing('in/', 'out', rtmp, d1) == first
+    d2 = journal(second, mtime_ns=stamp[1])
+    assert (os.stat(path).st_size, os.stat(path).st_mtime_ns) == stamp and d2 != d1
+    assert gb._h3_merge_replacing('in/', 'out', rtmp, d2) == second
+    with pytest.raises(GediMergeError, match='changed'):
+        gb._h3_merge_replacing('in/', 'out', rtmp, d1)
+    os.remove(path)
+    with pytest.raises(GediMergeError, match='changed or is gone'):
+        gb._h3_merge_replacing('in/', 'out', rtmp, d1)
+    with pytest.raises(GediMergeError, match='no journal'):
+        gb._replacement_digest(rtmp)
+    assert gb.read_replacement_journal(rtmp) is None
+
+
 def test_a_granule_of_another_track_with_the_same_orbit_is_kept(tmp_dir):
     """Orbit and granule come from the shot number; the track from the file."""
     from gedih3.utils import parquet_merge_files
