@@ -367,7 +367,7 @@ def test_a_first_merge_checks_the_new_rows_too(layout):
 # end to end: gh3_build --replace-granules (#47 part 5)
 # ---------------------------------------------------------------------------
 
-def _write_release(soc_dir, key, release, lon0, seed, n=20, first=0):
+def _write_release(soc_dir, key, release, lon0, seed, n=20, first=0, products=('02_A', '04_A')):
     """L2A + L4A files of one granule release, with real GEDI shot numbers
     (orbit, beam and granule encoded), so the replacement can match rows."""
     import h5py
@@ -377,7 +377,7 @@ def _write_release(soc_dir, key, release, lon0, seed, n=20, first=0):
     os.makedirs(day, exist_ok=True)
     rng = np.random.default_rng(seed)
     names = {}
-    for product in ('02_A', '04_A'):
+    for product in products:
         name = f"GEDI{product}_2020100000000_O{orbit:05d}_{granule:02d}_T{track:05d}_{release}_V002.h5"
         names['L' + product.replace('0', '', 1).replace('_', '')] = name
         with h5py.File(os.path.join(day, name), 'w') as f:
@@ -410,12 +410,12 @@ def _db_rows(h3_dir):
                       .to_pandas() for f in files], ignore_index=True)
 
 
-def _gh3_build(soc_dir, h3_dir, tmp, *extra, ok=True):
+def _gh3_build(soc_dir, h3_dir, tmp, *extra, ok=True, products=('-l2a', 'rh_098', '-l4a', 'agbd')):
     import subprocess
     import sys
     cmd = [sys.executable, '-m', 'gedih3.cli.gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp,
            '--gedi-version', '2', '-N', '2', '-T', '1', '-M', '2', '-P', '0', '--no-bbox-index',
-           '-l2a', 'rh_098', '-l4a', 'agbd', '--region=-51,0,-49,1', *extra]
+           *products, '--region=-51,0,-49,1', *extra]
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
     out = res.stdout + res.stderr
     assert (res.returncode == 0) is ok, out[-4000:]
@@ -669,3 +669,86 @@ def test_year_files_without_metadata_are_rewritten_too(tmp_dir):
     after = _db_rows(h3_dir)
     assert after.shot_number.is_unique
     assert set(after[after.shot_number // 10**13 == 101].root_file_l2a) == {new['L2A']}
+
+
+def test_a_product_added_by_a_variable_update_is_replaced_like_any_other(tmp_dir):
+    """L4A added to an L2A database by a variable update gets its source
+    columns and recorded release, as a build writes them (#68). A re-release
+    of L4A alone is then found by auto and its rows take the new values; the
+    L2A columns, from an unchanged file, stay."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    old = _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098'))
+    _gh3_build(soc_dir, h3_dir, tmp)                                  # adds L4A: a variable update
+
+    def rows():
+        import glob
+        return pd.concat([pq.read_table(f).to_pandas() for f in
+                          glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))], ignore_index=True)
+
+    def log():
+        return json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))
+    added = rows()
+    mine = added[added.shot_number // 10**13 == 101]
+    assert set(mine.root_file_l4a) == {old['L4A']} and mine.root_beam_l4a.notna().all()
+    assert {'root_file_l4a', 'root_beam_l4a'} <= set(log()['h3_columns'])
+    assert {g['orbit']: g['releases'] for g in log()['granules']} == {101: {'L2A': OLD, 'L4A': OLD},
+                                                                       103: {'L2A': OLD, 'L4A': OLD}}
+
+    new = _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))   # L4A re-released alone
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    assert '1 granule(s) re-indexed from their new release' in out
+    after = rows()
+    mine_after = after[after.shot_number // 10**13 == 101].set_index('shot_number').sort_index()
+    mine_before = mine.set_index('shot_number').sort_index()
+    assert set(mine_after.root_file_l4a) == {new['L4A']} and set(mine_after.root_file_l2a) == {old['L2A']}
+    assert not np.allclose(mine_after.agbd_l4a, mine_before.agbd_l4a)
+    pd.testing.assert_series_equal(mine_after.rh_098_l2a, mine_before.rh_098_l2a)
+    theirs = after[after.shot_number // 10**13 == 103].set_index('shot_number').sort_index()
+    pd.testing.assert_frame_equal(theirs, added[added.shot_number // 10**13 == 103].set_index('shot_number')
+                                  .sort_index()[theirs.columns])
+    assert {g['orbit']: g['releases'] for g in log()['granules']}[101] == {'L2A': OLD, 'L4A': NEW}
+
+
+def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
+    """A database whose L4A an older gedih3 added without root_file_l4a: a
+    replacement where only L4A changed is refused before anything is written,
+    one where L2A changed too goes ahead, and a later variable add of L4A does
+    not give it a source column its older values would not match (#68)."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    from gedih3.exceptions import GediValidationError
+    from gedih3.gh3builder import check_replacement_sources
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key = (101, 1, 201)
+    old = _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098'))
+    _gh3_build(soc_dir, h3_dir, tmp)
+    # What gedih3 before 0.21.2 left: no L4A source columns, no L4A release recorded.
+    import glob
+    for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
+        t = pq.read_table(f)
+        pq.write_table(t.drop_columns(['root_file_l4a', 'root_beam_l4a']), f)
+    path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    log = json.load(open(path))
+    log['h3_columns'] = [c for c in log['h3_columns'] if c not in ('root_file_l4a', 'root_beam_l4a')]
+    for g in log['granules']:
+        g['releases'].pop('L4A')
+    json.dump(log, open(path, 'w'))
+
+    new = _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201', ok=False)
+    assert 'Cannot replace 1 granule(s) (O00101_01_T00201)' in out and 'root_file_l4a' in out
+    after = json.load(open(path))
+    assert after['status'] == log['status'] and '_pending_replacement' not in after
+    assert not os.path.exists(os.path.join(tmp, '_replace'))
+
+    with pytest.raises(GediValidationError, match='Cannot replace'):
+        check_replacement_sources(h3_dir, {key: {'L2A': old['L2A'], 'L4A': new['L4A']}})
+    check_replacement_sources(h3_dir, {key: {'L2A': old['L2A'].replace(OLD, NEW), 'L4A': new['L4A']}})
+
+    _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098', '-l4a', 'agbd', 'agbd_se'))
+    cols = set(json.load(open(path))['h3_columns'])
+    assert 'agbd_se_l4a' in cols and 'root_file_l4a' not in cols

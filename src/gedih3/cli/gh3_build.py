@@ -443,6 +443,8 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
                 logger.info("No granule to re-index")
                 return
 
+        from gedih3.gh3builder import check_replacement_sources
+        check_replacement_sources(args.output, targets, tmp_dir=tmp_dir)
         logger.info(f"Re-indexing {len(targets)} granule(s) from their new source files")
         h3_logger.log_data['_pending_replacement'] = tmp_dir
         h3_logger.save_log('PROCESSING')
@@ -1355,11 +1357,16 @@ def main():
                         }
                         h3_logger.save_log('PROCESSING')
 
+                    def _record_var_releases(releases):
+                        # Products the variable add gives source columns (#68).
+                        if h3_logger.record_releases(releases):
+                            h3_logger.save_log('PROCESSING')
                     h3_files_s2 = build_h3db(
                         product_vars=stage2_products,
                         soc_source=soc_source,
                         skip_granules=None,
                         variable_only_update=True,
+                        releases_callback=_record_var_releases,
                         **_build_kwargs,
                     )
                     h3_files = (h3_files or []) + (h3_files_s2 or [])

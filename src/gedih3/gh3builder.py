@@ -4439,8 +4439,10 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
     written on failure, so the next resume retries the granule.
 
     ``include_source=True`` also emits each product's ``root_file_<prod>``
-    column, as a build writes it — the product fill needs it; a
-    variable-add does not.
+    and ``root_beam_<prod>`` columns, as a build writes them; a collection
+    of products emits them for those products only. The product fill needs
+    them, and so does a variable add of a product the database had no
+    source columns for (#68): they are what a granule replacement matches.
 
     ``split_products=True`` (product fill) fans each product on its own —
     fragments ``<granule_key>.<prod>.parquet``, each product's frame freed
@@ -4482,8 +4484,9 @@ def _var_fan_granule(task, *, new_product_vars, tmp_dir, include_source=False, s
         if not var_list:
             continue
         try:
-            df = load_h5(h5_path, columns=['shot_number'] + var_list,
-                         shots=None, include_source=include_source)
+            df = load_h5(h5_path, columns=['shot_number'] + var_list, shots=None,
+                         include_source=(include_source if isinstance(include_source, bool)
+                                         else prod in include_source))
         except Exception as exc:
             return {
                 'granule': granule_key,
@@ -4645,7 +4648,12 @@ def _refresh_year_columns_meta(year_pf: str) -> None:
         h3_write_metadata(year_pf)
 
 
-def _var_source_schema(h5_path, *, prod, variables):
+# The per-product provenance columns a build writes (``load_h5(include_source=True)``,
+# product-suffixed): the source file's basename and the beam.
+_SOURCE_COLUMNS = ('root_file', 'root_beam')
+
+
+def _var_source_schema(h5_path, *, prod, variables, include_source=False):
     """Worker: the schema a variable update's fan writes for one product.
 
     Reads ``variables`` of one granule's ``prod`` file exactly as
@@ -4654,18 +4662,19 @@ def _var_source_schema(h5_path, *, prod, variables):
     between products can upcast them.
     """
     import pyarrow as pa
-    df = load_h5(h5_path, columns=['shot_number'] + list(variables), shots=None, include_source=False)
+    df = load_h5(h5_path, columns=['shot_number'] + list(variables), shots=None, include_source=include_source)
     suffix = f"_{prod.lower()}"
     df = df.rename(columns=lambda x: x if x.endswith(suffix) else f"{x}{suffix}")
     return pa.Schema.from_pandas(df.reset_index(), preserve_index=False).remove_metadata()
 
 
-def _var_new_columns_schema(client, gran_h5, product_vars):
+def _var_new_columns_schema(client, gran_h5, product_vars, source_products=()):
     """One schema for every file a variable update writes, from one granule per product.
 
     Deterministic (the first granule key holding the product), so a resumed
     run derives the same schema. A product no granule has a file for is left
     out, with a warning: no file gets its columns, so the files stay alike.
+    ``source_products`` also get their source columns (``_SOURCE_COLUMNS``).
     """
     import pyarrow as pa
     futures = {}
@@ -4678,7 +4687,8 @@ def _var_new_columns_schema(client, gran_h5, product_vars):
             logger.warning(f"Variable update: no granule has a local {prod} file; {prod} variables are not added. "
                            f"Download {prod} and re-run to add them")
             continue
-        futures[prod] = client.submit(_var_source_schema, src, prod=prod, variables=variables, pure=False)
+        futures[prod] = client.submit(_var_source_schema, src, prod=prod, variables=variables,
+                                      include_source=prod in source_products, pure=False)
     fields = {}
     for prod, fut in futures.items():
         for field in fut.result():
@@ -4688,7 +4698,8 @@ def _var_new_columns_schema(client, gran_h5, product_vars):
     return pa.schema([fields.pop('shot_number')] + list(fields.values()))
 
 
-def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *, fill=False, year_pfs=None):
+def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *, fill=False, year_pfs=None,
+                        source_products=()):
     """Stages 1-3 of the inverted granule fan-out, shared by variable-add and product-fill.
 
     Reads each granule's product h5(s) exactly once and fans its shots to the
@@ -4718,6 +4729,9 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
         Variable-add: every file still lacking the new columns. Files no
         granule routes rows to are merged too, so they get the columns as
         null (:func:`_var_merge_cell_year`).
+    source_products : collection of str, optional
+        Variable-add: products whose ``root_file_<prod>`` / ``root_beam_<prod>``
+        columns are written too (a fill always writes them).
 
     Returns
     -------
@@ -4739,7 +4753,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
     # ── Stage 1: fan — read each granule ONCE, write per-cell fragments ──
     fan_fn = functools.partial(
         _var_fan_granule, new_product_vars=product_vars, tmp_dir=tmp_dir,
-        include_source=fill, split_products=fill,
+        include_source=True if fill else frozenset(source_products), split_products=fill,
     )
     fan_tasks = [(ot, gran_h5[ot], gran_year_pfs[ot]) for ot in gran_year_pfs]
     fan_futures = client.map(fan_fn, fan_tasks, pure=False)
@@ -4807,7 +4821,8 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
             logger.info(f"Resuming merge: {len(merged_set)} (cell, year) already merged")
     remaining = [yp for yp in touched_year_pfs if yp not in merged_set]
 
-    new_schema = None if fill else _var_new_columns_schema(client, gran_h5, product_vars)
+    new_schema = None if fill else _var_new_columns_schema(client, gran_h5, product_vars,
+                                                           source_products=source_products)
     merge_fn = functools.partial(_var_merge_cell_year, tmp_dir=tmp_dir, fill=fill, new_schema=new_schema)
     updated_files: List[str] = []
     touched_cells = set()
@@ -4903,7 +4918,7 @@ def _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, product_vars, tmp_dir, *
 
 
 def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None,
-                         tmp_dir=None, exclude=None):
+                         tmp_dir=None, exclude=None, releases_callback=None):
     """Add new variables to an existing H3 database via inverted fan-out.
 
     **Architecture: read each granule ONCE, fan its shots to all owning
@@ -4957,6 +4972,20 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     exclude : list of str, optional
         fnmatch patterns of source files to ignore (as ``gh3_build --exclude``),
         so the new variables come from the files the database was built from.
+    releases_callback : callable, optional
+        Called once, before the first write, with ``{key: {product: tag}}``
+        (``gedi_release_tag``) of the files read for each product new to the
+        database, as :func:`_build_fill_products` does.
+
+    Notes
+    -----
+    Each granule's latest listed release is read. A product new to the
+    database (no column of it in the build log's ``h3_columns``) gets
+    ``root_file_<prod>`` and ``root_beam_<prod>`` too, as a build writes them
+    (#68): a granule replacement matches its rows by them, and the file each
+    row came from is known. A product an earlier variable add added without
+    them does not get them (its columns may come from an older release than
+    the one read now); :func:`_replace_granules_build` refuses to replace it.
 
     Returns
     -------
@@ -5019,6 +5048,20 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
                 v if v.endswith(suffix) else f"{v}{suffix}"
                 for v in var_list if v != 'shot_number'
             )
+    # A product new to the database gets its source columns too (#68), from
+    # the file its values are read from. Not one it already holds columns of
+    # without them (added by an earlier variable add): its other columns may
+    # come from an older release, which a source column naming this one would
+    # hide from a granule replacement. A file lacking them is not done.
+    from .utils import json_read_cached
+    h3_columns = (json_read_cached(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}).get('h3_columns') or []
+    source_products = sorted(p for p, v in new_product_vars.items()
+                             if v and h3_columns and not any(c.endswith(f"_{p.lower()}") for c in h3_columns))
+    for prod in source_products:
+        new_cols.update(f"{c}_{prod.lower()}" for c in _SOURCE_COLUMNS)
+    if source_products:
+        logger.info(f"Variable update: {', '.join(source_products)} rows also get their source file and beam "
+                    f"columns ({', '.join(f'root_file_{p.lower()}' for p in source_products)})")
 
     logger.info("Scanning year files for resume state and granule lists")
     scan_futures = client.map(
@@ -5092,9 +5135,21 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
         f"already-done={skipped})"
     )
 
+    if releases_callback is not None and source_products:
+        # Before the first write, as a fill records them: rows of these files
+        # may be committed by a run killed part-way.
+        tags = {}
+        for ot, h5 in gran_h5.items():
+            t = {p: tag for p in source_products
+                 if p in h5 and (tag := gedi_release_tag(str(getattr(h5[p], 'path', h5[p]))))}
+            if t:
+                orbit, granule, track = ot.split('_')
+                tags[(int(orbit[1:]), int(granule), int(track[1:]))] = t
+        releases_callback(tags)
+
     pending = [pf for pf, granules in zip(year_files, scan_results) if granules is not None]
     return _fan_merge_products(h3_dir, gran_h5, gran_year_pfs, new_product_vars, tmp_dir,
-                               year_pfs=pending)['updated_files'] or None
+                               year_pfs=pending, source_products=source_products)['updated_files'] or None
 
 
 def _granule_key_str(key) -> str:
@@ -5405,6 +5460,60 @@ def replacement_abandon_hint(tmp_dir: str) -> str:
     return f"removing {rtmp} abandons it safely: no database file was rewritten yet"
 
 
+def check_replacement_sources(h3_dir: str, targets, tmp_dir: Optional[str] = None) -> None:
+    """Refuse to replace a granule whose changed rows cannot be told from its old ones.
+
+    A replacement merge keeps a row when every ``root_file_<prod>`` column
+    names the given file. A product added by a variable update of gedih3
+    before 0.21.2 has no such column (#68), so when it is the only product of
+    a granule with a new release, the merge would keep the old rows while
+    the build log records the new release. A granule with another product
+    re-released is fine: its rows are replaced whole. Answered from the
+    build log (``h3_columns``, recorded releases); no data is read.
+
+    Parameters
+    ----------
+    h3_dir : str
+        Database root.
+    targets : dict
+        ``{(orbit, granule, track): {product: file}}``, as passed to
+        :func:`_replace_granules_build`.
+    tmp_dir : str, optional
+        The build tmp dir, to point at an unfinished replacement's journal.
+
+    Raises
+    ------
+    GediValidationError
+        If such a granule is among ``targets``.
+    """
+    from .utils import json_read_cached
+    log = json_read_cached(os.path.join(h3_dir, BUILD_LOG_FILENAME)) or {}
+    h3_columns = set(log.get('h3_columns') or [])
+    unsourced = sorted({p for files in targets.values() for p in files if f"root_file_{p.lower()}" not in h3_columns})
+    if not h3_columns or not unsourced:
+        return
+    recorded = {(g['orbit'], g['granule'], g['track']): g.get('releases') or {} for g in log.get('granules') or []}
+    blind = []
+    for key, files in targets.items():
+        rel = recorded.get(tuple(key), {})
+        sourced = [p for p in files if p not in unsourced]
+        # Unknown (no recorded release) counts as unchanged: nothing proves the rows go.
+        if not any(rel.get(p) and rel[p] != gedi_release_tag(os.path.basename(str(getattr(files[p], 'path', files[p]))))
+                   for p in sourced):
+            blind.append(_granule_key_str(key))
+    if not blind:
+        return
+    cols = ', '.join(f'root_file_{p.lower()}' for p in unsourced)
+    msg = (f"Cannot replace {len(blind)} granule(s) ({', '.join(blind[:5])}{' ...' if len(blind) > 5 else ''}): "
+           f"the database has no {cols} column ({', '.join(unsourced)} was added by a variable update of gedih3 "
+           f"before 0.21.2), and no other product of theirs has a new release, so their old rows cannot be told "
+           f"from the new ones. Nothing was changed. Leave them out; only a fresh build records the source of "
+           f"{', '.join(unsourced)}")
+    if tmp_dir and os.path.exists(replacement_journal(tmp_dir)):
+        msg += f". An unfinished replacement is journaled: {replacement_abandon_hint(tmp_dir)}"
+    raise GediValidationError(msg)
+
+
 def replacement_journal(tmp_dir: str) -> str:
     """Path of the journal of a granule replacement under a build tmp dir.
 
@@ -5546,7 +5655,8 @@ def _replace_granules_build(
     Raises
     ------
     GediValidationError
-        Another replacement is unfinished under ``tmp_dir``.
+        Another replacement is unfinished under ``tmp_dir``, or a target's
+        rows cannot be told from its new ones (:func:`check_replacement_sources`).
     GediDatabaseError
         A year file's metadata is unreadable.
     GediProcessingError
@@ -5561,6 +5671,8 @@ def _replace_granules_build(
     rmap = {tuple(k): {p: os.path.basename(str(getattr(f, 'path', f))) for p, f in files.items()}
             for k, files in targets.items()}
     entries = sorted([_granule_key_str(k), sorted(v.items())] for k, v in rmap.items())
+
+    check_replacement_sources(h3_dir, rmap, tmp_dir=os.path.dirname(rtmp))
 
     # ── 1. Journal, before the first destructive step ──
     journal = os.path.join(rtmp, _REPLACE_JOURNAL)
@@ -5669,6 +5781,7 @@ def build_h3db(
     granule_products_callback: Optional[Callable[[Dict[Tuple[int, int, int], List[str]]], None]] = None,
     stage1_outcome_callback: Optional[Callable[[set, set], None]] = None,
     only_granules: Optional[List[Dict]] = None,
+    releases_callback: Optional[Callable[[Dict[Tuple[int, int, int], Dict[str, str]]], None]] = None,
 ) -> Optional[List[str]]:
     """
     Build an H3-indexed GEDI database from local SOC files or S3 download.
@@ -5733,6 +5846,12 @@ def build_h3db(
         If given, Stage 1 reads only these granules and leaves every other one
         for a later build (``H3BuildLogger.stage1_only_granules``: a
         spatial-only expansion reads only the added region).
+    releases_callback : callable, optional
+        ``variable_only_update`` only: called before the first write with the
+        source releases (``{(orbit, granule, track): {product: tag}}``) read
+        for each product new to the database, which gets source columns too
+        (see :func:`_build_add_variables`), so the caller can record them
+        (:meth:`H3BuildLogger.record_releases`).
 
     Returns
     -------
@@ -5786,6 +5905,7 @@ def build_h3db(
                 result = _build_add_variables(
                     h3_dir, product_vars,
                     soc_source=_s3_tmp_dir, version=version, tmp_dir=tmp_dir, exclude=exclude,
+                    releases_callback=releases_callback,
                 )
                 if not result:
                     logger.warning(
@@ -5855,7 +5975,7 @@ def build_h3db(
         if variable_only_update:
             logger.info(f"Variable-only update: adding {set(product_vars.keys())} to existing database")
             result = _build_add_variables(h3_dir, product_vars, soc_source=soc_source, version=version,
-                                          tmp_dir=tmp_dir, exclude=exclude)
+                                          tmp_dir=tmp_dir, exclude=exclude, releases_callback=releases_callback)
             if not result:
                 logger.warning(
                     "Variable update completed but no partition files were modified. "
