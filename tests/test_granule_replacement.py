@@ -740,7 +740,7 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
 
     new = _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201', ok=False)
-    assert 'Cannot replace 1 granule(s) (O00101_01_T00201)' in out and 'root_file_l4a' in out
+    assert 'Cannot replace granules: 1 granule(s) (O00101_01_T00201)' in out and 'root_file_l4a' in out
     after = json.load(open(path))
     assert after['status'] == log['status'] and '_pending_replacement' not in after
     assert not os.path.exists(os.path.join(tmp, '_replace'))
@@ -748,6 +748,21 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     with pytest.raises(GediValidationError, match='Cannot replace'):
         check_replacement_sources(h3_dir, {key: {'L2A': old['L2A'], 'L4A': new['L4A']}})
     check_replacement_sources(h3_dir, {key: {'L2A': old['L2A'].replace(OLD, NEW), 'L4A': new['L4A']}})
+
+    # A run an older gedih3 journaled and had started merging is finished, not stranded; the
+    # log keeps the release the L4A rows still hold.
+    import gedih3.gh3builder as gb
+    os.makedirs(os.path.join(tmp, '_replace'), exist_ok=True)
+    with open(gb.replacement_journal(tmp), 'w') as f:
+        json.dump([[gb._granule_key_str(key), sorted({'L2A': old['L2A'], 'L4A': new['L4A']}.items())]], f)
+    open(os.path.join(tmp, '_replace', gb._REPLACE_MERGING), 'w').close()
+    log = json.load(open(path))
+    log['granules'][0]['releases']['L4A'] = OLD
+    json.dump(log, open(path, 'w'))
+    out = _gh3_build(soc_dir, h3_dir, tmp, products=())
+    assert 'finishing the run started earlier' in out and '1 granule(s) re-indexed' in out
+    assert json.load(open(path))['granules'][0]['releases'] == {'L2A': OLD, 'L4A': OLD}
+    assert not os.path.exists(gb.replacement_journal(tmp))
 
     _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098', '-l4a', 'agbd', 'agbd_se'))
     cols = set(json.load(open(path))['h3_columns'])
@@ -757,9 +772,9 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
 def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tmp_dir):
     """The log's h3_columns is the union of every file's: after an expansion,
     newer cells list root_file_l4a while older ones lack it. The replacement
-    reads the footers of the files holding each target and refuses one whose
-    only re-released product has no source column there, leaving the log and
-    the files as they were (#68)."""
+    reads the footers of the files holding each target: auto leaves out one
+    whose only re-released product has no source column there, a named one is
+    refused, and the log and the files stay as they were (#68)."""
     import glob
     from gedih3.config import BUILD_LOG_FILENAME
     soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
@@ -780,8 +795,11 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
     assert 'root_file_l4a' in before['h3_columns']
 
     _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
-    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto', ok=False)
-    assert 'Cannot replace 1 granule(s) (O00101_01_T00201)' in out and 'This run changed nothing' in out
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')        # auto leaves it out
+    assert 'leaving out 1 granule(s) (O00101_01_T00201) cannot be replaced' in out
+    assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201', ok=False)   # named: refused
+    assert 'Cannot replace granules: 1 granule(s) (O00101_01_T00201)' in out and 'This run changed nothing' in out
     after = json.load(open(path))
     assert after['status'] == before['status'] and '_pending_replacement' not in after
     assert {g['orbit']: g['releases'] for g in after['granules']}[101] == {'L2A': OLD, 'L4A': OLD}
