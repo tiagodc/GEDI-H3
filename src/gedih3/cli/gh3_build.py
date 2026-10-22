@@ -514,15 +514,22 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
                 h3_logger.log_data.pop('_pending_replacement', None)
                 h3_logger.save_log(_status_before)
             raise
+        if not result['replaced']:                   # every target left out (#68): nothing was written
+            h3_logger.log_data.pop('_pending_replacement', None)
+            h3_logger.save_log(_status_before)
+            logger.info("No granule to re-index")
+            return
 
         # The rows are in: the granules take their new releases (the one place
         # a recorded release is replaced), and their product statuses are rebuilt.
         for g in h3_logger.granule_info:
             key = (g['orbit'], g['granule'], g['track'])
             if key in result['replaced']:
-                kept = {p: t for p, t in (g.get('releases') or {}).items() if p in result['blind'].get(key, ())}
-                g['releases'] = {p: tag for p, f in targets[key].items() if (tag := gedi_release_tag(f))}
-                g['releases'].update(kept)          # products whose rows kept their old values (#68)
+                # Products whose rows kept their old values (#68) keep their old tag, or stay unknown.
+                blind, before = result['blind'].get(key, ()), g.get('releases') or {}
+                g['releases'] = {p: tag for p, f in targets[key].items()
+                                 if p not in blind and (tag := gedi_release_tag(f))}
+                g['releases'].update({p: before[p] for p in blind if p in before})
                 g.pop('products', None)
                 g.pop('fill_attempts', None)
                 g['status'] = 'NO_DATA' if key in result['empty'] else 'INDEXED'

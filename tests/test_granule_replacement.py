@@ -729,7 +729,7 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     # What an older gedih3 left: no L4A source columns, no L4A release recorded.
     import glob
     for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
-        t = pq.read_table(f)
+        t = pq.ParquetFile(f).read()                # no hive columns from the path
         pq.write_table(t.drop_columns(['root_file_l4a', 'root_beam_l4a']), f)
     path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
     log = json.load(open(path))
@@ -756,12 +756,9 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     with open(gb.replacement_journal(tmp), 'w') as f:
         json.dump([[gb._granule_key_str(key), sorted({'L2A': old['L2A'], 'L4A': new['L4A']}.items())]], f)
     open(os.path.join(tmp, '_replace', gb._REPLACE_MERGING), 'w').close()
-    log = json.load(open(path))
-    log['granules'][0]['releases']['L4A'] = OLD
-    json.dump(log, open(path, 'w'))
-    out = _gh3_build(soc_dir, h3_dir, tmp, products=())
+    out = _gh3_build(soc_dir, h3_dir, tmp, products=())     # no L4A release recorded: none is invented
     assert 'finishing the run started earlier' in out and '1 granule(s) re-indexed' in out
-    assert json.load(open(path))['granules'][0]['releases'] == {'L2A': OLD, 'L4A': OLD}
+    assert json.load(open(path))['granules'][0]['releases'] == {'L2A': OLD}
     assert not os.path.exists(gb.replacement_journal(tmp))
 
     _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098', '-l4a', 'agbd', 'agbd_se'))
@@ -785,7 +782,7 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
     _gh3_build(soc_dir, h3_dir, tmp)
     stripped = {}
     for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
-        t = pq.read_table(f)
+        t = pq.ParquetFile(f).read()                # no hive columns from the path
         if (t['shot_number'].to_numpy() // 10**13 == 101).any() and not (t['shot_number'].to_numpy() // 10**13 == 103).any():
             pq.write_table(t.drop_columns(['root_file_l4a', 'root_beam_l4a']), f)
             stripped[f] = os.stat(f).st_mtime_ns
@@ -796,7 +793,7 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
 
     _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')        # auto leaves it out
-    assert 'leaving out 1 granule(s) (O00101_01_T00201) cannot be replaced' in out
+    assert 'leaving out 1 granule(s) (O00101_01_T00201) cannot be replaced' in out and 'No granule to re-index' in out
     assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
     out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'O00101_01_T00201', ok=False)   # named: refused
     assert 'Cannot replace granules: 1 granule(s) (O00101_01_T00201)' in out and 'This run changed nothing' in out
@@ -805,6 +802,41 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
     assert {g['orbit']: g['releases'] for g in after['granules']}[101] == {'L2A': OLD, 'L4A': OLD}
     assert not os.path.exists(os.path.join(tmp, '_replace', '_replace_targets.json'))
     assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
+
+
+def test_auto_leaves_out_what_it_cannot_check_and_replaces_the_rest(tmp_dir):
+    """One granule whose only re-released product has no source column in its
+    files, one with every product re-released: auto leaves the first out
+    (its files untouched, its releases as they were) and replaces the second."""
+    import glob
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098'))
+    _gh3_build(soc_dir, h3_dir, tmp)
+    stripped = {}
+    for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
+        t = pq.ParquetFile(f).read()                # no hive columns from the path
+        orbits = t['shot_number'].to_numpy() // 10**13
+        if (orbits == 101).any() and not (orbits == 103).any():
+            pq.write_table(t.drop_columns(['root_file_l4a', 'root_beam_l4a']), f)
+            stripped[f] = os.stat(f).st_mtime_ns
+    assert stripped
+    _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
+    new_other = _write_release(soc_dir, other, NEW, lon0=-49.6, seed=23)
+
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    assert 'leaving out 1 granule(s) (O00101_01_T00201)' in out and '1 granule(s) re-indexed' in out
+    assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
+    rows = pd.concat([pq.ParquetFile(f).read(columns=['shot_number', 'root_file_l2a']).to_pandas()
+                      for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))], ignore_index=True)
+    assert rows.shot_number.is_unique
+    assert set(rows[rows.shot_number // 10**13 == 103].root_file_l2a) == {new_other['L2A']}
+    rel = {g['orbit']: g['releases'] for g in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}
+    assert rel == {101: {'L2A': OLD, 'L4A': OLD}, 103: {'L2A': NEW, 'L4A': NEW}}
+    assert not os.path.exists(os.path.join(tmp, '_replace'))
 
 
 def _forget_releases(h3_dir):
