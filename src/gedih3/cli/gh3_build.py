@@ -353,6 +353,7 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     from gedih3.exceptions import GediValidationError
     from gedih3.gedidriver import soc_file_tree, gedi_release_rank, gedi_release_tag
     from gedih3.gh3builder import (_replace_granules_build, read_replacement_journal, replacement_abandon_hint,
+                                   replacement_journal, check_replacement_sources,
                                    _granule_id_from_l2a_path, _granule_key_str, _REPLACE_DIRNAME, _REPLACE_MERGING)
 
     if not os.path.isfile(os.path.join(args.output, BUILD_LOG_FILENAME)):
@@ -443,14 +444,22 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
                 logger.info("No granule to re-index")
                 return
 
-        from gedih3.gh3builder import check_replacement_sources
         check_replacement_sources(args.output, targets, tmp_dir=tmp_dir)
         logger.info(f"Re-indexing {len(targets)} granule(s) from their new source files")
         h3_logger.log_data['_pending_replacement'] = tmp_dir
+        _status_before = h3_logger.log_data.get('status') or 'COMPLETED'
         h3_logger.save_log('PROCESSING')
-        result = _replace_granules_build(
-            args.output, targets, product_vars, h3_logger.res, h3_logger.part,
-            spatial=h3_logger.get_spatial(), version=h3_logger.gedi_version, tmp_dir=tmp_dir)
+        try:
+            result = _replace_granules_build(
+                args.output, targets, product_vars, h3_logger.res, h3_logger.part,
+                spatial=h3_logger.get_spatial(), version=h3_logger.gedi_version, tmp_dir=tmp_dir)
+        except GediValidationError:
+            # Refused before anything was journaled or written (e.g. a target
+            # whose rows record no source, #68): the log is as it was.
+            if not os.path.exists(replacement_journal(tmp_dir)):
+                h3_logger.log_data.pop('_pending_replacement', None)
+                h3_logger.save_log(_status_before)
+            raise
 
         # The rows are in: the granules take their new releases (the one place
         # a recorded release is replaced), and their product statuses are rebuilt.

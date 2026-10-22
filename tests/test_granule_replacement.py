@@ -752,3 +752,38 @@ def test_a_product_without_a_source_column_is_never_replaced_blind(tmp_dir):
     _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098', '-l4a', 'agbd', 'agbd_se'))
     cols = set(json.load(open(path))['h3_columns'])
     assert 'agbd_se_l4a' in cols and 'root_file_l4a' not in cols
+
+
+def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tmp_dir):
+    """The log's h3_columns is the union of every file's: after an expansion,
+    newer cells list root_file_l4a while older ones lack it. The replacement
+    reads the footers of the files holding each target and refuses one whose
+    only re-released product has no source column there, leaving the log and
+    the files as they were (#68)."""
+    import glob
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp, products=('-l2a', 'rh_098'))
+    _gh3_build(soc_dir, h3_dir, tmp)
+    stripped = {}
+    for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')):
+        t = pq.read_table(f)
+        if (t['shot_number'].to_numpy() // 10**13 == 101).any() and not (t['shot_number'].to_numpy() // 10**13 == 103).any():
+            pq.write_table(t.drop_columns(['root_file_l4a', 'root_beam_l4a']), f)
+            stripped[f] = os.stat(f).st_mtime_ns
+    assert stripped
+    path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    before = json.load(open(path))
+    assert 'root_file_l4a' in before['h3_columns']
+
+    _write_release(soc_dir, key, NEW, lon0=-50.9, seed=21, products=('04_A',))
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto', ok=False)
+    assert 'Cannot replace 1 granule(s) (O00101_01_T00201)' in out and 'This run changed nothing' in out
+    after = json.load(open(path))
+    assert after['status'] == before['status'] and '_pending_replacement' not in after
+    assert {g['orbit']: g['releases'] for g in after['granules']}[101] == {'L2A': OLD, 'L4A': OLD}
+    assert not os.path.exists(os.path.join(tmp, '_replace', '_replace_targets.json'))
+    assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
