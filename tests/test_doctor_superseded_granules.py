@@ -117,3 +117,64 @@ def test_backfill_reads_no_file_the_build_excludes(tmp_path):
     assert _get_soc_tree(soc_dir, version=2)['O00100_01_T00100']['L2A'].endswith('_SGS.h5')
     tree = _get_soc_tree(soc_dir, version=2, exclude=['*_SGS.h5'])
     assert os.path.basename(tree['O00100_01_T00100']['L2A']) == plain
+
+
+def test_the_logs_exclude_is_a_list_of_patterns():
+    """A pattern written by hand as a string is one pattern, never its characters
+    ('*' alone would exclude every file); anything else is refused."""
+    from gedih3.exceptions import GediValidationError
+    from gedih3.logger import stored_exclude
+    assert stored_exclude({}) == stored_exclude({'exclude': None}) == []
+    assert stored_exclude({'exclude': '*_SGS.h5'}) == ['*_SGS.h5']
+    for bad in (['*_SGS.h5', 3], {'*_SGS.h5': True}):
+        with pytest.raises(GediValidationError, match='list of glob patterns'):
+            stored_exclude({'exclude': bad})
+
+
+def test_every_doctor_listing_applies_the_build_exclude(tmp_path, monkeypatch):
+    """gh3_doctor's upstream check, both backfill fix paths and the dtype
+    reference sample take the patterns from the build log."""
+    import types
+    import gedih3.gh3builder as gb
+    import gedih3.doctor.parallel as dparallel
+    from gedih3.doctor import upstream
+    from gedih3.doctor.diagnoses.backfill import backfill_fix
+    from gedih3.doctor.diagnoses.dtype_drift import _sample_granule
+    from gedih3.doctor.report import Report, Severity
+    pats, seen = ['*_SGS.h5'], []
+    soc_dir = str(tmp_path / 'soc')
+    os.makedirs(soc_dir)
+    log = types.SimpleNamespace(product_vars={'L2A': None}, granule_info=[], exclude=pats, gedi_version=2,
+                                spatial=None, temporal=None, log_data={'status': 'COMPLETED'},
+                                set_product_statuses=lambda updates: None)
+    ctx = types.SimpleNamespace(h3_logger=log, h3_dir=str(tmp_path), tmp_dir=str(tmp_path / 'tmp'),
+                                soc_dir=soc_dir, args=types.SimpleNamespace(s3=False))
+
+    monkeypatch.setattr(upstream, 'query_available_granules', lambda *a, **k: {'L2A': set()})
+    monkeypatch.setattr(upstream, '_local_soc_keys_for_product',
+                        lambda soc, p, version=None, exclude=None: seen.append(('upstream', exclude)) or set())
+    upstream.gather_upstream(ctx)
+
+    class _Stop(Exception):
+        pass
+
+    def fill(*a, exclude=None, **k):
+        seen.append(('fill', exclude))
+        raise _Stop
+    monkeypatch.setattr(gb, '_build_fill_products', fill)
+    g = {'orbit': 1, 'granule': 1, 'track': 1}
+    with pytest.raises(_Stop):
+        backfill_fix(ctx, Report(name='backfill', severity=Severity.WARN,
+                                 findings=[{'kind': 'missing_source', 'granule': g, 'products': ['L2A']}]))
+
+    monkeypatch.setattr(dparallel, 'parallel_map', lambda items, fn, exclude=None, **k: seen.append(('heal', exclude))
+                        or iter(()))
+    backfill_fix(ctx, Report(name='backfill', severity=Severity.WARN, findings=[
+        {'kind': 'partial_nan', 'partition_dir': str(tmp_path / 'h3_03=x'), 'product': 'L2A', 'granule': g}]))
+
+    assert seen == [('upstream', pats), ('fill', pats), ('heal', pats)]
+
+    _touch(soc_dir, 100, '02_003_02')
+    _touch(soc_dir, 101, '02_003_02')
+    assert '_O00100_' in _sample_granule(soc_dir, 2, ['L2A'], latest='2020-04-09', exclude=['*_O00101_*'])['L2A']
+    assert '_O00101_' in _sample_granule(soc_dir, 2, ['L2A'], latest='2020-04-09', exclude=['*_O00100_*'])['L2A']

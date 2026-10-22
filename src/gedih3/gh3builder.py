@@ -5691,8 +5691,10 @@ def build_h3db(
         version = _resolve_build_version(h3_dir, soc_source)
     # The database's own exclusions (gh3_build --exclude, kept in its log) always apply.
     _log_path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
-    _stored = (json_read(_log_path) or {}).get('exclude') if os.path.isfile(_log_path) else None
-    exclude = list(dict.fromkeys([*(_stored or []), *(exclude or [])])) or None
+    from .logger import stored_exclude
+    from .utils import json_read_cached
+    _stored = stored_exclude(json_read_cached(_log_path)) if os.path.isfile(_log_path) else []
+    exclude = list(dict.fromkeys([*_stored, *(exclude or [])])) or None
 
     # Track temp directory for S3 download cleanup
     _s3_tmp_dir = None
@@ -5973,8 +5975,8 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     merged_log = log1.copy()
     merged_log['last_modified'] = now()
     # Source exclusions: a file either build left out stays out.
-    exclude = list(log1.get('exclude') or [])
-    exclude += [p for p in log2.get('exclude') or [] if p not in exclude]
+    from .logger import stored_exclude
+    exclude = list(dict.fromkeys(stored_exclude(log1) + stored_exclude(log2)))
     if exclude:
         merged_log['exclude'] = exclude
     
