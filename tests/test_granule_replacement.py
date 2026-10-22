@@ -901,10 +901,17 @@ def test_rows_from_two_releases_leave_the_granule_unknown(tmp_dir):
 
     with LocalCluster(n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None,
                       silence_logs='ERROR') as cluster, Client(cluster):
-        releases, mixed, failed = releases_from_rows(h3_dir, ['L2A', 'L4A'], [key, other], version=2)
+        releases, mixed, unread, failed = releases_from_rows(h3_dir, ['L2A', 'L4A'], [key, other], version=2)
         assert releases[key] == {'L2A': OLD, 'L4A': OLD} and releases[other] == {'L4A': OLD}
-        assert mixed == {other: {'L2A': sorted([OLD, NEW])}} and failed == []
+        assert mixed == {other: {'L2A': [OLD, NEW]}} and unread == set() and failed == []
         assert releases_from_rows(h3_dir, ['L2A', 'L4A'], [key])[0] == {key: {'L2A': OLD, 'L4A': OLD}}
+        import gedih3.gh3builder as gb
+        saved, gb._ROW_RELEASE_SHIPPED_TARGETS = gb._ROW_RELEASE_SHIPPED_TARGETS, 0
+        try:                                       # a large target set: every granule read, filtered here
+            assert releases_from_rows(h3_dir, ['L2A', 'L4A'], [key, other], version=2)[:2] == (releases, mixed)
+            assert releases_from_rows(h3_dir, ['L2A', 'L4A'], [key])[:2] == ({key: releases[key]}, {})
+        finally:
+            gb._ROW_RELEASE_SHIPPED_TARGETS = saved
         assert _year_file_source_releases(f, products=['L2A'], targets={'O00103_01_T00203'}, version=3) == {}
         log = H3BuildLogger(product_vars=None, dir=h3_dir)
         report = superseded_granules_check(types.SimpleNamespace(h3_logger=log, soc_dir=soc_dir, h3_dir=h3_dir))
@@ -947,3 +954,107 @@ def test_each_indexed_granule_without_a_release_is_read_from_its_rows_once(tmp_d
     assert h.row_release_targets() == {(3, 1, 3)}
     h.log_data['h3_columns'] = ['shot_number']
     assert H3BuildLogger.row_release_targets(h) == set()
+
+
+def _files_of(h3_dir, orbit):
+    import glob
+    return sorted(f for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))
+                  if (pq.read_table(f, columns=['shot_number'])['shot_number'].to_numpy() // 10**13 == orbit).any())
+
+
+def _mix_rows(f, orbit, col='root_file_l2a'):
+    """Half of a granule's rows in ``f`` name the NEW release of a product, as
+    a replacement left half done would; the file keeps its schema metadata."""
+    t = pq.ParquetFile(f).read()
+    mine = t['shot_number'].to_numpy() // 10**13 == orbit
+    values = t[col].to_pylist()
+    new = values[int(np.argmax(mine))].replace(OLD, NEW)
+    values = [new if m and i % 2 == 0 else v for i, (v, m) in enumerate(zip(values, mine))]
+    i = t.schema.get_field_index(col)
+    pq.write_table(t.set_column(i, t.schema.field(i), pa.array(values, type=t.schema.field(i).type)), f)
+
+
+def _doctor_superseded(h3_dir, soc_dir):
+    import types
+    from dask.distributed import Client, LocalCluster
+    from gedih3.doctor.diagnoses.superseded_granules import superseded_granules_check
+    from gedih3.logger import H3BuildLogger
+    with LocalCluster(n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None,
+                      silence_logs='ERROR') as cluster, Client(cluster):
+        log = H3BuildLogger(product_vars=None, dir=h3_dir)
+        return superseded_granules_check(types.SimpleNamespace(h3_logger=log, soc_dir=soc_dir, h3_dir=h3_dir))
+
+
+def test_a_granule_whose_rows_name_two_releases_stays_reported_until_re_indexed(tmp_dir):
+    """The releases a mixed product's rows name are kept in the log after the
+    first read: the doctor keeps listing the granule, and once the newer file
+    is listed, auto re-indexes it whole from there (#72 review)."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    _forget_releases(h3_dir)
+    _mix_rows(_files_of(h3_dir, 103)[0], 103)
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert 'have rows from more than one release of a product' in out
+    g103 = {g['orbit']: g for g in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}[103]
+    assert g103['releases'] == {'L4A': OLD} and g103['mixed_releases'] == {'L2A': [OLD, NEW]}
+    report = _doctor_superseded(h3_dir, soc_dir)
+    assert [(f['kind'], f['granule']['orbit']) for f in report.findings] == [('mixed_releases', 103)]
+
+    new = _write_release(soc_dir, other, NEW, lon0=-49.6, seed=3, products=('02_A',))
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    assert '1 granule(s) re-indexed from their new release' in out
+    g103 = {g['orbit']: g for g in json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME)))['granules']}[103]
+    assert g103['releases'] == {'L2A': NEW, 'L4A': OLD} and 'mixed_releases' not in g103
+    rows = pd.concat([pq.ParquetFile(f).read(columns=['shot_number', 'root_file_l2a']).to_pandas()
+                      for f in _files_of(h3_dir, 103)], ignore_index=True)
+    assert set(rows[rows.shot_number // 10**13 == 103].root_file_l2a) == {new['L2A']}
+    assert _doctor_superseded(h3_dir, soc_dir).findings == []
+
+
+def test_granules_an_unreadable_file_may_hold_are_read_again_on_the_next_run(tmp_dir):
+    """A granule is marked read only when every file its metadata names was
+    read: rows of a file that fails are neither guessed from the others nor
+    forgotten (#72 review)."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    path = _forget_releases(h3_dir)
+    files = _files_of(h3_dir, 103)
+    _mix_rows(files[0], 103)                     # the readable part names one release, the lost one another
+    backups = {f: open(f, 'rb').read() for f in files[1:]}
+    assert backups
+    for f in backups:
+        open(f, 'wb').write(b'garbage' * 10)
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert 'could not be read' in out and 'read again on the next run' in out
+    by = {g['orbit']: g for g in json.load(open(path))['granules']}
+    assert 'releases' not in by[103] and 'mixed_releases' not in by[103]
+    for f, b in backups.items():
+        open(f, 'wb').write(b)
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert 'Reading the source releases' in out
+    by = {g['orbit']: g for g in json.load(open(path))['granules']}
+    assert by[103]['releases'] == {'L4A': OLD} and by[103]['mixed_releases'] == {'L2A': [OLD, NEW]}
+
+
+def test_the_doctor_reports_mixed_rows_when_no_release_is_known(tmp_dir):
+    """A database whose only granule's rows name two releases of every product:
+    nothing to compare, the mixed rows are reported all the same."""
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    _write_release(soc_dir, (103, 1, 203), OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    _forget_releases(h3_dir)
+    for f in _files_of(h3_dir, 103):
+        _mix_rows(f, 103, 'root_file_l2a')
+        _mix_rows(f, 103, 'root_file_l4a')
+    report = _doctor_superseded(h3_dir, soc_dir)
+    assert [f['kind'] for f in report.findings] == ['mixed_releases'], report.summary

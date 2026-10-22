@@ -14,7 +14,8 @@ Detects (read-only, no fix):
     It is never applied, but variables added and products filled later read
     the listed file.
   - ``mixed_releases``: a granule's rows name more than one release of a
-    product (a replacement left half done); its release is unknown.
+    product (a replacement left half done), as read from its rows and kept
+    in the build log (``mixed_releases``) until it is re-indexed.
 
 Compares the build log's recorded ``releases`` (gh3_build >= 0.20.10) with
 the file a listing picks now, by granule key (orbit, granule, track) within
@@ -49,7 +50,7 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
     if not version:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary='the build log records no GEDI version; skipping')
-    mixed, n_from_rows, failed = {}, None, []
+    n_from_rows, failed, n_unread = None, [], 0
     keys = log.row_release_targets() if hasattr(log, 'row_release_targets') else set()
     if keys:
         # Read-only: the releases are adopted into a copy, never into the
@@ -59,7 +60,7 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
         columns = set(log.log_data.get('h3_columns') or [])
         from ...exceptions import GediError
         try:
-            releases, mixed, failed = releases_from_rows(
+            releases, mixed, unread, failed = releases_from_rows(
                 ctx.h3_dir, [p for p in log.product_vars or {} if f"root_file_{p.lower()}" in columns], keys,
                 version=version)
         except (GediError, OSError) as e:
@@ -67,11 +68,13 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
         else:
             log = copy.copy(log)
             log.granule_info = copy.deepcopy(log.granule_info)
-            n_from_rows = log.adopt_row_releases(releases, keys)
+            n_from_rows = log.adopt_row_releases(releases, keys - unread, mixed=mixed)
+            n_unread = len(unread)
+    mixed = log.mixed_release_granules() if hasattr(log, 'mixed_release_granules') else {}
     granules = getattr(log, 'granule_info', None) or []
     checked = [g for g in granules if g.get('status') in ('INDEXED', 'NO_DATA')]
-    n_unknown = sum(1 for g in checked if not g.get('releases'))
-    if len(checked) == n_unknown:
+    n_unknown = sum(1 for g in checked if not g.get('releases') and not g.get('mixed_releases'))
+    if len(checked) == n_unknown and not failed:
         return Report(name='superseded_granules', severity=Severity.INFO,
                       summary=f"no recorded source releases to check ({n_unknown} granule(s) indexed before "
                               f"gedih3 recorded them)")
@@ -100,23 +103,27 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
         summary += (f" (releases of granules indexed before gedih3 recorded them read from the rows: "
                     f"{n_from_rows} tag(s); gh3_build records them on its next run)")
     if failed:
-        summary += f"; {len(failed)} database file(s) unreadable, their rows not counted (e.g. {failed[0]})"
+        summary += (f"; {len(failed)} database file(s) unreadable (e.g. {failed[0] or 'a batch of files'}), "
+                    f"{n_unread} granule(s) they may hold not checked")
     if n_unknown:
         summary += f"; {n_unknown} granule(s) without a recorded release not checked"
     recommendations = []
     if mixed:
         recommendations.append(
             "Rows of these granules come from more than one release of a product, as a replacement left half "
-            "done would: re-index them by name with gh3_build -i <soc> -o <db> --replace-granules <key>")
+            "done would: re-index them from the newest with gh3_build -i <soc> -o <db> --replace-granules auto "
+            "(or by key), restoring that file in the SOC tree first if it is gone")
     if n_newer:
         recommendations.append(
             "Rows of these granules come from the older release: re-index them with gh3_build -i <soc> -o <db> "
             "--replace-granules auto. Until then, variables added and products filled later read the newer "
             "files. Files matching the build's --exclude patterns (kept in its log) are left out")
+    if failed:
+        recommendations.append("Check the unreadable files with gh3_doctor --check parquet_health")
     if n_older:
         recommendations.append(
             "Restore the release these granules were indexed from before adding variables or filling products")
-    return Report(name='superseded_granules', severity=Severity.WARN if findings else Severity.INFO,
+    return Report(name='superseded_granules', severity=Severity.WARN if findings or failed else Severity.INFO,
                   findings=findings, summary=summary, recommendations=recommendations)
 
 

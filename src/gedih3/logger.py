@@ -1477,7 +1477,10 @@ class H3BuildLogger:
 
         Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded
         ``releases`` with the file a listing would read now. Log-only, no I/O.
-        A product with no recorded tag is unknown and never reported. A log
+        A product whose rows name several releases (``mixed_releases``, see
+        :meth:`adopt_row_releases`) compares its oldest, so a listing of the
+        newer one reports it until it is re-indexed whole. A product with no
+        recorded tag is unknown and never reported. A log
         with no GEDI version reports nothing: tags carry no version, so a
         file of another release would read as a re-release.
 
@@ -1500,8 +1503,11 @@ class H3BuildLogger:
             it is never applied, but variables added and products filled
             later would read it.
         """
-        index = {(g['orbit'], g['granule'], g['track']): g for g in getattr(self, 'granule_info', None) or []
-                 if g.get('releases') and g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA)}
+        index = {(g['orbit'], g['granule'], g['track']): {'releases': self.compared_releases(g)}
+                 for g in getattr(self, 'granule_info', None) or []
+                 if (g.get('releases') or g.get('mixed_releases'))
+                 and g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA)}
+        index = {k: v for k, v in index.items() if v['releases']}
         out = {'newer': {}, 'older': {}}
         if not index or not getattr(self, 'gedi_version', None):
             return out
@@ -1576,6 +1582,17 @@ class H3BuildLogger:
                         n += 1
         return n
 
+    @staticmethod
+    def compared_releases(granule, newest=False):
+        """``{product: tag}`` a granule's rows are compared by: its recorded
+        ``releases``, plus the oldest (``newest=True``: the newest) of the
+        releases a product's rows name when they name several
+        (``mixed_releases``). Log-only."""
+        out = {p: (max if newest else min)(tags, key=gedi_release_rank)
+               for p, tags in (granule.get('mixed_releases') or {}).items() if tags}
+        out.update(granule.get('releases') or {})
+        return out
+
     def row_release_targets(self):
         """Indexed granules whose releases were never recorded nor read from their rows (#67).
 
@@ -1597,7 +1614,7 @@ class H3BuildLogger:
         return {(g['orbit'], g['granule'], g['track']) for g in getattr(self, 'granule_info', None) or []
                 if g.get('status') == PRODUCT_STATUS_INDEXED and 'releases' not in g}
 
-    def adopt_row_releases(self, releases, keys):
+    def adopt_row_releases(self, releases, keys, mixed=None):
         """Record the releases the database's own rows were read from (does not save).
 
         Parameters
@@ -1609,27 +1626,45 @@ class H3BuildLogger:
             :meth:`record_releases` (the files a write is about to read), these
             are what the rows hold.
         keys : iterable of tuple
-            The granules that were read (:meth:`row_release_targets`). Each
-            gets a ``releases`` entry, empty when its rows named none, so it
-            is not read again; a product not ``INDEXED`` for it stays out.
+            The granules whose rows were all read (:meth:`row_release_targets`
+            less those an unreadable file may hold). Each gets a ``releases``
+            entry, empty when its rows named none, so it is not read again; a
+            product not ``INDEXED`` for it stays out.
+        mixed : dict, optional
+            ``{key: {product: [tags]}}`` for products whose rows name several
+            releases (a replacement left half done). Kept apart as the
+            granule's ``mixed_releases``, never as its release: reported by
+            ``gh3_doctor --check superseded_granules``, compared by its oldest
+            (:meth:`superseded_releases`), and dropped when it is re-indexed.
 
         Returns
         -------
         int
-            Number of tags added.
+            Number of tags added, mixed ones included.
         """
-        keys, n = set(keys), 0
+        keys, n, mixed = set(keys), 0, mixed or {}
         for g in getattr(self, 'granule_info', None) or []:
             key = (g['orbit'], g['granule'], g['track'])
             if key not in keys or g.get('status') != PRODUCT_STATUS_INDEXED:
                 continue
             known = g.setdefault('releases', {})
-            for product, tag in (releases.get(key) or {}).items():
-                if (product not in known
-                        and (g.get('products') or {}).get(product, PRODUCT_STATUS_INDEXED) == PRODUCT_STATUS_INDEXED):
-                    known[product] = tag
-                    n += 1
+            indexed = [p for p in set(releases.get(key) or {}) | set(mixed.get(key) or {})
+                       if p not in known and p not in (g.get('mixed_releases') or {})
+                       and (g.get('products') or {}).get(p, PRODUCT_STATUS_INDEXED) == PRODUCT_STATUS_INDEXED]
+            for product in sorted(indexed):
+                if product in (mixed.get(key) or {}):
+                    g.setdefault('mixed_releases', {})[product] = list(mixed[key][product])
+                else:
+                    known[product] = releases[key][product]
+                n += 1
         return n
+
+    def mixed_release_granules(self):
+        """``{(orbit, granule, track): {product: [tags]}}``: granules whose rows
+        name several releases of a product (``mixed_releases``). Log-only."""
+        return {(g['orbit'], g['granule'], g['track']): dict(g['mixed_releases'])
+                for g in getattr(self, 'granule_info', None) or []
+                if g.get('mixed_releases') and g.get('status') in ('INDEXED', GRANULE_STATUS_NO_DATA)}
 
     def record_fill_results(self, result, max_attempts=3, count_failures=True):
         """Apply a ``_build_fill_products`` result to per-product statuses.

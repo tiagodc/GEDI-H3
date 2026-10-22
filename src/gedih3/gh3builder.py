@@ -5469,7 +5469,8 @@ def _year_file_source_releases(year_pf, *, products, targets, version=None):
     """Worker: the source releases a (cell, year) file's rows name, per target granule.
 
     Skips a file whose metadata lists none of ``targets`` (``soc_file_tree``
-    keys); one without metadata is read. Otherwise reads only the ``root_file_<prod>`` columns,
+    keys); one without metadata is read, and ``targets=None`` reads every file
+    for every granule. Otherwise reads only the ``root_file_<prod>`` columns,
     dictionary-encoded and in batches (a few hundred distinct names in the
     largest production file: under a second, ~150 MB), and parses each name:
     the granule key and the release tag (``gedi_release_tag``) are in it.
@@ -5478,8 +5479,8 @@ def _year_file_source_releases(year_pf, *, products, targets, version=None):
     (a replacement abandoned half way) is left to the caller.
     """
     import pyarrow.compute as pc
-    if (os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME))     # no sidecar: read it anyway
-            and not _year_file_target_granules(year_pf, targets=targets)):
+    if (targets is not None and os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME))
+            and not _year_file_target_granules(year_pf, targets=targets)):     # no sidecar: read it anyway
         return {}
     pf = pq.ParquetFile(year_pf)
     cols = {f"root_file_{p.lower()}": p for p in products}
@@ -5499,7 +5500,7 @@ def _year_file_source_releases(year_pf, *, products, targets, version=None):
             m = _ROOT_FILE_KEY_RE.search(base)
             tag = gedi_release_tag(base) if m and (suffix is None or suffix in base) else None
             key = f"O{int(m.group(1)):05d}_{int(m.group(2)):02d}_T{int(m.group(3)):05d}" if tag else None
-            if key in targets:
+            if key is not None and (targets is None or key in targets):
                 out.setdefault(key, {}).setdefault(cols[c], set()).add(tag)
     return {k: {p: sorted(t) for p, t in v.items()} for k, v in out.items()}
 
@@ -5531,39 +5532,79 @@ def releases_from_rows(h3_dir: str, products, keys, version: Optional[int] = Non
     Returns
     -------
     tuple
-        ``(releases, mixed, failed)``: ``{key: {product: tag}}`` for products
-        whose rows name one release; ``{key: {product: [tags]}}`` for those
-        naming several (left unknown, never guessed); and the files that
-        could not be read (skipped and reported: their rows are not counted).
+        ``(releases, mixed, unread, failed)``: ``{key: {product: tag}}`` for
+        products whose rows name one release; ``{key: {product: [tags]}}``
+        for those naming several (a replacement left half done: never
+        guessed); the keys a file that could not be read may hold, left out
+        of both (their rows were not all read: all of ``keys`` when that
+        cannot be told from the file's metadata); and the files that could
+        not be read (skipped and logged; ``None`` for a batch of them).
         Requires a registered dask Client.
     """
     from .parallel import parallel_map
     from .utils import smart_glob
+    keys = set(keys)
     targets = frozenset(_granule_key_str(k) for k in keys)
     if not targets:
-        return {}, {}, []
+        return {}, {}, set(), []
     files = sorted(smart_glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
     found: Dict[str, Dict[str, set]] = {}
     failed = []
-    fn = functools.partial(_year_file_source_releases, products=sorted(products), targets=targets, version=version)
+    # A large target set would travel inside every task: read every granule
+    # then (a database recording none lists them all anyway), filter here.
+    shipped = targets if len(targets) <= _ROW_RELEASE_SHIPPED_TARGETS else None
+    fn = functools.partial(_year_file_source_releases, products=sorted(products), targets=shipped, version=version)
     for year_pf, res in parallel_map(files, fn, desc="Reading source releases", unit="file",
                                      batch_size=500 if len(files) > 10000 else 0):
         if isinstance(res, Exception):
             failed.append(year_pf)
-            logger.warning(f"Reading source releases: skipped {year_pf} ({type(res).__name__}: {res})")
+            logger.warning(f"Reading source releases: skipped {year_pf or 'a batch of files'} "
+                           f"({type(res).__name__}: {res})")
             continue
         for key, prods in (res or {}).items():
-            for p, tags in prods.items():
-                found.setdefault(key, {}).setdefault(p, set()).update(tags)
+            if key in targets:
+                for p, tags in prods.items():
+                    found.setdefault(key, {}).setdefault(p, set()).update(tags)
+    unread = _row_release_unread(failed, targets, keys)
     releases, mixed = {}, {}
     for key, prods in found.items():
         k = (int(key[1:6]), int(key[7:9]), int(key[11:]))
+        if k in unread:
+            continue
         for p, tags in prods.items():
             if len(tags) == 1:
                 releases.setdefault(k, {})[p] = next(iter(tags))
             else:
-                mixed.setdefault(k, {})[p] = sorted(tags)
-    return releases, mixed, failed
+                mixed.setdefault(k, {})[p] = sorted(tags, key=gedi_release_rank)
+    return releases, mixed, unread, failed
+
+
+_ROW_RELEASE_SHIPPED_TARGETS = 2000
+_ROW_RELEASE_MAX_FAILED_SIDECARS = 100
+
+
+def _row_release_unread(failed, targets, keys):
+    """The keys whose rows ``releases_from_rows`` could not all read.
+
+    The granules each unreadable file's metadata lists (read here, on the
+    driver: a few small sidecars). Every key when a file has no readable
+    metadata, a whole batch failed (``None``), or too many files failed to
+    look each one up.
+    """
+    if not failed:
+        return set()
+    if None in failed or len(failed) > _ROW_RELEASE_MAX_FAILED_SIDECARS:
+        return set(keys)
+    unread = set()
+    for year_pf in failed:
+        try:
+            hits = _year_file_target_granules(year_pf, targets=targets)
+            if hits is None and not os.path.exists(year_pf.replace('.parquet', PARTITION_META_FILENAME)):
+                return set(keys)                   # no metadata: the file may hold any of them
+        except Exception:                          # noqa: BLE001 - unreadable metadata: any of them
+            return set(keys)
+        unread.update((int(k[1:6]), int(k[7:9]), int(k[11:])) for k in hits or ())
+    return unread
 
 
 def replacement_abandon_hint(tmp_dir: str) -> str:

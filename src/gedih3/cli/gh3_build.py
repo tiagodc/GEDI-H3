@@ -263,10 +263,13 @@ def _adopt_row_releases(h3_logger, h3_dir, logger):
     re-release of one could not be found. Its rows name their source files
     (``root_file_<prod>``): ``releases_from_rows`` reads those columns on the
     workers, for the files whose metadata lists such a granule, and the log
-    adopts them (in memory; the caller saves it). Each granule read is marked
-    (a ``releases`` entry), so it is read once. Needs a registered dask
-    Client. Never fails the run: an unreadable file is skipped and reported.
-    Returns whether the log changed.
+    adopts them (in memory; the caller saves it). Each granule whose rows
+    were all read is marked (a ``releases`` entry), so it is read once; one
+    an unreadable file may hold is read again on the next run. A product
+    whose rows name several releases is kept as ``mixed_releases`` and
+    reported by ``gh3_doctor --check superseded_granules``. Needs a
+    registered dask Client. Never fails the run. Returns whether the log
+    changed.
     """
     from gedih3.exceptions import GediError
     from gedih3.gh3builder import releases_from_rows, _granule_key_str
@@ -278,23 +281,33 @@ def _adopt_row_releases(h3_logger, h3_dir, logger):
     logger.info(f"Reading the source releases of {len(keys)} indexed granule(s) the build log has none for "
                 f"(built before gedih3 recorded them) from their rows' root_file columns")
     try:
-        releases, mixed, failed = releases_from_rows(h3_dir, products, keys, version=h3_logger.gedi_version)
+        releases, mixed, unread, failed = releases_from_rows(h3_dir, products, keys,
+                                                             version=h3_logger.gedi_version)
     except (GediError, OSError) as e:
         logger.warning(f"Could not read the source releases from the rows ({type(e).__name__}: {e}); those "
                        f"granules are not checked for re-releases")
         return False
-    n = h3_logger.adopt_row_releases(releases, keys)
+    n = h3_logger.adopt_row_releases(releases, set(keys) - unread, mixed=mixed)
     logger.info(f"Recorded {n} source release(s) read from the rows")
     if mixed:
         key, prods = next(iter(sorted(mixed.items())))
         logger.warning(
             f"{len(mixed)} granule(s) have rows from more than one release of a product (e.g. {_granule_key_str(key)} "
-            f"{', '.join(f'{p}: {t}' for p, t in sorted(prods.items()))}), as a replacement left half done would: "
-            f"their release stays unknown. Re-index them by name with gh3_build --replace-granules <key>")
+            f"{', '.join(f'{p}: {t}' for p, t in sorted(prods.items()))}), as a replacement left half done would. "
+            f"gh3_doctor --check superseded_granules lists them; --replace-granules auto re-indexes those whose "
+            f"newer release is listed")
     if failed:
-        logger.warning(f"{len(failed)} database file(s) could not be read (e.g. {failed[0]}): the releases of rows "
-                       f"there are not recorded; check them with gh3_doctor --check parquet_health")
-    return True
+        logger.warning(f"{len(failed)} database file(s) could not be read (e.g. {failed[0] or 'a batch of files'}): "
+                       f"{len(unread)} granule(s) they may hold are read again on the next run; check the files "
+                       f"with gh3_doctor --check parquet_health")
+    return n > 0 or len(unread) < len(keys)
+
+
+def _save_row_releases(h3_logger):
+    """Save releases read from the rows, as their own ``update_history`` entry."""
+    h3_logger.update_action = 'row_releases'
+    h3_logger.save_log('COMPLETED')
+    h3_logger.update_action = None
 
 
 def _soc_files_by_product(files):
@@ -456,7 +469,7 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     products = set(product_vars)
     with dask_client(**parse_dask_args(args)):
         if journal is None and _adopt_row_releases(h3_logger, args.output, logger):
-            h3_logger.save_log('COMPLETED')                  # the run needs a completed database
+            _save_row_releases(h3_logger)                    # the run needs a completed database
         if journal is None:
             listing = soc_file_tree(soc_source, to_list=True, require_all=False, exclude=args.exclude,
                                     glob_kwargs={'version': h3_logger.gedi_version})
@@ -469,7 +482,7 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
                 requested = set(h3_logger.superseded_releases(listing)['newer'])
             for key in sorted(requested):
                 g, entry = index.get(key), by_key.get(key) or {}
-                recorded = (g or {}).get('releases') or {}
+                recorded = h3_logger.compared_releases(g or {}, newest=True)
                 if g is None or g.get('status') not in ('INDEXED', 'NO_DATA'):
                     skipped.append((key, 'not indexed in this database'))
                 elif products - set(entry):
@@ -530,6 +543,9 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
                 g['releases'] = {p: tag for p, f in targets[key].items()
                                  if p not in blind and (tag := gedi_release_tag(f))}
                 g['releases'].update({p: before[p] for p in blind if p in before})
+                mixed = {p: t for p, t in (g.pop('mixed_releases', None) or {}).items() if p in blind}
+                if mixed:
+                    g['mixed_releases'] = mixed
                 g.pop('products', None)
                 g.pop('fill_attempts', None)
                 g['status'] = 'NO_DATA' if key in result['empty'] else 'INDEXED'
@@ -871,7 +887,7 @@ def main():
                 if _local_files and h3_logger.row_release_targets():
                     with dask_client(**parse_dask_args(args)):
                         if _adopt_row_releases(h3_logger, args.output, logger):
-                            h3_logger.save_log('COMPLETED')
+                            _save_row_releases(h3_logger)
                 if _local_files:
                     _warn_superseded_granules(h3_logger, _soc_files_by_product(_local_files), logger)
                 # Up-to-date DB: create the index only if it is missing
