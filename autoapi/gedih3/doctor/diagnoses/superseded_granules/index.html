@@ -511,15 +511,22 @@ re-indexes them (#47).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">older_release</span></code>: only an older release than the one read is listed.
 It is never applied, but variables added and products filled later read
 the listed file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>: a granule’s rows name more than one release of a
+product (a replacement left half done), as read from its rows and kept
+in the build log (<code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>) until it is re-indexed.</p></li>
 </ul>
 </dd>
 </dl>
 <p>Compares the build log’s recorded <code class="docutils literal notranslate"><span class="pre">releases</span></code> (gh3_build &gt;= 0.20.10) with
-the file a listing picks now, leaving out the files the build excludes (the
-log’s <code class="docutils literal notranslate"><span class="pre">exclude</span></code>, gh3_build –exclude). A granule indexed earlier has no recorded
-release and cannot be checked; it is counted, not reported.</p>
+the file a listing picks now, by granule key (orbit, granule, track) within
+the database’s GEDI version, leaving out the files the build excludes (the
+log’s <code class="docutils literal notranslate"><span class="pre">exclude</span></code>, gh3_build –exclude). For granules indexed before releases
+were recorded, the releases are read from the rows’ <code class="docutils literal notranslate"><span class="pre">root_file_&lt;prod&gt;</span></code>
+columns first (<code class="docutils literal notranslate"><span class="pre">releases_from_rows</span></code>, #67), in memory only: <code class="docutils literal notranslate"><span class="pre">gh3_build</span></code>
+records them on its next run. A granule with neither is counted, not reported.</p>
 <p>Performance: one parallel SOC walk (<code class="docutils literal notranslate"><span class="pre">soc_file_tree</span></code>) and a log-only
-comparison; no HDF5 or parquet is opened.</p>
+comparison; on a database built before 0.20.10, also one worker task per
+(cell, year) file reading only its source columns. No HDF5 is opened.</p>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">

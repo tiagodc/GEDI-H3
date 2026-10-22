@@ -1092,7 +1092,10 @@ repeated <a class="reference internal" href="#gedih3.logger.H3BuildLogger.mark_g
 <dd><p>Indexed granules whose listed source differs from the release read.</p>
 <p>Compares each <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> or <code class="docutils literal notranslate"><span class="pre">NO_DATA</span></code> granule’s recorded
 <code class="docutils literal notranslate"><span class="pre">releases</span></code> with the file a listing would read now. Log-only, no I/O.
-A product with no recorded tag is unknown and never reported. A log
+A product whose rows name several releases (<code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>, see
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.adopt_row_releases" title="gedih3.logger.H3BuildLogger.adopt_row_releases"><code class="xref py py-meth docutils literal notranslate"><span class="pre">adopt_row_releases()</span></code></a>) compares its oldest, so a listing of the
+newer one reports it until it is re-indexed whole. A product with no
+recorded tag is unknown and never reported. A log
 with no GEDI version reports nothing: tags carry no version, so a
 file of another release would read as a re-release.</p>
 <dl class="field-list simple">
@@ -1155,6 +1158,77 @@ unknown: its other products’ rows may come from any file.</p>
 </dl>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.compared_releases">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compared_releases</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">granule</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">newest</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.compared_releases"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.compared_releases" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">{product:</span> <span class="pre">tag}</span></code> a granule’s rows are compared by: its recorded
+<code class="docutils literal notranslate"><span class="pre">releases</span></code>, plus the oldest (<code class="docutils literal notranslate"><span class="pre">newest=True</span></code>: the newest) of the
+releases a product’s rows name when they name several
+(<code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>). Log-only.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.row_release_targets">
+<span class="sig-name descname"><span class="pre">row_release_targets</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.row_release_targets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.row_release_targets" title="Link to this definition">#</a></dt>
+<dd><p>Indexed granules whose releases were never recorded nor read from their rows (#67).</p>
+<p><code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> granules with no <code class="docutils literal notranslate"><span class="pre">releases</span></code> key: a database built before
+gedih3 0.20.10 recorded none, and an entry registered by such a version
+before it was indexed keeps none (its rows may come from any file).
+Their rows name their source files (<code class="docutils literal notranslate"><span class="pre">root_file_&lt;prod&gt;</span></code>), so
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.adopt_row_releases" title="gedih3.logger.H3BuildLogger.adopt_row_releases"><code class="xref py py-meth docutils literal notranslate"><span class="pre">adopt_row_releases()</span></code></a> takes them from there. Empty when the
+database has no source column. Log-only.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>set of tuple</dt><dd><p><code class="docutils literal notranslate"><span class="pre">(orbit,</span> <span class="pre">granule,</span> <span class="pre">track)</span></code> keys.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.adopt_row_releases">
+<span class="sig-name descname"><span class="pre">adopt_row_releases</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">releases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keys</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mixed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.adopt_row_releases"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.adopt_row_releases" title="Link to this definition">#</a></dt>
+<dd><p>Record the releases the database’s own rows were read from (does not save).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>releases</strong><span class="classifier">dict</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">{product:</span> <span class="pre">tag}}</span></code> from the rows’
+<code class="docutils literal notranslate"><span class="pre">root_file_&lt;prod&gt;</span></code> columns (<code class="docutils literal notranslate"><span class="pre">gh3builder.releases_from_rows</span></code>),
+for products whose rows name a single release. Unlike
+<a class="reference internal" href="#gedih3.logger.H3BuildLogger.record_releases" title="gedih3.logger.H3BuildLogger.record_releases"><code class="xref py py-meth docutils literal notranslate"><span class="pre">record_releases()</span></code></a> (the files a write is about to read), these
+are what the rows hold.</p>
+</dd>
+<dt><strong>keys</strong><span class="classifier">iterable of tuple</span></dt><dd><p>The granules whose rows were all read (<a class="reference internal" href="#gedih3.logger.H3BuildLogger.row_release_targets" title="gedih3.logger.H3BuildLogger.row_release_targets"><code class="xref py py-meth docutils literal notranslate"><span class="pre">row_release_targets()</span></code></a>
+less those an unreadable file may hold). Each gets a <code class="docutils literal notranslate"><span class="pre">releases</span></code>
+entry, empty when its rows named none, so it is not read again; a
+product not <code class="docutils literal notranslate"><span class="pre">INDEXED</span></code> for it stays out.</p>
+</dd>
+<dt><strong>mixed</strong><span class="classifier">dict, optional</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">{key:</span> <span class="pre">{product:</span> <span class="pre">[tags]}}</span></code> for products whose rows name several
+releases (a replacement left half done). Kept apart as the
+granule’s <code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>, never as its release: reported by
+<code class="docutils literal notranslate"><span class="pre">gh3_doctor</span> <span class="pre">--check</span> <span class="pre">superseded_granules</span></code>, compared by its oldest
+(<a class="reference internal" href="#gedih3.logger.H3BuildLogger.superseded_releases" title="gedih3.logger.H3BuildLogger.superseded_releases"><code class="xref py py-meth docutils literal notranslate"><span class="pre">superseded_releases()</span></code></a>), and dropped when it is re-indexed.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>int</dt><dd><p>Number of tags added, mixed ones included.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gedih3.logger.H3BuildLogger.mixed_release_granules">
+<span class="sig-name descname"><span class="pre">mixed_release_granules</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/logger.html#H3BuildLogger.mixed_release_granules"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.logger.H3BuildLogger.mixed_release_granules" title="Link to this definition">#</a></dt>
+<dd><p><code class="docutils literal notranslate"><span class="pre">{(orbit,</span> <span class="pre">granule,</span> <span class="pre">track):</span> <span class="pre">{product:</span> <span class="pre">[tags]}}</span></code>: granules whose rows
+name several releases of a product (<code class="docutils literal notranslate"><span class="pre">mixed_releases</span></code>). Log-only.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1300,6 +1374,10 @@ retries it. <code class="docutils literal notranslate"><span class="pre">count_f
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.superseded_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.superseded_releases()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.pending_product_fills"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.pending_product_fills()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_releases()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.compared_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.compared_releases()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.row_release_targets"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.row_release_targets()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.adopt_row_releases"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.adopt_row_releases()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.mixed_release_granules"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.mixed_release_granules()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.logger.H3BuildLogger.record_fill_results"><code class="docutils literal notranslate"><span class="pre">H3BuildLogger.record_fill_results()</span></code></a></li>
 </ul>
 </li>

@@ -16,14 +16,21 @@ gedih3.doctor.diagnoses.superseded_granules
      - ``older_release``: only an older release than the one read is listed.
        It is never applied, but variables added and products filled later read
        the listed file.
+     - ``mixed_releases``: a granule's rows name more than one release of a
+       product (a replacement left half done), as read from its rows and kept
+       in the build log (``mixed_releases``) until it is re-indexed.
 
    Compares the build log's recorded ``releases`` (gh3_build >= 0.20.10) with
-   the file a listing picks now, leaving out the files the build excludes (the
-   log's ``exclude``, gh3_build --exclude). A granule indexed earlier has no recorded
-   release and cannot be checked; it is counted, not reported.
+   the file a listing picks now, by granule key (orbit, granule, track) within
+   the database's GEDI version, leaving out the files the build excludes (the
+   log's ``exclude``, gh3_build --exclude). For granules indexed before releases
+   were recorded, the releases are read from the rows' ``root_file_<prod>``
+   columns first (``releases_from_rows``, #67), in memory only: ``gh3_build``
+   records them on its next run. A granule with neither is counted, not reported.
 
    Performance: one parallel SOC walk (``soc_file_tree``) and a log-only
-   comparison; no HDF5 or parquet is opened.
+   comparison; on a database built before 0.20.10, also one worker task per
+   (cell, year) file reading only its source columns. No HDF5 is opened.
 
    ..
        !! processed by numpydoc !!

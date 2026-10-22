@@ -2340,7 +2340,10 @@ window.runMermaid = runMermaid;</script>
 
 <span class="sd">        Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded</span>
 <span class="sd">        ``releases`` with the file a listing would read now. Log-only, no I/O.</span>
-<span class="sd">        A product with no recorded tag is unknown and never reported. A log</span>
+<span class="sd">        A product whose rows name several releases (``mixed_releases``, see</span>
+<span class="sd">        :meth:`adopt_row_releases`) compares its oldest, so a listing of the</span>
+<span class="sd">        newer one reports it until it is re-indexed whole. A product with no</span>
+<span class="sd">        recorded tag is unknown and never reported. A log</span>
 <span class="sd">        with no GEDI version reports nothing: tags carry no version, so a</span>
 <span class="sd">        file of another release would read as a re-release.</span>
 
@@ -2363,8 +2366,11 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">            it is never applied, but variables added and products filled</span>
 <span class="sd">            later would read it.</span>
 <span class="sd">        """</span>
-        <span class="n">index</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="n">g</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-                 <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">)}</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="p">{</span><span class="s1">'releases'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">compared_releases</span><span class="p">(</span><span class="n">g</span><span class="p">)}</span>
+                 <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                 <span class="k">if</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">or</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'mixed_releases'</span><span class="p">))</span>
+                 <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">)}</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">index</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="p">[</span><span class="s1">'releases'</span><span class="p">]}</span>
         <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="s1">'newer'</span><span class="p">:</span> <span class="p">{},</span> <span class="s1">'older'</span><span class="p">:</span> <span class="p">{}}</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">index</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'gedi_version'</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">out</span>
@@ -2444,6 +2450,102 @@ window.runMermaid = runMermaid;</script>
                         <span class="n">known</span><span class="p">[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="n">tag</span>
                         <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="k">return</span> <span class="n">n</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.compared_releases">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.compared_releases">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compared_releases</span><span class="p">(</span><span class="n">granule</span><span class="p">,</span> <span class="n">newest</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""``{product: tag}`` a granule's rows are compared by: its recorded</span>
+<span class="sd">        ``releases``, plus the oldest (``newest=True``: the newest) of the</span>
+<span class="sd">        releases a product's rows name when they name several</span>
+<span class="sd">        (``mixed_releases``). Log-only."""</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="nb">max</span> <span class="k">if</span> <span class="n">newest</span> <span class="k">else</span> <span class="nb">min</span><span class="p">)(</span><span class="n">tags</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">gedi_release_rank</span><span class="p">)</span>
+               <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">tags</span> <span class="ow">in</span> <span class="p">(</span><span class="n">granule</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'mixed_releases'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">tags</span><span class="p">}</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">granule</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.row_release_targets">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.row_release_targets">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">row_release_targets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Indexed granules whose releases were never recorded nor read from their rows (#67).</span>
+
+<span class="sd">        ``INDEXED`` granules with no ``releases`` key: a database built before</span>
+<span class="sd">        gedih3 0.20.10 recorded none, and an entry registered by such a version</span>
+<span class="sd">        before it was indexed keeps none (its rows may come from any file).</span>
+<span class="sd">        Their rows name their source files (``root_file_&lt;prod&gt;``), so</span>
+<span class="sd">        :meth:`adopt_row_releases` takes them from there. Empty when the</span>
+<span class="sd">        database has no source column. Log-only.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        set of tuple</span>
+<span class="sd">            ``(orbit, granule, track)`` keys.</span>
+<span class="sd">        """</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="sa">f</span><span class="s2">"root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">in</span> <span class="n">columns</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">product_vars</span> <span class="ow">or</span> <span class="p">{}):</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">==</span> <span class="n">PRODUCT_STATUS_INDEXED</span> <span class="ow">and</span> <span class="s1">'releases'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">g</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.adopt_row_releases">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.adopt_row_releases">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">adopt_row_releases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">releases</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">mixed</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Record the releases the database's own rows were read from (does not save).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        releases : dict</span>
+<span class="sd">            ``{(orbit, granule, track): {product: tag}}`` from the rows'</span>
+<span class="sd">            ``root_file_&lt;prod&gt;`` columns (``gh3builder.releases_from_rows``),</span>
+<span class="sd">            for products whose rows name a single release. Unlike</span>
+<span class="sd">            :meth:`record_releases` (the files a write is about to read), these</span>
+<span class="sd">            are what the rows hold.</span>
+<span class="sd">        keys : iterable of tuple</span>
+<span class="sd">            The granules whose rows were all read (:meth:`row_release_targets`</span>
+<span class="sd">            less those an unreadable file may hold). Each gets a ``releases``</span>
+<span class="sd">            entry, empty when its rows named none, so it is not read again; a</span>
+<span class="sd">            product not ``INDEXED`` for it stays out.</span>
+<span class="sd">        mixed : dict, optional</span>
+<span class="sd">            ``{key: {product: [tags]}}`` for products whose rows name several</span>
+<span class="sd">            releases (a replacement left half done). Kept apart as the</span>
+<span class="sd">            granule's ``mixed_releases``, never as its release: reported by</span>
+<span class="sd">            ``gh3_doctor --check superseded_granules``, compared by its oldest</span>
+<span class="sd">            (:meth:`superseded_releases`), and dropped when it is re-indexed.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Number of tags added, mixed ones included.</span>
+<span class="sd">        """</span>
+        <span class="n">keys</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">mixed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">mixed</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keys</span> <span class="ow">or</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="o">!=</span> <span class="n">PRODUCT_STATUS_INDEXED</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">known</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'releases'</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="n">indexed</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">releases</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">mixed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span>
+                       <span class="k">if</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known</span> <span class="ow">and</span> <span class="n">p</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'mixed_releases'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span>
+                       <span class="ow">and</span> <span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'products'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">PRODUCT_STATUS_INDEXED</span><span class="p">)</span> <span class="o">==</span> <span class="n">PRODUCT_STATUS_INDEXED</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">product</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">indexed</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">product</span> <span class="ow">in</span> <span class="p">(</span><span class="n">mixed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}):</span>
+                    <span class="n">g</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">'mixed_releases'</span><span class="p">,</span> <span class="p">{})[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">mixed</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">product</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">known</span><span class="p">[</span><span class="n">product</span><span class="p">]</span> <span class="o">=</span> <span class="n">releases</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">product</span><span class="p">]</span>
+                <span class="n">n</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">n</span></div>
+
+
+<div class="viewcode-block" id="H3BuildLogger.mixed_release_granules">
+<a class="viewcode-back" href="../../autoapi/gedih3/logger/index.html#gedih3.logger.H3BuildLogger.mixed_release_granules">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">mixed_release_granules</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""``{(orbit, granule, track): {product: [tags]}}``: granules whose rows</span>
+<span class="sd">        name several releases of a product (``mixed_releases``). Log-only."""</span>
+        <span class="k">return</span> <span class="p">{(</span><span class="n">g</span><span class="p">[</span><span class="s1">'orbit'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'granule'</span><span class="p">],</span> <span class="n">g</span><span class="p">[</span><span class="s1">'track'</span><span class="p">]):</span> <span class="nb">dict</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s1">'mixed_releases'</span><span class="p">])</span>
+                <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">'granule_info'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                <span class="k">if</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'mixed_releases'</span><span class="p">)</span> <span class="ow">and</span> <span class="n">g</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'status'</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'INDEXED'</span><span class="p">,</span> <span class="n">GRANULE_STATUS_NO_DATA</span><span class="p">)}</span></div>
 
 
 <div class="viewcode-block" id="H3BuildLogger.record_fill_results">

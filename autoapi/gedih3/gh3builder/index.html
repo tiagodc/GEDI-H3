@@ -548,28 +548,31 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.apply_merge_failures_to_logger" title="gedih3.gh3builder.apply_merge_failures_to_logger"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger</span></code></a>(→ int)</p></td>
 <td><p>Fold the merge-failed-granules sidecar into the build-log's granule</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.replacement_abandon_hint" title="gedih3.gh3builder.replacement_abandon_hint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replacement_abandon_hint</span></code></a>(→ str)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.releases_from_rows" title="gedih3.gh3builder.releases_from_rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">releases_from_rows</span></code></a>(h3_dir, products, keys[, version])</p></td>
+<td><p>The source release of granule products, read from the database's rows (#67).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.replacement_abandon_hint" title="gedih3.gh3builder.replacement_abandon_hint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replacement_abandon_hint</span></code></a>(→ str)</p></td>
 <td><p>How to abandon an unfinished replacement, and what that leaves.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.blind_replacement_targets" title="gedih3.gh3builder.blind_replacement_targets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">blind_replacement_targets</span></code></a>(→ Dict[Tuple[int, int, int], ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.blind_replacement_targets" title="gedih3.gh3builder.blind_replacement_targets"><code class="xref py py-obj docutils literal notranslate"><span class="pre">blind_replacement_targets</span></code></a>(→ Dict[Tuple[int, int, int], ...)</p></td>
 <td><p>Granules a replacement cannot tell old rows from new ones for (#68).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.blind_replacement_message" title="gedih3.gh3builder.blind_replacement_message"><code class="xref py py-obj docutils literal notranslate"><span class="pre">blind_replacement_message</span></code></a>(→ str)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.blind_replacement_message" title="gedih3.gh3builder.blind_replacement_message"><code class="xref py py-obj docutils literal notranslate"><span class="pre">blind_replacement_message</span></code></a>(→ str)</p></td>
 <td><p>Why the granules of <a class="reference internal" href="#gedih3.gh3builder.blind_replacement_targets" title="gedih3.gh3builder.blind_replacement_targets"><code class="xref py py-func docutils literal notranslate"><span class="pre">blind_replacement_targets()</span></code></a> are not replaced.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.check_replacement_sources" title="gedih3.gh3builder.check_replacement_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_replacement_sources</span></code></a>(→ None)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.check_replacement_sources" title="gedih3.gh3builder.check_replacement_sources"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_replacement_sources</span></code></a>(→ None)</p></td>
 <td><p>Refuse to replace a granule whose changed rows cannot be told from its old ones.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.replacement_journal" title="gedih3.gh3builder.replacement_journal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replacement_journal</span></code></a>(→ str)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.replacement_journal" title="gedih3.gh3builder.replacement_journal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replacement_journal</span></code></a>(→ str)</p></td>
 <td><p>Path of the journal of a granule replacement under a build tmp dir.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.read_replacement_journal" title="gedih3.gh3builder.read_replacement_journal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_replacement_journal</span></code></a>(→ Optional[Dict[Tuple[int, ...)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.read_replacement_journal" title="gedih3.gh3builder.read_replacement_journal"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_replacement_journal</span></code></a>(→ Optional[Dict[Tuple[int, ...)</p></td>
 <td><p>The target set of an unfinished replacement, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when there is none.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.build_h3db" title="gedih3.gh3builder.build_h3db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_h3db</span></code></a>(, h3_dir, skip_granules, status_callback, ...)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.build_h3db" title="gedih3.gh3builder.build_h3db"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_h3db</span></code></a>(, h3_dir, skip_granules, status_callback, ...)</p></td>
 <td><p>Build an H3-indexed GEDI database from local SOC files or S3 download.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.gh3builder.merge_build_logs" title="gedih3.gh3builder.merge_build_logs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_build_logs</span></code></a>(→ dict)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.gh3builder.merge_build_logs" title="gedih3.gh3builder.merge_build_logs"><code class="xref py py-obj docutils literal notranslate"><span class="pre">merge_build_logs</span></code></a>(→ dict)</p></td>
 <td><p>Merge two build log files from separate databases.</p></td>
 </tr>
 </tbody>
@@ -957,6 +960,48 @@ caller controls save cadence.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.gh3builder.releases_from_rows">
+<span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">releases_from_rows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h3_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">products</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keys</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#releases_from_rows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.releases_from_rows" title="Link to this definition">#</a></dt>
+<dd><p>The source release of granule products, read from the database’s rows (#67).</p>
+<p>A database built before gedih3 0.20.10 records no release per granule,
+so re-released granules cannot be found from the build log. Every row
+names its source file per product (<code class="docutils literal notranslate"><span class="pre">root_file_&lt;prod&gt;</span></code>), and the file
+name holds the granule key and the release (PPDS, PGE, generation,
+suffix): one worker task per (cell, year) file reads its metadata and,
+if it lists one of <code class="docutils literal notranslate"><span class="pre">keys</span></code>, those columns only
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">_year_file_source_releases()</span></code>). The files come from the
+database’s <code class="docutils literal notranslate"><span class="pre">_manifest.txt</span></code> (<code class="xref py py-func docutils literal notranslate"><span class="pre">smart_glob()</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>h3_dir</strong><span class="classifier">str</span></dt><dd><p>Database root.</p>
+</dd>
+<dt><strong>products</strong><span class="classifier">iterable of str</span></dt><dd><p>Products to read, e.g. <code class="docutils literal notranslate"><span class="pre">['L2A',</span> <span class="pre">'L4A']</span></code>; one without a source
+column is skipped.</p>
+</dd>
+<dt><strong>keys</strong><span class="classifier">iterable of tuple</span></dt><dd><p><code class="docutils literal notranslate"><span class="pre">(orbit,</span> <span class="pre">granule,</span> <span class="pre">track)</span></code> of the granules to read.</p>
+</dd>
+<dt><strong>version</strong><span class="classifier">int, optional</span></dt><dd><p>The database’s GEDI version: names of another one are ignored.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>tuple</dt><dd><p><code class="docutils literal notranslate"><span class="pre">(releases,</span> <span class="pre">mixed,</span> <span class="pre">unread,</span> <span class="pre">failed)</span></code>: <code class="docutils literal notranslate"><span class="pre">{key:</span> <span class="pre">{product:</span> <span class="pre">tag}}</span></code> for
+products whose rows name one release; <code class="docutils literal notranslate"><span class="pre">{key:</span> <span class="pre">{product:</span> <span class="pre">[tags]}}</span></code>
+for those naming several (a replacement left half done: never
+guessed); the keys a file that could not be read may hold, left out
+of both (their rows were not all read: all of <code class="docutils literal notranslate"><span class="pre">keys</span></code> when that
+cannot be told from the file’s metadata); and the files that could
+not be read (skipped and logged; <code class="docutils literal notranslate"><span class="pre">None</span></code> for a batch of them).
+Requires a registered dask Client.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.gh3builder.replacement_abandon_hint">
 <span class="sig-prename descclassname"><span class="pre">gedih3.gh3builder.</span></span><span class="sig-name descname"><span class="pre">replacement_abandon_hint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tmp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../../_modules/gedih3/gh3builder.html#replacement_abandon_hint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.gh3builder.replacement_abandon_hint" title="Link to this definition">#</a></dt>
 <dd><p>How to abandon an unfinished replacement, and what that leaves.</p>
@@ -1241,6 +1286,7 @@ configuration consistency (gedi_version, h3_resolution_level, h3_partition_level
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.dh3_merge_files"><code class="docutils literal notranslate"><span class="pre">dh3_merge_files()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.preclean_merge_failures"><code class="docutils literal notranslate"><span class="pre">preclean_merge_failures()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.apply_merge_failures_to_logger"><code class="docutils literal notranslate"><span class="pre">apply_merge_failures_to_logger()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.releases_from_rows"><code class="docutils literal notranslate"><span class="pre">releases_from_rows()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.replacement_abandon_hint"><code class="docutils literal notranslate"><span class="pre">replacement_abandon_hint()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.blind_replacement_targets"><code class="docutils literal notranslate"><span class="pre">blind_replacement_targets()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.gh3builder.blind_replacement_message"><code class="docutils literal notranslate"><span class="pre">blind_replacement_message()</span></code></a></li>

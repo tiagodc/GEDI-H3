@@ -820,7 +820,10 @@ Module Contents
 
       Compares each ``INDEXED`` or ``NO_DATA`` granule's recorded
       ``releases`` with the file a listing would read now. Log-only, no I/O.
-      A product with no recorded tag is unknown and never reported. A log
+      A product whose rows name several releases (``mixed_releases``, see
+      :meth:`adopt_row_releases`) compares its oldest, so a listing of the
+      newer one reports it until it is re-indexed whole. A product with no
+      recorded tag is unknown and never reported. A log
       with no GEDI version reports nothing: tags carry no version, so a
       file of another release would read as a re-release.
 
@@ -911,6 +914,143 @@ Module Contents
 
           int
               Number of tags added.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: compared_releases(granule, newest=False)
+      :staticmethod:
+
+
+      
+      ``{product: tag}`` a granule's rows are compared by: its recorded
+      ``releases``, plus the oldest (``newest=True``: the newest) of the
+      releases a product's rows name when they name several
+      (``mixed_releases``). Log-only.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: row_release_targets()
+
+      
+      Indexed granules whose releases were never recorded nor read from their rows (#67).
+
+      ``INDEXED`` granules with no ``releases`` key: a database built before
+      gedih3 0.20.10 recorded none, and an entry registered by such a version
+      before it was indexed keeps none (its rows may come from any file).
+      Their rows name their source files (``root_file_<prod>``), so
+      :meth:`adopt_row_releases` takes them from there. Empty when the
+      database has no source column. Log-only.
+
+
+
+
+      :Returns:
+
+          set of tuple
+              ``(orbit, granule, track)`` keys.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: adopt_row_releases(releases, keys, mixed=None)
+
+      
+      Record the releases the database's own rows were read from (does not save).
+
+
+      :Parameters:
+
+          **releases** : dict
+              ``{(orbit, granule, track): {product: tag}}`` from the rows'
+              ``root_file_<prod>`` columns (``gh3builder.releases_from_rows``),
+              for products whose rows name a single release. Unlike
+              :meth:`record_releases` (the files a write is about to read), these
+              are what the rows hold.
+
+          **keys** : iterable of tuple
+              The granules whose rows were all read (:meth:`row_release_targets`
+              less those an unreadable file may hold). Each gets a ``releases``
+              entry, empty when its rows named none, so it is not read again; a
+              product not ``INDEXED`` for it stays out.
+
+          **mixed** : dict, optional
+              ``{key: {product: [tags]}}`` for products whose rows name several
+              releases (a replacement left half done). Kept apart as the
+              granule's ``mixed_releases``, never as its release: reported by
+              ``gh3_doctor --check superseded_granules``, compared by its oldest
+              (:meth:`superseded_releases`), and dropped when it is re-indexed.
+
+
+
+      :Returns:
+
+          int
+              Number of tags added, mixed ones included.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
+
+
+   .. py:method:: mixed_release_granules()
+
+      
+      ``{(orbit, granule, track): {product: [tags]}}``: granules whose rows
+      name several releases of a product (``mixed_releases``). Log-only.
+
+
+
+
+
 
 
 

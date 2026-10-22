@@ -6255,6 +6255,157 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">hits</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span> <span class="k">if</span> <span class="sa">f</span><span class="s2">"root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">)</span>
 
 
+<span class="n">_ROOT_FILE_KEY_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">'_O(\d+)_(\d</span><span class="si">{2}</span><span class="s1">)_T(\d+)_'</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_year_file_source_releases</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">products</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Worker: the source releases a (cell, year) file's rows name, per target granule.</span>
+
+<span class="sd">    Skips a file whose metadata lists none of ``targets`` (``soc_file_tree``</span>
+<span class="sd">    keys); one without metadata is read, and ``targets=None`` reads every file</span>
+<span class="sd">    for every granule. Otherwise reads only the ``root_file_&lt;prod&gt;`` columns,</span>
+<span class="sd">    dictionary-encoded and in batches (a few hundred distinct names in the</span>
+<span class="sd">    largest production file: under a second, ~150 MB), and parses each name:</span>
+<span class="sd">    the granule key and the release tag (``gedi_release_tag``) are in it.</span>
+<span class="sd">    Only names of GEDI ``version`` count. Returns ``{granule key: {product:</span>
+<span class="sd">    [tags]}}`` for the targets; a product with more than one tag for a granule</span>
+<span class="sd">    (a replacement abandoned half way) is left to the caller.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.compute</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pc</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">targets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">PARTITION_META_FILENAME</span><span class="p">))</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="n">_year_file_target_granules</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)):</span>     <span class="c1"># no sidecar: read it anyway</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="n">pf</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span>
+    <span class="n">cols</span> <span class="o">=</span> <span class="p">{</span><span class="sa">f</span><span class="s2">"root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span> <span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">products</span><span class="p">}</span>
+    <span class="n">present</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span><span class="o">.</span><span class="n">names</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">present</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="n">pf</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">read_dictionary</span><span class="o">=</span><span class="n">present</span><span class="p">)</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">:</span> <span class="nb">set</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">present</span><span class="p">}</span>
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">pf</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">present</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">present</span><span class="p">:</span>
+            <span class="n">names</span><span class="p">[</span><span class="n">c</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">())</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_V</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="p">)</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">version</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">out</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">names</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">))</span> <span class="k">if</span> <span class="n">name</span> <span class="k">else</span> <span class="s1">''</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">_ROOT_FILE_KEY_RE</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+            <span class="n">tag</span> <span class="o">=</span> <span class="n">gedi_release_tag</span><span class="p">(</span><span class="n">base</span><span class="p">)</span> <span class="k">if</span> <span class="n">m</span> <span class="ow">and</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">base</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"O</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">_T</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span><span class="si">:</span><span class="s2">05d</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">tag</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="n">targets</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">):</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="n">c</span><span class="p">],</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">out</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+
+<div class="viewcode-block" id="releases_from_rows">
+<a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.releases_from_rows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">releases_from_rows</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">products</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">version</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The source release of granule products, read from the database's rows (#67).</span>
+
+<span class="sd">    A database built before gedih3 0.20.10 records no release per granule,</span>
+<span class="sd">    so re-released granules cannot be found from the build log. Every row</span>
+<span class="sd">    names its source file per product (``root_file_&lt;prod&gt;``), and the file</span>
+<span class="sd">    name holds the granule key and the release (PPDS, PGE, generation,</span>
+<span class="sd">    suffix): one worker task per (cell, year) file reads its metadata and,</span>
+<span class="sd">    if it lists one of ``keys``, those columns only</span>
+<span class="sd">    (:func:`_year_file_source_releases`). The files come from the</span>
+<span class="sd">    database's ``_manifest.txt`` (:func:`smart_glob`).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Database root.</span>
+<span class="sd">    products : iterable of str</span>
+<span class="sd">        Products to read, e.g. ``['L2A', 'L4A']``; one without a source</span>
+<span class="sd">        column is skipped.</span>
+<span class="sd">    keys : iterable of tuple</span>
+<span class="sd">        ``(orbit, granule, track)`` of the granules to read.</span>
+<span class="sd">    version : int, optional</span>
+<span class="sd">        The database's GEDI version: names of another one are ignored.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        ``(releases, mixed, unread, failed)``: ``{key: {product: tag}}`` for</span>
+<span class="sd">        products whose rows name one release; ``{key: {product: [tags]}}``</span>
+<span class="sd">        for those naming several (a replacement left half done: never</span>
+<span class="sd">        guessed); the keys a file that could not be read may hold, left out</span>
+<span class="sd">        of both (their rows were not all read: all of ``keys`` when that</span>
+<span class="sd">        cannot be told from the file's metadata); and the files that could</span>
+<span class="sd">        not be read (skipped and logged; ``None`` for a batch of them).</span>
+<span class="sd">        Requires a registered dask Client.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.parallel</span><span class="w"> </span><span class="kn">import</span> <span class="n">parallel_map</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">smart_glob</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">_granule_key_str</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">targets</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{},</span> <span class="p">{},</span> <span class="nb">set</span><span class="p">(),</span> <span class="p">[]</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">smart_glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="s1">'h3_*'</span><span class="p">,</span> <span class="s1">'year=*'</span><span class="p">,</span> <span class="s1">'*.parquet'</span><span class="p">)))</span>
+    <span class="n">found</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">failed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># A large target set would travel inside every task: read every granule</span>
+    <span class="c1"># then (a database recording none lists them all anyway), filter here.</span>
+    <span class="n">shipped</span> <span class="o">=</span> <span class="n">targets</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">targets</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">_ROW_RELEASE_SHIPPED_TARGETS</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">fn</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">_year_file_source_releases</span><span class="p">,</span> <span class="n">products</span><span class="o">=</span><span class="nb">sorted</span><span class="p">(</span><span class="n">products</span><span class="p">),</span> <span class="n">targets</span><span class="o">=</span><span class="n">shipped</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">year_pf</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">parallel_map</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s2">"Reading source releases"</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"file"</span><span class="p">,</span>
+                                     <span class="n">batch_size</span><span class="o">=</span><span class="mi">500</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">10000</span> <span class="k">else</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">Exception</span><span class="p">):</span>
+            <span class="n">failed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">year_pf</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Reading source releases: skipped </span><span class="si">{</span><span class="n">year_pf</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'a batch of files'</span><span class="si">}</span><span class="s2"> "</span>
+                           <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">res</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="p">(</span><span class="n">res</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">tags</span> <span class="ow">in</span> <span class="n">prods</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">found</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">tags</span><span class="p">)</span>
+    <span class="n">unread</span> <span class="o">=</span> <span class="n">_row_release_unread</span><span class="p">(</span><span class="n">failed</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
+    <span class="n">releases</span><span class="p">,</span> <span class="n">mixed</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">prods</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">6</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">7</span><span class="p">:</span><span class="mi">9</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">11</span><span class="p">:]))</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">unread</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">tags</span> <span class="ow">in</span> <span class="n">prods</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tags</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">releases</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">{})[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">tags</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mixed</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">{})[</span><span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">tags</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">gedi_release_rank</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">releases</span><span class="p">,</span> <span class="n">mixed</span><span class="p">,</span> <span class="n">unread</span><span class="p">,</span> <span class="n">failed</span></div>
+
+
+
+<span class="n">_ROW_RELEASE_SHIPPED_TARGETS</span> <span class="o">=</span> <span class="mi">2000</span>
+<span class="n">_ROW_RELEASE_MAX_FAILED_SIDECARS</span> <span class="o">=</span> <span class="mi">100</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_row_release_unread</span><span class="p">(</span><span class="n">failed</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The keys whose rows ``releases_from_rows`` could not all read.</span>
+
+<span class="sd">    The granules each unreadable file's metadata lists (read here, on the</span>
+<span class="sd">    driver: a few small sidecars); a file gone since the listing holds none.</span>
+<span class="sd">    Every key when a file has no readable</span>
+<span class="sd">    metadata, a whole batch failed (``None``), or too many files failed to</span>
+<span class="sd">    look each one up.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">failed</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="kc">None</span> <span class="ow">in</span> <span class="n">failed</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">_ROW_RELEASE_MAX_FAILED_SIDECARS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+    <span class="n">unread</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">year_pf</span> <span class="ow">in</span> <span class="n">failed</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="p">):</span>
+            <span class="k">continue</span>                               <span class="c1"># gone since the listing (a stale manifest): no rows to read</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">hits</span> <span class="o">=</span> <span class="n">_year_file_target_granules</span><span class="p">(</span><span class="n">year_pf</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">hits</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">year_pf</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">'.parquet'</span><span class="p">,</span> <span class="n">PARTITION_META_FILENAME</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>                   <span class="c1"># no metadata: the file may hold any of them</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>                          <span class="c1"># noqa: BLE001 - unreadable metadata: any of them</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="n">unread</span><span class="o">.</span><span class="n">update</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">6</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">7</span><span class="p">:</span><span class="mi">9</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">11</span><span class="p">:]))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">hits</span> <span class="ow">or</span> <span class="p">())</span>
+    <span class="k">return</span> <span class="n">unread</span>
+
+
 <div class="viewcode-block" id="replacement_abandon_hint">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.replacement_abandon_hint">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">replacement_abandon_hint</span><span class="p">(</span><span class="n">tmp_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

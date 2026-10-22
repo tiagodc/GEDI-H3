@@ -30,6 +30,7 @@ Functions
    gedih3.gh3builder.dh3_merge_files
    gedih3.gh3builder.preclean_merge_failures
    gedih3.gh3builder.apply_merge_failures_to_logger
+   gedih3.gh3builder.releases_from_rows
    gedih3.gh3builder.replacement_abandon_hint
    gedih3.gh3builder.blind_replacement_targets
    gedih3.gh3builder.blind_replacement_message
@@ -560,6 +561,62 @@ Module Contents
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: releases_from_rows(h3_dir: str, products, keys, version: Optional[int] = None)
+
+   
+   The source release of granule products, read from the database's rows (#67).
+
+   A database built before gedih3 0.20.10 records no release per granule,
+   so re-released granules cannot be found from the build log. Every row
+   names its source file per product (``root_file_<prod>``), and the file
+   name holds the granule key and the release (PPDS, PGE, generation,
+   suffix): one worker task per (cell, year) file reads its metadata and,
+   if it lists one of ``keys``, those columns only
+   (:func:`_year_file_source_releases`). The files come from the
+   database's ``_manifest.txt`` (:func:`smart_glob`).
+
+   :Parameters:
+
+       **h3_dir** : str
+           Database root.
+
+       **products** : iterable of str
+           Products to read, e.g. ``['L2A', 'L4A']``; one without a source
+           column is skipped.
+
+       **keys** : iterable of tuple
+           ``(orbit, granule, track)`` of the granules to read.
+
+       **version** : int, optional
+           The database's GEDI version: names of another one are ignored.
+
+
+
+   :Returns:
+
+       tuple
+           ``(releases, mixed, unread, failed)``: ``{key: {product: tag}}`` for
+           products whose rows name one release; ``{key: {product: [tags]}}``
+           for those naming several (a replacement left half done: never
+           guessed); the keys a file that could not be read may hold, left out
+           of both (their rows were not all read: all of ``keys`` when that
+           cannot be told from the file's metadata); and the files that could
+           not be read (skipped and logged; ``None`` for a batch of them).
+           Requires a registered dask Client.
 
 
 
