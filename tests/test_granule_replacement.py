@@ -488,6 +488,51 @@ def test_replace_granules_refuses_what_it_cannot_do_safely(tmp_dir):
     assert 'No database at' in out and 'Traceback' not in out
 
 
+def test_the_build_log_keeps_exclude_for_every_later_run(tmp_dir):
+    """An _SGS variant outranks the indexed file. Once a run passes --exclude
+    '*_SGS.h5' (here a replacement that finds nothing to do), later runs without
+    the flag (replacement, variable add, up-to-date check) still leave it out,
+    and new patterns add to the log's."""
+    import h5py
+    import shutil
+    from gedih3.config import BUILD_LOG_FILENAME, GEDI_BEAMS
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    names = _write_release(soc_dir, (101, 1, 201), OLD, lon0=-50.9, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp, '--exclude', '*_BETA.h5')
+
+    sgs = os.path.join(soc_dir, '2020', '100', names['L2A'].replace('_V002.h5', '_V002_SGS.h5'))
+    shutil.copy(os.path.join(soc_dir, '2020', '100', names['L2A']), sgs)
+    with h5py.File(sgs, 'r+') as f:
+        for beam in GEDI_BEAMS:
+            f[beam]['rh_098'][...] = 999.0
+            f[beam]['rh_050'][...] = 999.0
+
+    def log():
+        return json.load(open(os.path.join(h3_dir, BUILD_LOG_FILENAME))).get('exclude')
+
+    def rows():
+        import glob
+        return pd.concat([pq.read_table(f).to_pandas() for f in
+                          glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))], ignore_index=True)
+
+    logs = [log()]
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto', '--exclude', '*_SGS.h5')
+    assert 'No granule to re-index' in out
+    logs.append(log())
+    assert 'No granule to re-index' in _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    _gh3_build(soc_dir, h3_dir, tmp, '-l2a', 'rh_098', 'rh_050', '--exclude', '*_TEST.h5', '--exclude', '*_TEST.h5')
+    after = rows()
+    assert set(after.root_file_l2a) == {names['L2A']}
+    assert not (after.rh_098_l2a == 999).any() and not (after.rh_050_l2a == 999).any()
+    assert after.rh_050_l2a.notna().all()
+    logs.append(log())
+    out = _gh3_build(soc_dir, h3_dir, tmp, '-l2a', 'rh_098', 'rh_050', '--exclude', '*_LAST.h5')
+    assert 'up-to-date' in out and 'older release' not in out
+    logs.append(log())
+    assert logs == [['*_BETA.h5'], ['*_BETA.h5', '*_SGS.h5'], ['*_BETA.h5', '*_SGS.h5', '*_TEST.h5'],
+                    ['*_BETA.h5', '*_SGS.h5', '*_TEST.h5', '*_LAST.h5']]
+
+
 def _merge_failing_one_cell(ofile, *args, **kwargs):
     """parquet_merge_files, failing for one cell that holds only old rows."""
     from gedih3.utils import parquet_merge_files

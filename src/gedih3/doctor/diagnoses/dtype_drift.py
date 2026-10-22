@@ -49,7 +49,8 @@ _BUILD_IN_FLIGHT = ('PARTITIONING', 'PROCESSING', 'MERGING')
 
 
 def _sample_granule(soc_dir: str, version: int, products: List[str],
-                    latest: Optional[str] = None) -> Optional[Dict[str, str]]:
+                    latest: Optional[str] = None,
+                    exclude: Optional[List[str]] = None) -> Optional[Dict[str, str]]:
     """A public-release granule of ``version`` that has every product.
 
     A-priori search: starts at ``latest`` (``YYYY-MM-DD``, the database's own
@@ -57,7 +58,8 @@ def _sample_granule(soc_dir: str, version: int, products: List[str],
     walks ``year/doy`` directories backwards, at most ``_MAX_SAMPLE_DAYS``
     of them — one ``scandir`` each, never a tree walk. Only canonical release
     filenames (``..._V00N.h5``) qualify, so internal variants (``_SGS``,
-    ``_7algs``) never become the reference.
+    ``_7algs``) never become the reference, and none the build excludes
+    (``exclude``, the build log's ``gh3_build --exclude`` patterns).
     """
     from datetime import date, timedelta
     from ...gedidriver import soc_file_tree
@@ -73,7 +75,7 @@ def _sample_granule(soc_dir: str, version: int, products: List[str],
             files = [e.path for e in os.scandir(ddir) if e.name.startswith('GEDI') and e.name.endswith(suffix)]
         except OSError:
             continue
-        for soc in (soc_file_tree(files, to_list=True) if files else []):
+        for soc in (soc_file_tree(files, to_list=True, exclude=exclude) if files else []):
             if all(p in soc for p in products):
                 return {p: soc[p] for p in products}
     return None
@@ -92,7 +94,8 @@ def _reference_types(ctx: DoctorContext):
     if not ctx.soc_dir or not os.path.isdir(ctx.soc_dir):
         return None, f'no SOC directory (set --soc-dir); tried {ctx.soc_dir!r}'
     date_range = log.log_data.get('date_range') or [None, None]
-    soc = _sample_granule(ctx.soc_dir, version, sorted(products), latest=date_range[-1])
+    soc = _sample_granule(ctx.soc_dir, version, sorted(products), latest=date_range[-1],
+                          exclude=getattr(log, 'exclude', None) or None)
     if soc is None:
         return None, f'no V{version:03d} granule with {sorted(products)} under {ctx.soc_dir}'
     schema = _source_write_schema(soc, products, res=log.res, part=log.part, version=version)

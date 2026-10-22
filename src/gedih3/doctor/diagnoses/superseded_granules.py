@@ -15,7 +15,8 @@ Detects (read-only, no fix):
     the listed file.
 
 Compares the build log's recorded ``releases`` (gh3_build >= 0.20.10) with
-the file a listing picks now. A granule indexed earlier has no recorded
+the file a listing picks now, leaving out the files the build excludes (the
+log's ``exclude``, gh3_build --exclude). A granule indexed earlier has no recorded
 release and cannot be checked; it is counted, not reported.
 
 Performance: one parallel SOC walk (``soc_file_tree``) and a log-only
@@ -51,7 +52,8 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
                               f"gedih3 recorded them)")
 
     from ...gedidriver import soc_file_tree
-    entries = soc_file_tree(ctx.soc_dir, to_list=True, require_all=False, glob_kwargs={'version': version})
+    entries = soc_file_tree(ctx.soc_dir, to_list=True, require_all=False, glob_kwargs={'version': version},
+                            exclude=getattr(log, 'exclude', None) or None)
     found = log.superseded_releases(entries)
 
     findings = []
@@ -72,7 +74,7 @@ def superseded_granules_check(ctx: DoctorContext) -> Report:
         recommendations.append(
             "Rows of these granules come from the older release: re-index them with gh3_build -i <soc> -o <db> "
             "--replace-granules auto. Until then, variables added and products filled later read the newer "
-            "files (adding variables does not apply --exclude, and this check does not either)")
+            "files. Files matching the build's --exclude patterns (kept in its log) are left out")
     if n_older:
         recommendations.append(
             "Restore the release these granules were indexed from before adding variables or filling products")

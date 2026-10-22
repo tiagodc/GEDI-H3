@@ -503,6 +503,27 @@ class SOCDownloadLogger:
     def save_log(self, status):
         json_write(self.to_dict(status), self.log_file, mode='w', rewrite=True)
 
+
+def stored_exclude(log_data) -> list:
+    """The source exclusions a build log keeps (``gh3_build --exclude``).
+
+    A single pattern written by hand as a string is one pattern, never its
+    characters (``'*'`` alone would exclude every file).
+
+    Raises
+    ------
+    GediValidationError
+        If ``exclude`` is neither a string nor a list of strings.
+    """
+    value = (log_data or {}).get('exclude') or []
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not all(isinstance(p, str) for p in value):
+        raise GediValidationError(
+            f"The build log's 'exclude' must be a list of glob patterns (gh3_build --exclude), got {value!r}")
+    return list(value)
+
+
 class H3BuildLogger:
     _LOG_FILE_NAME = BUILD_LOG_FILENAME
     _PARENT_DIR = GH3_DEFAULT_H3_DIR
@@ -584,6 +605,10 @@ class H3BuildLogger:
         # a database, persisted in its log so later runs keep admitting L2A
         # before the later products are published.
         self.allow_missing_products = bool(self.log_data.get('allow_missing_products'))
+        # Source exclusions (gh3_build --exclude): persisted, so every later run
+        # and every listing that takes no --exclude (variable adds, gh3_doctor)
+        # leaves out the same files the database was built without.
+        self.exclude = stored_exclude(self.log_data)
 
         if not self.log_data:
             self.product_vars = product_vars
@@ -1285,6 +1310,9 @@ class H3BuildLogger:
 
         if getattr(self, 'allow_missing_products', False):
             log_dict['allow_missing_products'] = True
+
+        if getattr(self, 'exclude', None):
+            log_dict['exclude'] = list(self.exclude)
 
         if hasattr(self, 'date_range'):
             log_dict['date_range'] = self.date_range

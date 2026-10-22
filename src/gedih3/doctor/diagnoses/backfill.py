@@ -282,24 +282,26 @@ def _granules_needing_fill(report: Report) -> Set[Tuple[int, int, int, str]]:
     return needed
 
 
-def _build_soc_tree(soc_source, version=None):
+def _build_soc_tree(soc_source, version=None, exclude=None):
     """Wrap soc_file_tree to handle string paths uniformly.
 
     ``version`` is the database's GEDI release. Backfill writes source values
     into the database, so the listing must never pair in files of another
-    release that shares the SOC tree.
+    release that shares the SOC tree, nor a file the build excluded
+    (``exclude``, the build log's ``gh3_build --exclude`` patterns).
     """
     from ...gh3builder import soc_file_tree
     glob_kwargs = {'version': version} if version is not None else None
     # Partial granules too: a gap in one product must heal even while
     # another of the granule's products is still unpublished.
     if isinstance(soc_source, str):
-        return soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False)
+        return soc_file_tree(soc_source, to_list=False, glob_kwargs=glob_kwargs, require_all=False,
+                             exclude=exclude)
     if isinstance(soc_source, list):
         from ...gedidriver import GEDIFile
         if version is not None:
             soc_source = [p for p in soc_source if GEDIFile(getattr(p, 'path', p)).version == version]
-        return soc_file_tree(soc_source, to_list=False, require_all=False)
+        return soc_file_tree(soc_source, to_list=False, require_all=False, exclude=exclude)
     return {}
 
 
@@ -311,13 +313,13 @@ def _build_soc_tree(soc_source, version=None):
 _soc_tree_cache: Dict[str, dict] = {}
 
 
-def _get_soc_tree(soc_source: str, version=None) -> dict:
-    """Process-local cache of ``soc_file_tree`` for a given source path and release."""
-    key = (soc_source, version)
+def _get_soc_tree(soc_source: str, version=None, exclude=None) -> dict:
+    """Process-local cache of ``soc_file_tree`` for a given source path, release and exclusions."""
+    key = (soc_source, version, tuple(exclude or ()))
     cached = _soc_tree_cache.get(key)
     if cached is not None:
         return cached
-    tree = _build_soc_tree(soc_source, version=version)
+    tree = _build_soc_tree(soc_source, version=version, exclude=exclude)
     _soc_tree_cache[key] = tree
     return tree
 
@@ -461,6 +463,7 @@ def _heal_partition(
     soc_source: str,
     vars_per_product: Dict[str, List[str]],
     version: Optional[int] = None,
+    exclude: Optional[List[str]] = None,
 ) -> Dict[str, list]:
     """Worker: read source HDF5 patch, apply parquet_fill_columns to every
     parquet under one partition, return healed/unavailable/error finding lists.
@@ -478,7 +481,7 @@ def _heal_partition(
 
     # Process-local soc_tree cache (v0.8.x lesson: don't redo work
     # the structure of the data already answers).
-    soc_tree = _get_soc_tree(soc_source, version=version)
+    soc_tree = _get_soc_tree(soc_source, version=version, exclude=exclude)
     patch = None
     try:
         patch = _read_patch_for_partition(
@@ -606,6 +609,7 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         return report
 
     version = getattr(ctx.h3_logger, 'gedi_version', None)
+    exclude = getattr(ctx.h3_logger, 'exclude', None) or None   # the build's --exclude, from its log
 
     # Granules awaiting later products: the build's own backfill engine.
     healed: list = []
@@ -626,7 +630,7 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
         try:
             fill = _build_fill_products(
                 ctx.h3_dir, pending, soc_source=soc_source, version=version,
-                tmp_dir=ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'),
+                tmp_dir=ctx.tmp_dir or os.path.join(ctx.h3_dir, '.tmp'), exclude=exclude,
                 releases_callback=_record_fill_releases,
             )
         except BaseException:
@@ -687,6 +691,7 @@ def backfill_fix(ctx: DoctorContext, report: Report) -> Report:
             soc_source=soc_source,
             vars_per_product=vars_per_product,
             version=version,
+            exclude=exclude,
         ):
             part_dir = item[0] if item is not None else '<unknown>'
             if isinstance(result, Exception):

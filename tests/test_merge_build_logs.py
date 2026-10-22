@@ -267,3 +267,15 @@ class TestMergeBuildLogs:
 
         assert json.load(open(os.path.join(tmp_dir, 'merged.json')))['granules'] == \
             [{**g, 'releases': {'L2A': '02_003_01'}}]
+
+    def test_exclude_patterns_of_either_log_are_kept(self, tmp_dir):
+        paths = []
+        for i, exclude in enumerate((['*_SGS.h5'], ['*_BETA.h5', '*_SGS.h5'])):
+            paths.append(os.path.join(tmp_dir, f'log{i}.json'))
+            with open(paths[-1], 'w') as f:
+                json.dump({**_make_build_log(), 'exclude': exclude}, f)
+
+        merged = merge_build_logs(*paths, os.path.join(tmp_dir, 'merged.json'))
+
+        assert merged['exclude'] == ['*_SGS.h5', '*_BETA.h5']
+        assert json.load(open(os.path.join(tmp_dir, 'merged.json')))['exclude'] == ['*_SGS.h5', '*_BETA.h5']
