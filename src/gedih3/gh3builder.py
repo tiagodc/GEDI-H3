@@ -5460,6 +5460,97 @@ def _year_file_replace_targets(year_pf, *, targets, products=()):
     return hits, sorted(p for p in products if f"root_file_{p.lower()}" not in names)
 
 
+_ROOT_FILE_KEY_RE = re.compile(r'_O(\d+)_(\d{2})_T(\d+)_')
+
+
+def _year_file_source_releases(year_pf, *, products):
+    """Worker: the source releases a (cell, year) file's rows name, per granule.
+
+    Reads only the ``root_file_<prod>`` columns, dictionary-encoded and in
+    batches (a few distinct names per file: under a second for the largest
+    production file), and parses each name: the granule key and the release
+    tag (``gedi_release_tag``) are in it. Returns ``{granule key: {product:
+    [tags]}}``; a product listing more than one tag for a granule (a
+    replacement abandoned half way) is left to the caller.
+    """
+    import pyarrow.compute as pc
+    pf = pq.ParquetFile(year_pf)
+    cols = {f"root_file_{p.lower()}": p for p in products}
+    present = [c for c in cols if c in pf.schema_arrow.names]
+    out: Dict[str, Dict[str, set]] = {}
+    if not present:
+        return {}
+    pf = pq.ParquetFile(year_pf, read_dictionary=present)
+    names = {c: set() for c in present}
+    for batch in pf.iter_batches(batch_size=1_000_000, columns=present):
+        for c in present:
+            names[c].update(pc.unique(batch.column(c)).to_pylist())
+    for c, values in names.items():
+        for name in values:
+            m = _ROOT_FILE_KEY_RE.search(os.path.basename(str(name))) if name else None
+            tag = gedi_release_tag(str(name)) if m else None
+            if tag:
+                key = f"O{int(m.group(1)):05d}_{int(m.group(2)):02d}_T{int(m.group(3)):05d}"
+                out.setdefault(key, {}).setdefault(cols[c], set()).add(tag)
+    return {k: {p: sorted(t) for p, t in v.items()} for k, v in out.items()}
+
+
+def releases_from_rows(h3_dir: str, products) -> Tuple[Dict[Tuple[int, int, int], Dict[str, str]],
+                                                         Dict[Tuple[int, int, int], Dict[str, List[str]]]]:
+    """The source release of every granule product, read from the database's rows (#67).
+
+    A database built before gedih3 0.20.10 records no release per granule,
+    so re-released granules cannot be found from the build log. Every row
+    names its source file per product (``root_file_<prod>``), and the file
+    name holds the granule key and the release (PPDS, PGE, generation,
+    suffix): one worker task per (cell, year) file reads only those columns
+    (:func:`_year_file_source_releases`). The files come from the
+    database's ``_manifest.txt`` (:func:`smart_glob`).
+
+    Parameters
+    ----------
+    h3_dir : str
+        Database root.
+    products : iterable of str
+        Products to read, e.g. ``['L2A', 'L4A']``; one without a source
+        column is skipped.
+
+    Returns
+    -------
+    tuple of dict
+        ``(releases, mixed)``: ``{(orbit, granule, track): {product: tag}}``
+        for products whose rows name one release, and ``{key: {product:
+        [tags]}}`` for those naming several (left unknown, never guessed).
+        Requires a registered dask Client.
+
+    Raises
+    ------
+    GediDatabaseError
+        A file could not be read: a partial answer would leave granules out.
+    """
+    from .parallel import parallel_map
+    from .utils import smart_glob
+    files = sorted(smart_glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
+    found: Dict[str, Dict[str, set]] = {}
+    fn = functools.partial(_year_file_source_releases, products=sorted(products))
+    for year_pf, res in parallel_map(files, fn, desc="Reading source releases", unit="file",
+                                     batch_size=500 if len(files) > 10000 else 0):
+        if isinstance(res, Exception):
+            raise GediDatabaseError(f"Cannot read the source columns of {year_pf} ({res}); no release was recorded")
+        for key, prods in (res or {}).items():
+            for p, tags in prods.items():
+                found.setdefault(key, {}).setdefault(p, set()).update(tags)
+    releases, mixed = {}, {}
+    for key, prods in found.items():
+        k = (int(key[1:6]), int(key[7:9]), int(key[11:]))
+        for p, tags in prods.items():
+            if len(tags) == 1:
+                releases.setdefault(k, {})[p] = next(iter(tags))
+            else:
+                mixed.setdefault(k, {})[p] = sorted(tags)
+    return releases, mixed
+
+
 def replacement_abandon_hint(tmp_dir: str) -> str:
     """How to abandon an unfinished replacement, and what that leaves."""
     rtmp = os.path.join(tmp_dir, _REPLACE_DIRNAME)
@@ -6198,6 +6289,9 @@ def merge_build_logs(log_file_1: str, log_file_2: str, output_log_file: str) -> 
     exclude = list(dict.fromkeys(stored_exclude(log1) + stored_exclude(log2)))
     if exclude:
         merged_log['exclude'] = exclude
+    # The rows-read releases (#67) cover both logs' granules only if both ran it.
+    if not (log1.get('releases_from_rows') and log2.get('releases_from_rows')):
+        merged_log.pop('releases_from_rows', None)
     
     # Merge products and variables
     products_1 = log1.get('products', {})

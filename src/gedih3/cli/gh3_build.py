@@ -256,6 +256,42 @@ def _warn_superseded_granules(h3_logger, soc_entries, logger):
     return found
 
 
+def _adopt_row_releases(h3_logger, h3_dir, logger):
+    """Read, once, the releases of granules indexed before gedih3 recorded them (#67).
+
+    A database built before 0.20.10 records no release per granule, so a
+    re-release of one could not be found. Its rows name their source files
+    (``root_file_<prod>``): ``releases_from_rows`` reads those columns on the
+    workers and the log adopts them (in memory; the caller saves it). Needs a
+    registered dask Client. Never fails the run: on an error the granules
+    stay unknown, as before. Returns whether the log changed (it is marked
+    so the scan runs once, even when the rows gave nothing).
+    """
+    from gedih3.exceptions import GediError
+    from gedih3.gh3builder import releases_from_rows, _granule_key_str
+    if not h3_logger.needs_row_releases():
+        return False
+    columns = set(h3_logger.log_data.get('h3_columns') or [])
+    products = [p for p in h3_logger.product_vars or {} if f"root_file_{p.lower()}" in columns]
+    logger.info("Reading the source releases of granules indexed before gedih3 recorded them, from their rows' "
+                "root_file columns (once per database)")
+    try:
+        releases, mixed = releases_from_rows(h3_dir, products)
+    except (GediError, OSError) as e:
+        logger.warning(f"Could not read the source releases from the rows ({type(e).__name__}: {e}); granules "
+                       f"indexed before gedih3 recorded releases are not checked for re-releases")
+        return False
+    n = h3_logger.adopt_row_releases(releases)
+    logger.info(f"Recorded {n} source release(s) read from the rows")
+    if mixed:
+        key, prods = next(iter(sorted(mixed.items())))
+        logger.warning(
+            f"{len(mixed)} granule(s) have rows from more than one release of a product (e.g. {_granule_key_str(key)} "
+            f"{', '.join(f'{p}: {t}' for p, t in sorted(prods.items()))}), as a replacement left half done would: "
+            f"their release stays unknown. Re-index them by name with gh3_build --replace-granules <key>")
+    return True
+
+
 def _soc_files_by_product(files):
     """``{product: path}`` per GEDI file, for :func:`_warn_superseded_granules`."""
     import os
@@ -412,6 +448,8 @@ def _run_granule_replacement(args, h3_logger, soc_source, logger, tmp_dir):
     product_vars = h3_logger.get_product_vars()
     products = set(product_vars)
     with dask_client(**parse_dask_args(args)):
+        if journal is None and _adopt_row_releases(h3_logger, args.output, logger):
+            h3_logger.save_log('COMPLETED')                  # the run needs a completed database
         if journal is None:
             listing = soc_file_tree(soc_source, to_list=True, require_all=False, exclude=args.exclude,
                                     glob_kwargs={'version': h3_logger.gedi_version})
@@ -805,6 +843,10 @@ def main():
                 elif _flag_changed:
                     h3_logger.save_log('COMPLETED')  # remember --[no-]allow-missing-products, --exclude
                 logger.info("Database is already up-to-date with requested parameters")
+                if _local_files and h3_logger.needs_row_releases():
+                    with dask_client(**parse_dask_args(args)):
+                        if _adopt_row_releases(h3_logger, args.output, logger):
+                            h3_logger.save_log('COMPLETED')
                 if _local_files:
                     _warn_superseded_granules(h3_logger, _soc_files_by_product(_local_files), logger)
                 # Up-to-date DB: create the index only if it is missing
@@ -1244,6 +1286,7 @@ def main():
                                          if p in _build_products and (t := gedi_release_tag(f))},
                         })
                     h3_logger.register_pending_granules(_build_granules)
+                    _adopt_row_releases(h3_logger, args.output, logger)   # saved with the build's next save
                     _warn_superseded_granules(h3_logger, _soc_for_build, logger)
                     _stage1_listed = {(g['orbit'], g['granule'], g['track']) for g in _build_granules}
 

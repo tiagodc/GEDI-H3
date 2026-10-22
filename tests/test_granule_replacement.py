@@ -787,3 +787,107 @@ def test_files_without_the_source_column_are_found_even_when_the_log_lists_it(tm
     assert {g['orbit']: g['releases'] for g in after['granules']}[101] == {'L2A': OLD, 'L4A': OLD}
     assert not os.path.exists(os.path.join(tmp, '_replace', '_replace_targets.json'))
     assert {f: os.stat(f).st_mtime_ns for f in stripped} == stripped
+
+
+def _forget_releases(h3_dir):
+    """The build log of a database built before gedih3 recorded releases (0.20.10)."""
+    from gedih3.config import BUILD_LOG_FILENAME
+    path = os.path.join(h3_dir, BUILD_LOG_FILENAME)
+    log = json.load(open(path))
+    for g in log['granules']:
+        g.pop('releases', None)
+    log.pop('releases_from_rows', None)
+    json.dump(log, open(path, 'w'))
+    return path
+
+
+def test_releases_of_a_database_built_before_they_were_recorded_come_from_its_rows(tmp_dir):
+    """A log with no recorded release: the first run that checks for
+    re-releases reads them from the rows' root_file columns, once, so an
+    up-to-date run warns and auto re-indexes the re-released granule (#67)."""
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    path = _forget_releases(h3_dir)
+    new = _write_release(soc_dir, key, NEW, lon0=-50.9, seed=11, products=('04_A',))
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert 'Reading the source releases' in out and '1 granule(s) were indexed from an older release' in out
+    log = json.load(open(path))
+    assert log['releases_from_rows']
+    assert {g['orbit']: g['releases'] for g in log['granules']} == {101: {'L2A': OLD, 'L4A': OLD},
+                                                                    103: {'L2A': OLD, 'L4A': OLD}}
+    out = _gh3_build(soc_dir, h3_dir, tmp, '--replace-granules', 'auto')
+    assert 'Reading the source releases' not in out                          # once per database
+    assert '1 granule(s) re-indexed from their new release' in out
+    rows = _db_rows(h3_dir)
+    assert set(rows[rows.shot_number // 10**13 == 101].root_file_l4a) == {new['L4A']}
+    assert {g['orbit']: g['releases'] for g in json.load(open(path))['granules']}[101] == {'L2A': OLD, 'L4A': NEW}
+
+
+def test_rows_from_two_releases_leave_the_granule_unknown(tmp_dir):
+    """A granule whose rows name two releases of a product (a replacement left
+    half done) is reported, never guessed; the doctor reads the rows' releases
+    in memory and lists the re-released granule all the same."""
+    import glob
+    import types
+    from dask.distributed import Client, LocalCluster
+    from gedih3.doctor.diagnoses.superseded_granules import superseded_granules_check
+    from gedih3.gh3builder import releases_from_rows
+    from gedih3.logger import H3BuildLogger
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    key, other = (101, 1, 201), (103, 1, 203)
+    _write_release(soc_dir, key, OLD, lon0=-50.9, seed=1)
+    _write_release(soc_dir, other, OLD, lon0=-49.6, seed=3)
+    _gh3_build(soc_dir, h3_dir, tmp)
+    _forget_releases(h3_dir)
+    f = sorted(f for f in glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet'))
+               if (pq.read_table(f, columns=['shot_number'])['shot_number'].to_numpy() // 10**13 == 103).any())[0]
+    t = pq.read_table(f).to_pandas().reset_index(drop=True)
+    mine = t.shot_number // 10**13 == 103
+    t.loc[mine & (np.arange(len(t)) % 2 == 0), 'root_file_l2a'] = t.loc[mine, 'root_file_l2a'].iloc[0].replace(OLD, NEW)
+    pq.write_table(pa.Table.from_pandas(t, preserve_index=False), f)
+    _write_release(soc_dir, key, NEW, lon0=-50.9, seed=11, products=('04_A',))
+
+    with LocalCluster(n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None,
+                      silence_logs='ERROR') as cluster, Client(cluster):
+        releases, mixed = releases_from_rows(h3_dir, ['L2A', 'L4A'])
+        assert releases[key] == {'L2A': OLD, 'L4A': OLD} and releases[other] == {'L4A': OLD}
+        assert mixed == {other: {'L2A': sorted([OLD, NEW])}}
+        log = H3BuildLogger(product_vars=None, dir=h3_dir)
+        report = superseded_granules_check(types.SimpleNamespace(h3_logger=log, soc_dir=soc_dir, h3_dir=h3_dir))
+    kinds = {(f['kind'], f['granule']['orbit']) for f in report.findings}
+    assert kinds == {('newer_release', 101), ('mixed_releases', 103)}
+    assert 'read from the rows' in report.summary
+    assert not json.load(open(os.path.join(h3_dir, 'gedih3_build_log.json'))).get('releases_from_rows')  # read-only
+
+    out = _gh3_build(soc_dir, h3_dir, tmp)
+    assert '1 granule(s) have rows from more than one release of a product (e.g. O00103_01_T00203 L2A' in out
+
+
+def test_only_indexed_products_with_a_source_column_call_for_the_row_scan(tmp_dir):
+    """needs_row_releases is log-only: a product still awaited (MISSING_SOURCE)
+    or without a source column never triggers the scan, nor does a log that
+    already ran it."""
+    from gedih3.logger import H3BuildLogger
+    from conftest import make_build_log
+    make_build_log(tmp_dir, granules=[
+        {'orbit': 1, 'granule': 1, 'track': 1, 'status': 'INDEXED', 'releases': {'L2A': OLD},
+         'products': {'L2A': 'INDEXED', 'L4A': 'MISSING_SOURCE'}}])
+    path = os.path.join(tmp_dir, 'gedih3_build_log.json')
+    log = json.load(open(path))
+    log['products'] = {'L2A': {'variables': ['rh_098']}, 'L4A': {'variables': ['agbd']}}
+    log['h3_columns'] = ['shot_number', 'root_file_l2a', 'root_file_l4a']
+    json.dump(log, open(path, 'w'))
+    assert not H3BuildLogger(product_vars=None, dir=tmp_dir).needs_row_releases()
+    log['granules'][0]['products']['L4A'] = 'INDEXED'
+    json.dump(log, open(path, 'w'))
+    h = H3BuildLogger(product_vars=None, dir=tmp_dir)
+    assert h.needs_row_releases()
+    assert h.adopt_row_releases({(1, 1, 1): {'L2A': NEW, 'L4A': OLD}}) == 1
+    assert h.granule_info[0]['releases'] == {'L2A': OLD, 'L4A': OLD} and not h.needs_row_releases()
+    log['h3_columns'] = ['shot_number', 'root_file_l2a']
+    json.dump(log, open(path, 'w'))
+    assert not H3BuildLogger(product_vars=None, dir=tmp_dir).needs_row_releases()
