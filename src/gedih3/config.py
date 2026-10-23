@@ -176,8 +176,14 @@ _GEDI_MIN_VARS = {
 
 # Quality flag conditions per product and GEDI version (before product suffix).
 # Each entry is a list of (flag_name, condition_str) tuples applied when --quality is used.
-# degrade_flag lives in L2A only (always present via essentials); downstream products
-# rely on L2A's degrade_flag rather than carrying redundant copies.
+# Every flag named here is also appended to each explicit or preset variable list
+# at build time (gh3builder._complete_essentials_and_flags), so a database always
+# carries the columns its --quality filter reads.
+# degrade_flag lives in L2A only (always present via essentials). L4A and L4C v3
+# carry their own pointing/positioning inclusion flag (degrade_include_flag,
+# 1 = include) and orbit-segment outlier flag (elev_highestreturn_outlier_flag,
+# 1 = outlier); the two are meant to be applied together. How a query selecting
+# them combines with L2A's degrade_flag: cliutils.quality_conditions_for_selection.
 # Use _get_versioned() to resolve for a given version.
 _PRODUCT_QUALITY_FLAGS = {
     'L1B': {
@@ -194,11 +200,13 @@ _PRODUCT_QUALITY_FLAGS = {
     },
     'L4A': {
         2: [('l4_quality_flag', '== 1')],
-        3: [('l4a_quality_flag_rel3', '== 1'), ('elev_highestreturn_outlier_flag', '== 0')],
+        3: [('l4a_quality_flag_rel3', '== 1'), ('degrade_include_flag', '== 1'),
+            ('elev_highestreturn_outlier_flag', '== 0')],
     },
     'L4C': {
         2: [('wsci_quality_flag', '== 1')],
-        3: [('l4c_quality_flag_rel3', '== 1'), ('elev_highestreturn_outlier_flag', '== 0')],
+        3: [('l4c_quality_flag_rel3', '== 1'), ('degrade_include_flag', '== 1'),
+            ('elev_highestreturn_outlier_flag', '== 0')],
     },
 }
 

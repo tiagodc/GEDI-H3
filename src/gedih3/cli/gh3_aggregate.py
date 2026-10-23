@@ -349,7 +349,7 @@ def main():
         logger.info(f"  Total variables: {len(columns)}")
 
         # Build query
-        query_str = build_query_string(args, available_columns=available_columns)
+        query_str = build_query_string(args, available_columns=available_columns, columns=columns)
         if query_str:
             logger.info(f"Query filter: {query_str}")
 
