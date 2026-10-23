@@ -1114,7 +1114,7 @@ window.runMermaid = runMermaid;</script>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  Total variables: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="c1"># Build query</span>
-        <span class="n">query_str</span> <span class="o">=</span> <span class="n">build_query_string</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">available_columns</span><span class="o">=</span><span class="n">available_columns</span><span class="p">)</span>
+        <span class="n">query_str</span> <span class="o">=</span> <span class="n">build_query_string</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">available_columns</span><span class="o">=</span><span class="n">available_columns</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">query_str</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Query filter: </span><span class="si">{</span><span class="n">query_str</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 

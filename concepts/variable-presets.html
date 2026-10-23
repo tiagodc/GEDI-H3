@@ -1617,8 +1617,10 @@ and renames <code class="docutils literal notranslate"><span class="pre">wsci_qu
 <section id="quality-filtering">
 <h2>Quality Filtering<a class="headerlink" href="#quality-filtering" title="Link to this heading">#</a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">--quality</span></code> / <code class="docutils literal notranslate"><span class="pre">-y</span></code> flag applies recommended quality conditions for each product
-present in your query. L2A conditions (including <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code>) are <strong>always</strong>
-applied since L2A data is present in every database.</p>
+present in your query, all combined with AND. L2A conditions are <strong>always</strong> applied
+since L2A data is present in every database (L2A alone when no product is detected).
+The one exception is <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> for a v3 query on L4A or L4C without an L2
+product (see below).</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Product</p></th>
@@ -1641,7 +1643,7 @@ applied since L2A data is present in every database.</p>
 </tr>
 <tr class="row-odd"><td><p>L2A (always)</p></td>
 <td><p>v3</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> (<code class="docutils literal notranslate"><span class="pre">degrade_flag</span></code> left out for an L4A/L4C v3 query with no L2A or L2B)</p></td>
 </tr>
 <tr class="row-even"><td><p>L2B</p></td>
 <td><p>v2</p></td>
@@ -1657,7 +1659,7 @@ applied since L2A data is present in every database.</p>
 </tr>
 <tr class="row-odd"><td><p>L4A</p></td>
 <td><p>v3</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">l4a_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l4a_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>L4C</p></td>
 <td><p>v2</p></td>
@@ -1665,14 +1667,57 @@ applied since L2A data is present in every database.</p>
 </tr>
 <tr class="row-odd"><td><p>L4C</p></td>
 <td><p>v3</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">l4c_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">l4c_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span> <span class="pre">==</span> <span class="pre">1</span></code> AND <code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> is always applied through L2A regardless of which products are
-selected. L4C v2’s <code class="docutils literal notranslate"><span class="pre">wsci_quality_flag</span></code> already encapsulates degrade, sensitivity, and
-surface checks internally.</p>
+<p>L4C v2’s <code class="docutils literal notranslate"><span class="pre">wsci_quality_flag</span></code> already encapsulates degrade, sensitivity, and surface
+checks internally.</p>
+<p>L4A and L4C v3 carry two flags meant to be applied together: <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span></code>
+(<code class="docutils literal notranslate"><span class="pre">1</span></code> = pointing and positioning quality acceptable for inclusion) and
+<code class="docutils literal notranslate"><span class="pre">elev_highestreturn_outlier_flag</span></code> (<code class="docutils literal notranslate"><span class="pre">1</span></code> = the shot lies on an orbit section whose canopy
+elevation metrics are large outliers). <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span></code> is the products’ own
+pointing and positioning filter, and it admits some shots that <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code>
+rejects. So when a v3 query selects L4A and/or L4C but neither L2A nor L2B (L1B does
+not count), the always-applied L2A conditions leave out <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> and keep
+<code class="docutils literal notranslate"><span class="pre">l2a_quality_flag_rel3</span> <span class="pre">==</span> <span class="pre">1</span></code>. Selecting L2A or L2B as well keeps the full L2A
+conditions alongside the L4 ones, <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> included. Products are selected
+with their product flags or, without them, from the suffixes of the columns the command
+reads (<code class="docutils literal notranslate"><span class="pre">-l</span></code> names, a <code class="docutils literal notranslate"><span class="pre">-l</span></code> file or wildcard, <code class="docutils literal notranslate"><span class="pre">gh3_aggregate</span></code>’s dict-form <code class="docutils literal notranslate"><span class="pre">-a</span></code> keys):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Query (v3)</p></th>
+<th class="head"><p>Degrade conditions</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-l</span> <span class="pre">agbd_l4a</span></code> (L4A only), or L4C only, or L1B with L4A/L4C</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span> <span class="pre">==</span> <span class="pre">1</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-l</span> <span class="pre">agbd_l4a</span> <span class="pre">rh_098_l2a</span></code> (L2A + L4A), or L2B + L4A</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> AND <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span> <span class="pre">==</span> <span class="pre">1</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>no product detected, L2A only, L2B only</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Every flag in this table is appended to the
+product’s variable list at build time, whatever list you give (<code class="docutils literal notranslate"><span class="pre">minimal</span></code>, <code class="docutils literal notranslate"><span class="pre">default</span></code>,
+a file or explicit names), so a database always stores the columns <code class="docutils literal notranslate"><span class="pre">--quality</span></code> reads.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A v3 database built with an earlier gedih3 may lack <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span></code>. <code class="docutils literal notranslate"><span class="pre">--quality</span></code>
+then applies the remaining conditions and logs a warning, and it keeps <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code>
+unless a selected L4 product does have the column. Updates and <code class="docutils literal notranslate"><span class="pre">--replace-granules</span></code> keep
+writing new rows without it, so every file keeps one column set. Add it to the whole
+database with a variable update, naming only the L4 products your database holds:
+<code class="docutils literal notranslate"><span class="pre">-l4a</span> <span class="pre">degrade_include_flag</span></code> and/or <code class="docutils literal notranslate"><span class="pre">-l4c</span> <span class="pre">degrade_include_flag</span></code>, e.g.
+<code class="docutils literal notranslate"><span class="pre">gh3_build</span> <span class="pre">-i</span> <span class="pre">&lt;soc&gt;</span> <span class="pre">-o</span> <span class="pre">&lt;database&gt;</span> <span class="pre">-l4a</span> <span class="pre">degrade_include_flag</span></code>. The warning gedih3 logs
+names the command for your database.</p>
+</div>
 </section>
 <hr class="docutils" />
 <section id="source-files">

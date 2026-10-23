@@ -632,10 +632,13 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.get_product_quality_conditions" title="gedih3.cliutils.get_product_quality_conditions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_product_quality_conditions</span></code></a>(selected_products, ...)</p></td>
 <td><p>Return quality filter conditions for the selected products and GEDI version.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.build_query_string" title="gedih3.cliutils.build_query_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_query_string</span></code></a>(args[, available_columns])</p></td>
-<td><p>Build pandas query string from arguments</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.quality_conditions_for_selection" title="gedih3.cliutils.quality_conditions_for_selection"><code class="xref py py-obj docutils literal notranslate"><span class="pre">quality_conditions_for_selection</span></code></a>(selected_products, ...)</p></td>
+<td><p>Quality conditions <code class="docutils literal notranslate"><span class="pre">--quality</span></code> applies to a product selection.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.safe_query" title="gedih3.cliutils.safe_query"><code class="xref py py-obj docutils literal notranslate"><span class="pre">safe_query</span></code></a>(df, query_str)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#gedih3.cliutils.build_query_string" title="gedih3.cliutils.build_query_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">build_query_string</span></code></a>(args[, available_columns, columns])</p></td>
+<td><p>Build the pandas query string of a CLI's filter arguments.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#gedih3.cliutils.safe_query" title="gedih3.cliutils.safe_query"><code class="xref py py-obj docutils literal notranslate"><span class="pre">safe_query</span></code></a>(df, query_str)</p></td>
 <td><p>Apply a pandas query, handling column names with '/' that pandas can't parse.</p></td>
 </tr>
 </tbody>
@@ -1300,7 +1303,10 @@ without a build log, extracted from an older database), that
 release’s flags are used instead — the column names themselves
 identify the release, so this never mixes versions.</p>
 </dd>
-<dt><strong>available_columns</strong><span class="classifier">list[str]</span></dt><dd><p>Columns present in the database (suffixed form e.g. ‘quality_flag_l2a’).</p>
+<dt><strong>available_columns</strong><span class="classifier">list[str]</span></dt><dd><p>Columns present in the database (suffixed form e.g. ‘quality_flag_l2a’).
+A flag column that is absent drops its condition with a warning. A
+product with none of its flag columns gets no condition, also with a
+warning.</p>
 </dd>
 </dl>
 </dd>
@@ -1315,9 +1321,71 @@ e.g. <code class="docutils literal notranslate"><span class="pre">[('quality_fla
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="gedih3.cliutils.quality_conditions_for_selection">
+<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">quality_conditions_for_selection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">selected_products</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available_columns</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#quality_conditions_for_selection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.quality_conditions_for_selection" title="Link to this definition">#</a></dt>
+<dd><p>Quality conditions <code class="docutils literal notranslate"><span class="pre">--quality</span></code> applies to a product selection.</p>
+<p>Every selected product’s conditions apply (ANDed), and L2A’s are always
+added, since every database stores the L2A essentials: no product
+detected means L2A’s conditions alone.</p>
+<p>One exception, for a selection with no L2 product: when the selection has
+neither L2A nor L2B (L1B with an L4 product counts as none), and a
+selected L4 product’s own <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span></code> condition applies
+(GEDI release 3 L4A and L4C), the implicit L2A conditions leave out
+<code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code>. The L4 product’s flag is its pointing/positioning
+filter, and it admits shots that <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> rejects. Selecting
+L2A or L2B keeps L2A’s full conditions, <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code> among them,
+alongside the L4 flags. A database without the <code class="docutils literal notranslate"><span class="pre">degrade_include_flag</span></code>
+column keeps <code class="docutils literal notranslate"><span class="pre">degrade_flag</span> <span class="pre">==</span> <span class="pre">0</span></code>, so degrade filtering never lapses.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>selected_products</strong><span class="classifier">list[str]</span></dt><dd><p>Products the query selected (e.g. <code class="docutils literal notranslate"><span class="pre">['L4A']</span></code>), possibly empty.</p>
+</dd>
+<dt><strong>version</strong><span class="classifier">int or None</span></dt><dd><p>GEDI release of the database, as for <a class="reference internal" href="#gedih3.cliutils.get_product_quality_conditions" title="gedih3.cliutils.get_product_quality_conditions"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_product_quality_conditions()</span></code></a>.</p>
+</dd>
+<dt><strong>available_columns</strong><span class="classifier">list[str]</span></dt><dd><p>Columns present in the database (suffixed form).</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>list[tuple[str, str]]</dt><dd><p><code class="docutils literal notranslate"><span class="pre">(column,</span> <span class="pre">condition)</span></code> pairs, all to be ANDed.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="gedih3.cliutils.build_query_string">
-<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">build_query_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#build_query_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.build_query_string" title="Link to this definition">#</a></dt>
-<dd><p>Build pandas query string from arguments</p>
+<span class="sig-prename descclassname"><span class="pre">gedih3.cliutils.</span></span><span class="sig-name descname"><span class="pre">build_query_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">available_columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">columns</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/gedih3/cliutils.html#build_query_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gedih3.cliutils.build_query_string" title="Link to this definition">#</a></dt>
+<dd><p>Build the pandas query string of a CLI’s filter arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt><strong>args</strong><span class="classifier">argparse.Namespace</span></dt><dd><p>Parsed arguments: <code class="docutils literal notranslate"><span class="pre">quality</span></code>, the product flags, <code class="docutils literal notranslate"><span class="pre">list</span></code>,
+<code class="docutils literal notranslate"><span class="pre">database</span></code>, <code class="docutils literal notranslate"><span class="pre">time_start</span></code>/<code class="docutils literal notranslate"><span class="pre">time_end</span></code>, <code class="docutils literal notranslate"><span class="pre">beam_type</span></code>, <code class="docutils literal notranslate"><span class="pre">query</span></code>.</p>
+</dd>
+<dt><strong>available_columns</strong><span class="classifier">list of str, optional</span></dt><dd><p>Database columns; read from the build log of <code class="docutils literal notranslate"><span class="pre">args.database</span></code> when
+omitted.</p>
+</dd>
+<dt><strong>columns</strong><span class="classifier">list of str, optional</span></dt><dd><p>The resolved columns the command reads (e.g. <a class="reference internal" href="#gedih3.cliutils.collect_columns" title="gedih3.cliutils.collect_columns"><code class="xref py py-func docutils literal notranslate"><span class="pre">collect_columns()</span></code></a>
+plus dict-form <code class="docutils literal notranslate"><span class="pre">-a</span></code> keys). Without product flags, <code class="docutils literal notranslate"><span class="pre">--quality</span></code>
+selects the products these columns’ suffixes name. When omitted, the
+<code class="docutils literal notranslate"><span class="pre">-l</span></code> names are used, a file of names read and wildcards matched
+against <code class="docutils literal notranslate"><span class="pre">available_columns</span></code>.</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><dl class="simple">
+<dt>str or None</dt><dd><p>The conditions joined with <code class="docutils literal notranslate"><span class="pre">&amp;</span></code> (<code class="docutils literal notranslate"><span class="pre">None</span></code> when there are none). With
+<code class="docutils literal notranslate"><span class="pre">--quality</span></code> they are <a class="reference internal" href="#gedih3.cliutils.quality_conditions_for_selection" title="gedih3.cliutils.quality_conditions_for_selection"><code class="xref py py-func docutils literal notranslate"><span class="pre">quality_conditions_for_selection()</span></code></a> for the
+products selected by product flags, or else by column suffixes.</p>
+</dd>
+</dl>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -1424,6 +1492,7 @@ This function works around the limitation by temporarily renaming such columns.<
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.parse_region"><code class="docutils literal notranslate"><span class="pre">parse_region()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.collect_columns"><code class="docutils literal notranslate"><span class="pre">collect_columns()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.get_product_quality_conditions"><code class="docutils literal notranslate"><span class="pre">get_product_quality_conditions()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.quality_conditions_for_selection"><code class="docutils literal notranslate"><span class="pre">quality_conditions_for_selection()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.build_query_string"><code class="docutils literal notranslate"><span class="pre">build_query_string()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#gedih3.cliutils.safe_query"><code class="docutils literal notranslate"><span class="pre">safe_query()</span></code></a></li>
 </ul>

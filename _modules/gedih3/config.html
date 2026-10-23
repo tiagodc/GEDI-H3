@@ -942,8 +942,14 @@ window.runMermaid = runMermaid;</script>
 
 <span class="c1"># Quality flag conditions per product and GEDI version (before product suffix).</span>
 <span class="c1"># Each entry is a list of (flag_name, condition_str) tuples applied when --quality is used.</span>
-<span class="c1"># degrade_flag lives in L2A only (always present via essentials); downstream products</span>
-<span class="c1"># rely on L2A's degrade_flag rather than carrying redundant copies.</span>
+<span class="c1"># Every flag named here is also appended to each explicit or preset variable list</span>
+<span class="c1"># at build time (gh3builder._complete_essentials_and_flags), so a database always</span>
+<span class="c1"># carries the columns its --quality filter reads.</span>
+<span class="c1"># degrade_flag lives in L2A only (always present via essentials). L4A and L4C v3</span>
+<span class="c1"># carry their own pointing/positioning inclusion flag (degrade_include_flag,</span>
+<span class="c1"># 1 = include) and orbit-segment outlier flag (elev_highestreturn_outlier_flag,</span>
+<span class="c1"># 1 = outlier); the two are meant to be applied together. How a query selecting</span>
+<span class="c1"># them combines with L2A's degrade_flag: cliutils.quality_conditions_for_selection.</span>
 <span class="c1"># Use _get_versioned() to resolve for a given version.</span>
 <span class="n">_PRODUCT_QUALITY_FLAGS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">'L1B'</span><span class="p">:</span> <span class="p">{</span>
@@ -960,11 +966,13 @@ window.runMermaid = runMermaid;</script>
     <span class="p">},</span>
     <span class="s1">'L4A'</span><span class="p">:</span> <span class="p">{</span>
         <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4_quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4a_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4a_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'degrade_include_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
     <span class="s1">'L4C'</span><span class="p">:</span> <span class="p">{</span>
         <span class="mi">2</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'wsci_quality_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">)],</span>
-        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4c_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
+        <span class="mi">3</span><span class="p">:</span> <span class="p">[(</span><span class="s1">'l4c_quality_flag_rel3'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span> <span class="p">(</span><span class="s1">'degrade_include_flag'</span><span class="p">,</span> <span class="s1">'== 1'</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">'elev_highestreturn_outlier_flag'</span><span class="p">,</span> <span class="s1">'== 0'</span><span class="p">)],</span>
     <span class="p">},</span>
 <span class="p">}</span>
 

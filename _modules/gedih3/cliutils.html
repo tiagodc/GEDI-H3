@@ -2442,6 +2442,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        identify the release, so this never mixes versions.</span>
 <span class="sd">    available_columns : list[str]</span>
 <span class="sd">        Columns present in the database (suffixed form e.g. 'quality_flag_l2a').</span>
+<span class="sd">        A flag column that is absent drops its condition with a warning. A</span>
+<span class="sd">        product with none of its flag columns gets no condition, also with a</span>
+<span class="sd">        warning.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -2464,39 +2467,127 @@ window.runMermaid = runMermaid;</script>
         <span class="c1"># with the most flags present; ties keep the resolved release first.</span>
         <span class="c1"># A partial match on a shared name (degrade_flag exists in every</span>
         <span class="c1"># L2A release) must not shadow the release the other columns name.</span>
-        <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span><span class="p">,</span> <span class="n">best_flags</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">flags</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
             <span class="n">present</span> <span class="o">=</span> <span class="p">[(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">condition</span><span class="p">)</span>
                        <span class="k">for</span> <span class="n">flag_name</span><span class="p">,</span> <span class="n">condition</span> <span class="ow">in</span> <span class="n">flags</span>
                        <span class="k">if</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="ow">in</span> <span class="n">available</span><span class="p">]</span>
             <span class="n">score</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">present</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">flags</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">bool</span><span class="p">(</span><span class="n">present</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">present</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">score</span> <span class="o">&gt;</span> <span class="n">best_score</span><span class="p">:</span>
-                <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span> <span class="o">=</span> <span class="n">present</span><span class="p">,</span> <span class="n">score</span>
+                <span class="n">best</span><span class="p">,</span> <span class="n">best_score</span><span class="p">,</span> <span class="n">best_flags</span> <span class="o">=</span> <span class="n">present</span><span class="p">,</span> <span class="n">score</span><span class="p">,</span> <span class="n">flags</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">best</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Quality filter for </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: none of its flag column(s) </span><span class="si">{</span><span class="n">names</span><span class="si">}</span><span class="s2"> are in the data, so no "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2"> quality condition is applied"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">best</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">best_flags</span><span class="p">):</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.logging_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_logger</span>
+            <span class="n">skipped</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">best_flags</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">best</span><span class="p">})</span>
+            <span class="n">get_logger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Quality filter for </span><span class="si">{</span><span class="n">prod</span><span class="si">}</span><span class="s2">: column(s) </span><span class="si">{</span><span class="n">skipped</span><span class="si">}</span><span class="s2"> are not in the data, so their conditions "</span>
+                <span class="sa">f</span><span class="s2">"are not applied (a database built before gedih3 stored them can add them with a "</span>
+                <span class="sa">f</span><span class="s2">"variable update)"</span><span class="p">)</span>
         <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">best</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">result</span></div>
 
 
 
+<div class="viewcode-block" id="quality_conditions_for_selection">
+<a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.quality_conditions_for_selection">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">quality_conditions_for_selection</span><span class="p">(</span><span class="n">selected_products</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Quality conditions ``--quality`` applies to a product selection.</span>
+
+<span class="sd">    Every selected product's conditions apply (ANDed), and L2A's are always</span>
+<span class="sd">    added, since every database stores the L2A essentials: no product</span>
+<span class="sd">    detected means L2A's conditions alone.</span>
+
+<span class="sd">    One exception, for a selection with no L2 product: when the selection has</span>
+<span class="sd">    neither L2A nor L2B (L1B with an L4 product counts as none), and a</span>
+<span class="sd">    selected L4 product's own ``degrade_include_flag`` condition applies</span>
+<span class="sd">    (GEDI release 3 L4A and L4C), the implicit L2A conditions leave out</span>
+<span class="sd">    ``degrade_flag == 0``. The L4 product's flag is its pointing/positioning</span>
+<span class="sd">    filter, and it admits shots that ``degrade_flag == 0`` rejects. Selecting</span>
+<span class="sd">    L2A or L2B keeps L2A's full conditions, ``degrade_flag == 0`` among them,</span>
+<span class="sd">    alongside the L4 flags. A database without the ``degrade_include_flag``</span>
+<span class="sd">    column keeps ``degrade_flag == 0``, so degrade filtering never lapses.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    selected_products : list[str]</span>
+<span class="sd">        Products the query selected (e.g. ``['L4A']``), possibly empty.</span>
+<span class="sd">    version : int or None</span>
+<span class="sd">        GEDI release of the database, as for :func:`get_product_quality_conditions`.</span>
+<span class="sd">    available_columns : list[str]</span>
+<span class="sd">        Columns present in the database (suffixed form).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list[tuple[str, str]]</span>
+<span class="sd">        ``(column, condition)`` pairs, all to be ANDed.</span>
+<span class="sd">    """</span>
+    <span class="n">selected</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">selected_products</span><span class="p">]</span>
+    <span class="n">conditions</span> <span class="o">=</span> <span class="n">get_product_quality_conditions</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">+</span> <span class="n">selected</span><span class="p">)),</span> <span class="n">version</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">selected</span> <span class="ow">or</span> <span class="p">{</span><span class="s1">'L2A'</span><span class="p">,</span> <span class="s1">'L2B'</span><span class="p">}</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">selected</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">conditions</span>
+    <span class="n">l4_inclusion</span> <span class="o">=</span> <span class="p">{</span><span class="sa">f</span><span class="s2">"degrade_include_flag_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">'L4A'</span><span class="p">,</span> <span class="s1">'L4C'</span><span class="p">)</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">}</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">col</span> <span class="ow">in</span> <span class="n">l4_inclusion</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">):</span>
+        <span class="n">conditions</span> <span class="o">=</span> <span class="p">[(</span><span class="n">col</span><span class="p">,</span> <span class="n">op</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">conditions</span> <span class="k">if</span> <span class="n">col</span> <span class="o">!=</span> <span class="s1">'degrade_flag_l2a'</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">conditions</span></div>
+
+
+
 <div class="viewcode-block" id="build_query_string">
 <a class="viewcode-back" href="../../autoapi/gedih3/cliutils/index.html#gedih3.cliutils.build_query_string">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">build_query_string</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">available_columns</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Build pandas query string from arguments"""</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_query_string</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">available_columns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build the pandas query string of a CLI's filter arguments.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    args : argparse.Namespace</span>
+<span class="sd">        Parsed arguments: ``quality``, the product flags, ``list``,</span>
+<span class="sd">        ``database``, ``time_start``/``time_end``, ``beam_type``, ``query``.</span>
+<span class="sd">    available_columns : list of str, optional</span>
+<span class="sd">        Database columns; read from the build log of ``args.database`` when</span>
+<span class="sd">        omitted.</span>
+<span class="sd">    columns : list of str, optional</span>
+<span class="sd">        The resolved columns the command reads (e.g. :func:`collect_columns`</span>
+<span class="sd">        plus dict-form ``-a`` keys). Without product flags, ``--quality``</span>
+<span class="sd">        selects the products these columns' suffixes name. When omitted, the</span>
+<span class="sd">        ``-l`` names are used, a file of names read and wildcards matched</span>
+<span class="sd">        against ``available_columns``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    str or None</span>
+<span class="sd">        The conditions joined with ``&amp;`` (``None`` when there are none). With</span>
+<span class="sd">        ``--quality`` they are :func:`quality_conditions_for_selection` for the</span>
+<span class="sd">        products selected by product flags, or else by column suffixes.</span>
+<span class="sd">    """</span>
     <span class="k">if</span> <span class="n">available_columns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">.gh3driver</span><span class="w"> </span><span class="kn">import</span> <span class="n">gh3_read_meta</span>
         <span class="n">available_columns</span> <span class="o">=</span> <span class="n">gh3_read_meta</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">,</span> <span class="n">gh3_root_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
     <span class="n">queries</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="c1"># Quality filter — apply minimal conditions for each selected product + version.</span>
-    <span class="c1"># L2A conditions (incl. degrade_flag) are always applied since L2A essentials</span>
-    <span class="c1"># are present in every database.  When no product flags are given, infer</span>
-    <span class="c1"># products from -l/--list variable name suffixes (e.g. "wsci_l4c" → L4C).</span>
+    <span class="c1"># Quality filter — the selected products' conditions for the database's</span>
+    <span class="c1"># release (see quality_conditions_for_selection). When no product flags are</span>
+    <span class="c1"># given, infer products from -l/--list variable name suffixes (e.g. "wsci_l4c" → L4C).</span>
     <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">quality</span><span class="p">:</span>
         <span class="n">selected_products</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">GEDI_PRODUCTS</span> <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
 
-        <span class="c1"># Infer products from -l/--list variable name suffixes when no product flags used.</span>
+        <span class="c1"># Infer products from the columns' suffixes when no product flags used.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">selected_products</span><span class="p">:</span>
             <span class="n">product_suffixes</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span> <span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">GEDI_PRODUCTS</span><span class="p">}</span>
-            <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">'list'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]):</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="n">columns</span>
+            <span class="k">if</span> <span class="n">names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">fnmatch</span>
+                <span class="n">names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="s1">'list'</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">ln</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">ln</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">if</span> <span class="n">ln</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ln</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">'#'</span><span class="p">)]</span>
+                <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">names</span>
+                         <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="p">(</span><span class="n">fnmatch</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">available_columns</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">v</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="s1">'*?[]'</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">v</span><span class="p">])]</span>
+            <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
                 <span class="k">for</span> <span class="n">suffix</span><span class="p">,</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">product_suffixes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                     <span class="k">if</span> <span class="n">var</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="sa">f</span><span class="s1">'_</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s1">'</span><span class="p">):</span>
                         <span class="k">if</span> <span class="n">prod</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">selected_products</span><span class="p">:</span>
@@ -2512,9 +2603,9 @@ window.runMermaid = runMermaid;</script>
             <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
                 <span class="k">pass</span>
 
-        <span class="c1"># Always include L2A conditions; fall back to L2A-only if no products detected</span>
-        <span class="n">products_for_quality</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="s1">'L2A'</span><span class="p">]</span> <span class="o">+</span> <span class="n">selected_products</span><span class="p">))</span>
-        <span class="n">quality_conditions</span> <span class="o">=</span> <span class="n">get_product_quality_conditions</span><span class="p">(</span><span class="n">products_for_quality</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">)</span>
+        <span class="c1"># L2A conditions always apply (L2A alone when no product is detected),</span>
+        <span class="c1"># except degrade_flag for an L4-only selection whose own inclusion flag applies.</span>
+        <span class="n">quality_conditions</span> <span class="o">=</span> <span class="n">quality_conditions_for_selection</span><span class="p">(</span><span class="n">selected_products</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">available_columns</span><span class="p">)</span>
         <span class="n">queries</span> <span class="o">+=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"`</span><span class="si">{</span><span class="n">col</span><span class="si">}</span><span class="s2">` </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">col</span><span class="p">,</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">quality_conditions</span><span class="p">]</span>
 
     <span class="c1"># Temporal filters</span>

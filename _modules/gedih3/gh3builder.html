@@ -859,6 +859,62 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">product_vars</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_withhold_flags_absent_from_db</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Drop quality flags an existing database does not store from an update's lists, in place.</span>
+
+<span class="sd">    :func:`_complete_essentials_and_flags` appends every quality flag of the</span>
+<span class="sd">    release to each list. A database built before a flag joined that table</span>
+<span class="sd">    stores no column for it, and an update must not start one: the merge</span>
+<span class="sd">    keeps the existing files' column set, so only new cells would hold the</span>
+<span class="sd">    column, and every read naming it (``--quality`` among them) would fail</span>
+<span class="sd">    on the older files. The flag is left to a variable update, which adds it</span>
+<span class="sd">    to every file at once.</span>
+
+<span class="sd">    A-priori: reads only the build log's ``h3_columns``. A database without</span>
+<span class="sd">    one (a fresh build) and a product it does not hold yet (no column with</span>
+<span class="sd">    its suffix: all its columns are new) are left alone. A product counts as</span>
+<span class="sd">    held by any column with its suffix, not by ``root_file_&lt;p&gt;``, which a</span>
+<span class="sd">    variable update of an older gedih3 did not write. A withheld flag is</span>
+<span class="sd">    logged with the variable update that adds it.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    product_vars : dict</span>
+<span class="sd">        Expanded ``{product: [variable, ...]}`` lists, edited in place.</span>
+<span class="sd">    h3_dir : str</span>
+<span class="sd">        Database root.</span>
+<span class="sd">    version : int, optional</span>
+<span class="sd">        GEDI release of the database.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        ``{product: [flag, ...]}`` withheld, empty when nothing was.</span>
+<span class="sd">    """</span>
+    <span class="n">log_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">h3_dir</span><span class="p">,</span> <span class="n">BUILD_LOG_FILENAME</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">json_read_cached</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">json_read_cached</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'h3_columns'</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">log_path</span><span class="p">)</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">withheld</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">prod</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">flag_map</span> <span class="o">=</span> <span class="n">_PRODUCT_QUALITY_FLAGS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prod</span><span class="p">)</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">columns</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">flag_map</span> <span class="ow">or</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">absent</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">_get_versioned</span><span class="p">(</span><span class="n">flag_map</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span> <span class="k">if</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">val</span> <span class="ow">and</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">absent</span><span class="p">:</span>
+            <span class="n">val</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">val</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">absent</span><span class="p">]</span>
+            <span class="n">withheld</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="o">=</span> <span class="n">absent</span>
+    <span class="k">if</span> <span class="n">withheld</span><span class="p">:</span>
+        <span class="n">desc</span> <span class="o">=</span> <span class="s1">' '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"-</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">' '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">fs</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">fs</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">withheld</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"The database predates quality flag(s) </span><span class="si">{</span><span class="n">withheld</span><span class="si">}</span><span class="s2">: new rows are written without them, so "</span>
+            <span class="sa">f</span><span class="s2">"every file keeps one column set, and --quality skips them until a variable update adds them "</span>
+            <span class="sa">f</span><span class="s2">"to the whole database (a run that also adds them as new variables does so after this step): "</span>
+            <span class="sa">f</span><span class="s2">"gh3_build -i &lt;soc&gt; -o </span><span class="si">{</span><span class="n">h3_dir</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">withheld</span>
+
+
 <div class="viewcode-block" id="download_soc">
 <a class="viewcode-back" href="../../autoapi/gedih3/gh3builder/index.html#gedih3.gh3builder.download_soc">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">download_soc</span><span class="p">(</span><span class="n">product_vars</span><span class="p">:</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">spatial</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">temporal</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">direct_access</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">odir</span><span class="o">=</span><span class="n">GH3_DEFAULT_SOC_DIR</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">on_granule_complete</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -5779,6 +5835,8 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    row came from is known. A product an earlier variable add added without</span>
 <span class="sd">    them does not get them (its columns may come from an older release than</span>
 <span class="sd">    the one read now); :func:`_replace_granules_build` refuses to replace it.</span>
+<span class="sd">    A product new to the database also gets its release's quality flags</span>
+<span class="sd">    (``_PRODUCT_QUALITY_FLAGS``), as a build stores them, in every file.</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -5854,6 +5912,15 @@ window.runMermaid = runMermaid;</script>
                              <span class="k">if</span> <span class="n">v</span> <span class="ow">and</span> <span class="n">h3_columns</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">h3_columns</span><span class="p">))</span>
     <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">source_products</span><span class="p">:</span>
         <span class="n">new_cols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">c</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">_SOURCE_COLUMNS</span><span class="p">)</span>
+    <span class="c1"># ...and its quality flags, as a build stores them (_complete_essentials_and_flags):</span>
+    <span class="c1"># every file gets them in this run. A product the database holds is left as it is:</span>
+    <span class="c1"># updates withhold the flags it lacks (_withhold_flags_absent_from_db).</span>
+    <span class="n">new_product_vars</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="p">:</span> <span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">new_product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">_complete_essentials_and_flags</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="n">new_product_vars</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">source_products</span><span class="p">},</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">,</span>
+                                   <span class="n">ensure_l2a</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">prod</span> <span class="ow">in</span> <span class="n">source_products</span><span class="p">:</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">prod</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">new_cols</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">new_product_vars</span><span class="p">[</span><span class="n">prod</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="s1">'shot_number'</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">source_products</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Variable update: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">source_products</span><span class="p">)</span><span class="si">}</span><span class="s2"> rows also get their source file and beam "</span>
                     <span class="sa">f</span><span class="s2">"columns (</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">'root_file_</span><span class="si">{</span><span class="n">p</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s1">'</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">source_products</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
@@ -6780,6 +6847,7 @@ window.runMermaid = runMermaid;</script>
     <span class="c1"># ── 3. Stage 1: the new files, in full, without the skip check ──</span>
     <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">({</span><span class="n">p</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span> <span class="nb">list</span><span class="p">(</span><span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
                                         <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+    <span class="n">_withhold_flags_absent_from_db</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
     <span class="n">soc_files</span> <span class="o">=</span> <span class="p">[{</span><span class="n">p</span><span class="p">:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">p</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">product_vars</span><span class="p">}</span> <span class="k">for</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">targets</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
     <span class="n">_pc</span> <span class="o">=</span> <span class="n">preclean_merge_failures</span><span class="p">(</span><span class="n">parquet_dir</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">_pc</span><span class="p">[</span><span class="s1">'parquets_removed'</span><span class="p">]:</span>
@@ -7036,6 +7104,7 @@ window.runMermaid = runMermaid;</script>
 
         <span class="c1"># Expand variable specifications and ensure L2A essentials</span>
         <span class="n">product_vars</span> <span class="o">=</span> <span class="n">_expand_product_vars</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">all_soc_files</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+        <span class="n">_withhold_flags_absent_from_db</span><span class="p">(</span><span class="n">product_vars</span><span class="p">,</span> <span class="n">h3_dir</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
 
         <span class="c1"># Scope fingerprint over the EXPANDED variables. The expansion edits</span>
         <span class="c1"># the caller's dict in place, and that dict is the build log's: what</span>

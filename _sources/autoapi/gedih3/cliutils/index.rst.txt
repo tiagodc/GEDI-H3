@@ -58,6 +58,7 @@ Functions
    gedih3.cliutils.parse_region
    gedih3.cliutils.collect_columns
    gedih3.cliutils.get_product_quality_conditions
+   gedih3.cliutils.quality_conditions_for_selection
    gedih3.cliutils.build_query_string
    gedih3.cliutils.safe_query
 
@@ -1251,6 +1252,9 @@ Module Contents
 
        **available_columns** : list[str]
            Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
+           A flag column that is absent drops its condition with a warning. A
+           product with none of its flag columns gets no condition, also with a
+           warning.
 
 
 
@@ -1273,15 +1277,87 @@ Module Contents
    ..
        !! processed by numpydoc !!
 
-.. py:function:: build_query_string(args, available_columns=None)
+.. py:function:: quality_conditions_for_selection(selected_products, version, available_columns)
 
    
-   Build pandas query string from arguments
+   Quality conditions ``--quality`` applies to a product selection.
+
+   Every selected product's conditions apply (ANDed), and L2A's are always
+   added, since every database stores the L2A essentials: no product
+   detected means L2A's conditions alone.
+
+   One exception, for a selection with no L2 product: when the selection has
+   neither L2A nor L2B (L1B with an L4 product counts as none), and a
+   selected L4 product's own ``degrade_include_flag`` condition applies
+   (GEDI release 3 L4A and L4C), the implicit L2A conditions leave out
+   ``degrade_flag == 0``. The L4 product's flag is its pointing/positioning
+   filter, and it admits shots that ``degrade_flag == 0`` rejects. Selecting
+   L2A or L2B keeps L2A's full conditions, ``degrade_flag == 0`` among them,
+   alongside the L4 flags. A database without the ``degrade_include_flag``
+   column keeps ``degrade_flag == 0``, so degrade filtering never lapses.
+
+   :Parameters:
+
+       **selected_products** : list[str]
+           Products the query selected (e.g. ``['L4A']``), possibly empty.
+
+       **version** : int or None
+           GEDI release of the database, as for :func:`get_product_quality_conditions`.
+
+       **available_columns** : list[str]
+           Columns present in the database (suffixed form).
+
+
+
+   :Returns:
+
+       list[tuple[str, str]]
+           ``(column, condition)`` pairs, all to be ANDed.
 
 
 
 
 
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
+.. py:function:: build_query_string(args, available_columns=None, columns=None)
+
+   
+   Build the pandas query string of a CLI's filter arguments.
+
+
+   :Parameters:
+
+       **args** : argparse.Namespace
+           Parsed arguments: ``quality``, the product flags, ``list``,
+           ``database``, ``time_start``/``time_end``, ``beam_type``, ``query``.
+
+       **available_columns** : list of str, optional
+           Database columns; read from the build log of ``args.database`` when
+           omitted.
+
+       **columns** : list of str, optional
+           The resolved columns the command reads (e.g. :func:`collect_columns`
+           plus dict-form ``-a`` keys). Without product flags, ``--quality``
+           selects the products these columns' suffixes name. When omitted, the
+           ``-l`` names are used, a file of names read and wildcards matched
+           against ``available_columns``.
+
+
+
+   :Returns:
+
+       str or None
+           The conditions joined with ``&`` (``None`` when there are none). With
+           ``--quality`` they are :func:`quality_conditions_for_selection` for the
+           products selected by product flags, or else by column suffixes.
 
 
 

@@ -115,7 +115,8 @@ L4A predicts aboveground biomass density (AGBD) at each GEDI footprint by applyi
 | `agbd_pi_upper` | `agbd_pi_upper_l4a` | Biomass upper prediction bound | Upper bound of the 95% prediction interval around `agbd` |
 | `predict_stratum` | `predict_stratum_l4a` | Allometric model identifier | Character identifier of plant functional type (PFT) and continental region |
 | `l4a_quality_flag_rel3` (V3) / `l4_quality_flag` (V2.1) | `l4a_quality_flag_rel3_l4a` / `l4_quality_flag_l4a` | Shot usability filter | `1` = valid AGBD estimate |
-| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4a` | Geolocation outlier filter | `0` = highest return elevation is consistent with the reference DEM |
+| `degrade_include_flag` (V3) | `degrade_include_flag_l4a` | Pointing/positioning inclusion filter | `1` = pointing and positioning quality acceptable for inclusion; use together with `elev_highestreturn_outlier_flag` |
+| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4a` | Orbit-segment outlier filter | `1` = shot is on an orbit section whose canopy elevation metrics are large outliers relative to reference data; `0` = keep. Use together with `degrade_include_flag` |
 
 > **Data dictionary & user guide:** [ORNL DAAC L4A V3 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V3.html) · [ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2508)](https://doi.org/10.3334/ORNLDAAC/2508) · [L4A V2.1 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4A_AGB_Density_V2_1.html) · [L4A V2 Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4A_AGB_Density_V2_1/comp/GEDI_L4A_V2_Product_Data_Dictionary.pdf)
 
@@ -133,7 +134,8 @@ L4C provides the Waveform Structural Complexity Index (WSCI) — a machine-learn
 | `wsci_pi_lower` | `wsci_pi_lower_l4c` | WSCI lower prediction bound | Lower bound of the 95% prediction interval around `wsci` |
 | `wsci_pi_upper` | `wsci_pi_upper_l4c` | WSCI upper prediction bound | Upper bound of the 95% prediction interval around `wsci` |
 | `l4c_quality_flag_rel3` (V3) / `wsci_quality_flag` (V2) | `l4c_quality_flag_rel3_l4c` / `wsci_quality_flag_l4c` | Shot usability filter | `1` = valid WSCI estimate |
-| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4c` | Geolocation outlier filter | `0` = highest return elevation is consistent with the reference DEM |
+| `degrade_include_flag` (V3) | `degrade_include_flag_l4c` | Pointing/positioning inclusion filter | `1` = pointing and positioning quality acceptable for inclusion; use together with `elev_highestreturn_outlier_flag` |
+| `elev_highestreturn_outlier_flag` (V3) | `elev_highestreturn_outlier_flag_l4c` | Orbit-segment outlier filter | `1` = shot is on an orbit section whose canopy elevation metrics are large outliers relative to reference data; `0` = keep. Use together with `degrade_include_flag` |
 
 > **Data dictionary & user guide:** [ORNL DAAC L4C V3 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI_V3.html) · [ORNL DAAC product page (V3, DOI 10.3334/ORNLDAAC/2520)](https://doi.org/10.3334/ORNLDAAC/2520) · [L4C V2 Guide](https://daac.ornl.gov/GEDI/guides/GEDI_L4C_WSCI.html) · [L4C V2 Data Dictionary PDF](https://data.ornldaac.earthdata.nasa.gov/public/gedi/GEDI_L4C_WSCI/comp/GEDI_L4C_WSCI_Data_Dictionary.pdf)
 
