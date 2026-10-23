@@ -1,22 +1,17 @@
 # NOW
-from: claude-code/opus-5.5 · 2026-10-22T08:41:07-04:00 · branch main · main at fe2b9a44
+from: claude-code/opus-5.5 · 2026-10-22T22:09:31-04:00 · branch main · main at 4b45263c (0.21.3)
 ## Open questions
-- Owner: merge #64, #65, #66 (all green, independently reviewed). Auto mode refused the `--admin` merge, see [[procedures/landing-prs-on-main]] step 8.
-- Owner: decide on #67 (releases backfill for pre-0.20.10 DBs, needed for `auto` on h3_v3), #68 (variable-add provenance;
-  the minimal refuse-guard is ~2 h), #69 (old gedih3 on newer DBs), #70 (var-add memory on dense cells).
-- Delete `.work/replace_test/` (~30 GB) and worktrees `.work/wt_0190`, `.work/wt_0181`? Delete merged PR branches on GitHub?
+- Owner: run `/ship` to release 0.21.3 (last tag is v0.18.1; nothing since is published).
+- Owner: open an issue for the mixed column-set drift in [[gotchas/replace-granules-silent-paths]] (status line)?
+- Owner: delete scratch under `.work/` (`review_6{7a,8a}`, `review_7{1,2,3,3b}`, `qf_scratch`, `replace_test/` incl. `db_F68`,
+  `db_A67*`, `hold68`, `tmp`, `logs`); `rm -rf` is denied to agents.
 ## Next steps
-1. Merge in this order, each with the bump-version skill (micro) right after, pushed to main:
-   #64 → 0.21.1; then sync #65 with origin/main (CHANGELOG `[Unreleased]` conflict: keep only its own entry, step 4 of the
-   landing procedure), CI, merge → 0.21.2; same for #66 → 0.21.3.
-2. Before any replacement on h3_v3: `gh3_build -i <soc> -o <db> --exclude '*_SGS.h5'` once on 0.21.1+ (stores the pattern),
-   then explicit keys (no `auto` until #67), one run holding every target, then rebuild DuckLake.
-3. Branches of #64/#65/#66 need `git branch -D` locally after their squash merges.
+1. Existing V3 databases: one variable add of the L4 inclusion flag for the L4 products they hold
+   (`gh3_build -i <soc> -o <db> -l4a degrade_include_flag`, and/or `-l4c ...`). Never name a product the DB lacks.
+2. h3_v3 before any replacement: `gh3_build -i <soc> -o <db> --exclude '*_SGS.h5'` once (stores the pattern), then
+   `--replace-granules auto` works (releases are read from rows on the first run), then rebuild DuckLake.
+3. Open issues #69 (old gedih3 on newer DBs) and #70 (var-add memory on dense cells) await the owner.
 ## Files touched
-- `.agents/memory/{NOW,LOG}.md`, `gotchas/replace-granules-silent-paths.md`, `procedures/{landing-prs-on-main,replace-granules-real-data-test}.md`
-- PR branches: `fix/persist-exclude` (#64), `fix/build-h3db-positional` (#65, worktree `.work/wt_sig`), `perf/replace-map-from-journal` (#66, worktree `.work/wt_perf`)
-- `.work/replace_test/` new scripts `excl_check.sh`, `perf_check.sh`, `killsuite_src.sh`; review scratch `.work/review_6{4,5,6}/`
+- `.agents/memory/{NOW,LOG}.md`, `gotchas/replace-granules-silent-paths.md`
 ## State
-Items 1, 4, 5 of the audit are done as #64-#66, each with tests that fail without the fix, a blind review whose
-should-fixes were applied, a green fast suite and green CI (#66's CI reran after its last commit). Nothing is merged and
-no version was bumped. No job is running.
+No PR open, no worktree, no job running. #64-#66, #71, #72, #73 merged with blind reviews and green CI.

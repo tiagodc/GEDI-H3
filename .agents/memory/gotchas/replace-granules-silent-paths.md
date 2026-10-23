@@ -1,8 +1,10 @@
 # --replace-granules: the paths that silently do nothing or the wrong thing
 > replace-granules gaps found on real data: pre-0.20.10 logs, products added later, --exclude not persisted
-updated: 2026-10-22T08:41:07-04:00
+updated: 2026-10-22T22:09:31-04:00
 
-**Status:** 3 fixed by #64 (open until the owner merges it); 1 tracked in #67, 2 in #68 (owner to decide).
+**Status:** all fixed in 0.21.1-0.21.2: 1 by #72 (#67), 2 by #71 (#68), 3 by #64. Open, reported by #73's author and not
+independently verified: an update of a DB whose product lacks `root_file_<p>` writes `root_file_<p>`/`root_beam_<p>` into
+new cells only (mixed column sets). h3_v3 has all four columns, so it is not exposed.
 The core replace path itself passed every real-data test, see [[procedures/replace-granules-real-data-test]].
 
 ## Symptom
@@ -25,8 +27,8 @@ The core replace path itself passed every real-data test, see [[procedures/repla
 3: #64 keeps the patterns in the log (`H3BuildLogger.exclude`, union with each run's `--exclude`, saved even by an
 up-to-date run or a replacement with nothing to do) and applies them in `build_h3db`, variable adds and the doctor.
 A database built earlier (`h3_v3`) has none until one run passes `--exclude '*_SGS.h5'`; an older gedih3 drops them.
-1: proposed backfill of `releases` from the `root_file_*` columns (measured 0.12 s per median `h3_v3` file), see #67.
-2: minimal guard (refuse when `h3_columns` lacks `root_file_<p>`) plus a design question on which release a variable add reads, see #68.
+1: #72 reads `releases` once from the rows' `root_file_*` columns (`releases_from_rows`), matching by granule key within the version.
+2: #71 writes `root_file_<p>`/`root_beam_<p>` for a product a variable add brings in; replacement refuses a product added without them.
 
 ## Evidence
 Real-data runs under `.work/replace_test/` (git-ignored): logs `A4_auto.log`, `F3_auto.log`, `F4_explicit.log`, `E2_auto.log`,
