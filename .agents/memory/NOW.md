@@ -6,6 +6,8 @@ from: claude-code/opus-5.5 · 2026-10-22T22:09:31-04:00 · branch main · main a
 - Owner: delete scratch under `.work/` (`review_6{7a,8a}`, `review_7{1,2,3,3b}`, `qf_scratch`, `replace_test/` incl. `db_F68`,
   `db_A67*`, `hold68`, `tmp`, `logs`); `rm -rf` is denied to agents.
 ## Next steps
+0. Owner is replacing h3_v3's re-released L4C granules per year (`.work/h3v3_l4c/replace_l4c_keys_<year>.txt`,
+   `--exclude '*_SGS.h5'`, gsapp_dask_cluster). Do not change the main checkout while it runs: gh3_dev imports it (editable).
 1. Existing V3 databases: one variable add of the L4 inclusion flag for the L4 products they hold
    (`gh3_build -i <soc> -o <db> -l4a degrade_include_flag`, and/or `-l4c ...`). Never name a product the DB lacks.
 2. h3_v3 before any replacement: `gh3_build -i <soc> -o <db> --exclude '*_SGS.h5'` once (stores the pattern), then
