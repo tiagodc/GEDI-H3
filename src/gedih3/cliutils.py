@@ -1569,8 +1569,9 @@ def get_product_quality_conditions(selected_products, version, available_columns
         identify the release, so this never mixes versions.
     available_columns : list[str]
         Columns present in the database (suffixed form e.g. 'quality_flag_l2a').
-        A flag column that is absent drops its condition with a warning,
-        never the whole product's filter.
+        A flag column that is absent drops its condition with a warning. A
+        product with none of its flag columns gets no condition, also with a
+        warning.
 
     Returns
     -------
@@ -1601,7 +1602,13 @@ def get_product_quality_conditions(selected_products, version, available_columns
             score = (len(present) == len(flags) and bool(present), len(present))
             if score > best_score:
                 best, best_score, best_flags = present, score, flags
-        if best and len(best) < len(best_flags):
+        if not best:
+            from .logging_config import get_logger
+            names = sorted(f"{f}_{prod.lower()}" for f, _ in candidates[0])
+            get_logger(__name__).warning(
+                f"Quality filter for {prod}: none of its flag column(s) {names} are in the data, so no "
+                f"{prod} quality condition is applied")
+        elif len(best) < len(best_flags):
             from .logging_config import get_logger
             skipped = sorted({f"{f}_{prod.lower()}" for f, _ in best_flags} - {c for c, _ in best})
             get_logger(__name__).warning(

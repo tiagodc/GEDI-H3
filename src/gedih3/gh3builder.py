@@ -148,8 +148,9 @@ def _withhold_flags_absent_from_db(product_vars: Dict, h3_dir: str, version=None
         desc = ' '.join(f"-{p.lower()} {' '.join(fs)}" for p, fs in sorted(withheld.items()))
         logger.warning(
             f"The database predates quality flag(s) {withheld}: new rows are written without them, so "
-            f"every file keeps one column set and --quality skips them. Add them to the whole database "
-            f"with a variable update: gh3_build -i <soc> -o {h3_dir} {desc}"
+            f"every file keeps one column set, and --quality skips them until a variable update adds them "
+            f"to the whole database (a run that also adds them as new variables does so after this step): "
+            f"gh3_build -i <soc> -o {h3_dir} {desc}"
         )
     return withheld
 
@@ -5041,6 +5042,8 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
     row came from is known. A product an earlier variable add added without
     them does not get them (its columns may come from an older release than
     the one read now); :func:`_replace_granules_build` refuses to replace it.
+    A product new to the database also gets its release's quality flags
+    (``_PRODUCT_QUALITY_FLAGS``), as a build stores them, in every file.
 
     Returns
     -------
@@ -5116,6 +5119,15 @@ def _build_add_variables(h3_dir, new_product_vars, soc_source=None, version=None
                              if v and h3_columns and not any(c.endswith(f"_{p.lower()}") for c in h3_columns))
     for prod in source_products:
         new_cols.update(f"{c}_{prod.lower()}" for c in _SOURCE_COLUMNS)
+    # ...and its quality flags, as a build stores them (_complete_essentials_and_flags):
+    # every file gets them in this run. A product the database holds is left as it is:
+    # updates withhold the flags it lacks (_withhold_flags_absent_from_db).
+    new_product_vars = {p: (list(v) if v is not None else None) for p, v in new_product_vars.items()}
+    _complete_essentials_and_flags({p: new_product_vars[p] for p in source_products}, version=version,
+                                   ensure_l2a=False)
+    for prod in source_products:
+        suffix = f"_{prod.lower()}"
+        new_cols.update(f"{v}{suffix}" for v in new_product_vars[prod] if v != 'shot_number')
     if source_products:
         logger.info(f"Variable update: {', '.join(source_products)} rows also get their source file and beam "
                     f"columns ({', '.join(f'root_file_{p.lower()}' for p in source_products)})")

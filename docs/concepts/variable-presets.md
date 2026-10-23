@@ -1195,11 +1195,13 @@ a file or explicit names), so a database always stores the columns `--quality` r
 
 ::::{note}
 A v3 database built with an earlier gedih3 may lack `degrade_include_flag`. `--quality`
-then applies the remaining conditions, keeps `degrade_flag == 0` for every query and logs
-a warning. Updates and `--replace-granules` keep writing new rows without it, so every
-file keeps one column set. Add it to the whole database
-with a variable update:
-`gh3_build -i <soc> -o <database> -l4a degrade_include_flag -l4c degrade_include_flag`.
+then applies the remaining conditions and logs a warning, and it keeps `degrade_flag == 0`
+unless a selected L4 product does have the column. Updates and `--replace-granules` keep
+writing new rows without it, so every file keeps one column set. Add it to the whole
+database with a variable update, naming only the L4 products your database holds:
+`-l4a degrade_include_flag` and/or `-l4c degrade_include_flag`, e.g.
+`gh3_build -i <soc> -o <database> -l4a degrade_include_flag`. The warning gedih3 logs
+names the command for your database.
 ::::
 
 ---

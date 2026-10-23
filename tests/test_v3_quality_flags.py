@@ -355,3 +355,62 @@ def test_quality_products_are_inferred_from_a_list_file_wildcards_and_resolved_c
                                  beam_type=None, query=None, **{p.lower(): None for p in GEDI_PRODUCTS})
     q = build_query_string(args, available_columns=V3_COLS, columns=['wsci_l4c', 'geometry'])
     assert '`l4c_quality_flag_rel3_l4c` == 1' in q and 'degrade_flag_l2a' not in q
+
+
+def test_a_product_with_none_of_its_flag_columns_is_warned_about(caplog):
+    lg = logging.getLogger('gedih3.cliutils')
+    lg.addHandler(caplog.handler)
+    try:
+        with caplog.at_level(logging.WARNING, logger='gedih3.cliutils'):
+            out = get_product_quality_conditions(['L4C'], version=3, available_columns=['wsci_l4c'])
+    finally:
+        lg.removeHandler(caplog.handler)
+    assert out == []
+    assert any('none of its flag column' in r.getMessage() and 'l4c_quality_flag_rel3_l4c' in r.getMessage()
+               for r in caplog.records)
+
+
+def test_gh3_extract_passes_its_resolved_columns_to_the_quality_filter(mini_h3_database, tmp_dir, monkeypatch):
+    import gedih3.cliutils as cu
+    from gedih3.cli import gh3_extract
+    seen = {}
+
+    class _Stop(Exception):
+        pass
+
+    def spy(args, available_columns=None, columns=None):
+        seen['columns'] = columns
+        raise _Stop
+
+    monkeypatch.setattr(cu, 'build_query_string', spy)
+    monkeypatch.setattr(sys, 'argv', ['gh3_extract', '-d', mini_h3_database, '-l', 'agbd*', '-y',
+                                      '-o', os.path.join(tmp_dir, 'out')])
+    with pytest.raises((_Stop, SystemExit)):
+        gh3_extract.main()
+    assert seen['columns'] is not None and 'agbd_l4a' in seen['columns']
+
+
+def test_a_variable_add_of_a_product_new_to_the_database_stores_its_quality_flags(tmp_dir, _client):
+    import gedih3.gh3builder as gb
+    from gedih3.logger import H3BuildLogger
+    sys.path.insert(0, os.path.dirname(__file__))
+    from test_phased_product_updates import _write_granule
+
+    soc, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    kw = dict(res=12, part=3, soc_source=soc, version=2, tmp_dir=tmp, h3_dir=h3_dir)
+    _write_granule(soc, (101, 1, 201), '2019100', 4.0e7)
+    _write_granule(soc, (102, 1, 202), '2019160', 4.2e7, lon0=-40.5)
+    log = H3BuildLogger(product_vars={'L2A': ['rh_098']}, dir=h3_dir, res=12, part=3, version=2)
+    gb.build_h3db(product_vars=log.product_vars, **kw)
+    log.set_post_build_info()
+    log.save_log('COMPLETED')
+
+    # gh3_build -l4a agbd on the L2A database: a variable-only update.
+    log = H3BuildLogger(product_vars={'L4A': ['agbd']}, dir=h3_dir, res=12, part=3, version=2)
+    requested = copy.deepcopy(log.new_product_vars)
+    gb.build_h3db(product_vars=dict(log.new_product_vars), variable_only_update=True, **kw)
+    files = sorted(glob.glob(os.path.join(h3_dir, 'h3_*', 'year=*', '*.parquet')))
+    assert len(files) > 1
+    for f in files:
+        assert {'agbd_l4a', 'l4_quality_flag_l4a'} <= set(pq.read_schema(f).names), f
+    assert log.new_product_vars == requested          # the caller's lists are not edited
