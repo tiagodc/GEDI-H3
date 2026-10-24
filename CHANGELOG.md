@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **Merging fragments into an existing partition file is up to twice as fast.** Two costs in `parquet_merge_files` grew faster than the data. Its dtype check rebuilt the list of column names once per column of every input, about 110 ms per fragment at 1,450 columns. Its shot dedup re-sorted every shot kept so far once per input batch, so a file's cost grew with its row count times its fragment count. The dedup now checks each batch against a sorted array by binary search and folds new shots into it in bulk, and skips copying a batch it keeps whole. The output rows are unchanged. Updates and `--replace-granules` merges go through this path: an 11.5 GB file taking 600 per-beam fragments (6.3M rows, 1.0M of them replaced) merges in 310 s instead of 635 s, and a 0.5 GB file taking 40 fragments in about 15 s instead of 20 s.
+
 ## [0.21.3] - 2026-10-22
 
 ### Fixed

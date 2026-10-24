@@ -175,6 +175,43 @@ class TestDuplicateShots:
         assert result['shot_number'].nunique() == len(result)
         assert len(result) == 10
 
+    def test_parquet_merge_dedup_first_input_wins_across_folds(self, tmp_dir, monkeypatch):
+        """Across many inputs and batches, each shot keeps its first input's row.
+
+        A low fold threshold makes the kept-shot set fold its recent
+        additions into the sorted bulk many times during the merge.
+        """
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        import gedih3.utils as utils
+
+        monkeypatch.setattr(utils, '_DEDUP_FOLD_MIN', 5)
+        rng = np.random.default_rng(0)
+        files, first_src = [], {}
+        for i in range(12):
+            shots = np.unique(rng.integers(0, 400, 120).astype(np.uint64))
+            for s in shots:
+                first_src.setdefault(int(s), i)
+            f = os.path.join(tmp_dir, f'in{i:02d}.parquet')
+            pq.write_table(pa.table({'shot_number': shots, 'src': np.full(len(shots), i)}), f)
+            files.append(f)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+        utils.parquet_merge_files(ofile, files, check_shots=True, rows_per_group=16)
+
+        out = pq.read_table(ofile).to_pandas()
+        assert out['shot_number'].is_unique
+        assert dict(zip(out['shot_number'].astype(int), out['src'])) == first_src
+
+    def test_isin_sorted_matches_isin(self):
+        from gedih3.utils import _isin_sorted
+
+        rng = np.random.default_rng(1)
+        ref = np.unique(rng.integers(0, 1000, 300).astype(np.uint64))
+        values = rng.integers(0, 1100, 500).astype(np.uint64)
+        np.testing.assert_array_equal(_isin_sorted(values, ref), np.isin(values, ref))
+        assert not _isin_sorted(values, np.empty(0, dtype=np.uint64)).any()
+
     def test_no_duplicates_across_partitions(self, mini_h3_database):
         """Synthetic database has unique shot numbers across all partitions."""
         import glob as globmod
