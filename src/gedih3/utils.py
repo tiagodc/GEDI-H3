@@ -1989,7 +1989,9 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
       it directly from the H3 partition geometry (no data scan).
     - Row-group accumulator flushes BEFORE appending a batch that would
       overflow ``rows_per_group``.
-    - Shot-dedup activates only when ``check_shots=True``.
+    - Shot-dedup activates only when ``check_shots=True``: each shot keeps
+      its first row, by input order then row order, so the existing
+      destination's rows win.
     - ``replace_granules`` drops rows of ``replace_in`` (the existing
       destination) before the dedup, so the other inputs' rows of the same
       granules take their place: the re-indexing of re-released granules
@@ -2137,22 +2139,26 @@ def parquet_merge_files(ofile, flist, check_shots=False, rm_src=False,
                             continue
                 if check_shots and has_shot_number:
                     arr = batch["shot_number"].to_numpy().astype(np.uint64)
+                    # A shot repeated within the batch keeps its first copy.
+                    uniq, first = np.unique(arr, return_index=True)
+                    keep = np.zeros(len(arr), dtype=bool)
+                    keep[first] = True
                     # The kept shots: a large sorted array plus a small one
                     # of recent additions, folded in once it outgrows an
                     # eighth of the large one. Re-sorting every kept shot
                     # per batch cost O(N) per fragment: half the merge time
                     # of a 6M-row file taking 600 fragments.
                     if shots is None:
-                        shots, fresh = np.unique(arr), np.empty(0, dtype=np.uint64)
+                        shots, fresh = uniq, np.empty(0, dtype=np.uint64)
                     else:
-                        keep = ~(_isin_sorted(arr, shots) | _isin_sorted(arr, fresh))
+                        keep &= ~(_isin_sorted(arr, shots) | _isin_sorted(arr, fresh))
                         if not keep.any():
                             continue
-                        if not keep.all():
-                            batch = batch.filter(pa.array(keep))
                         fresh = np.union1d(fresh, arr[keep])
                         if len(fresh) > _DEDUP_FOLD_MIN + len(shots) // 8:
                             shots, fresh = np.union1d(shots, fresh), np.empty(0, dtype=np.uint64)
+                    if not keep.all():
+                        batch = batch.filter(pa.array(keep))
 
                 # Flush BEFORE appending if this batch would overflow the cap,
                 # so acc never holds more than rows_per_group rows at a time.

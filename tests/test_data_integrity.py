@@ -203,6 +203,32 @@ class TestDuplicateShots:
         assert out['shot_number'].is_unique
         assert dict(zip(out['shot_number'].astype(int), out['src'])) == first_src
 
+    @pytest.mark.parametrize('dtype', [np.uint64, np.int64])
+    def test_parquet_merge_dedup_repeats_within_a_batch(self, tmp_dir, dtype):
+        """A shot repeated within one batch, first or later, keeps its first copy.
+
+        Shot numbers span a wide range (high bit set for uint64), as GEDI's do.
+        """
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        from gedih3.utils import parquet_merge_files
+
+        big = np.iinfo(dtype).max - 1000
+        a = np.array([big - k * 10**12 for k in range(50)] + [3, 3], dtype=dtype)
+        b = np.array([5, 5, 7, 3], dtype=dtype)
+        fa, fb = os.path.join(tmp_dir, 'a.parquet'), os.path.join(tmp_dir, 'b.parquet')
+        pq.write_table(pa.table({'shot_number': a, 'src': np.arange(len(a))}), fa)
+        pq.write_table(pa.table({'shot_number': b, 'src': 100 + np.arange(len(b))}), fb)
+
+        ofile = os.path.join(tmp_dir, 'merged.parquet')
+        parquet_merge_files(ofile, [fa, fb], check_shots=True)
+
+        out = pq.read_table(ofile).to_pandas()
+        assert out['shot_number'].is_unique
+        kept = dict(zip(out['shot_number'], out['src']))
+        assert kept[dtype(3)] == 50 and kept[dtype(5)] == 100 and kept[dtype(7)] == 102
+        assert len(out) == 50 + 1 + 2
+
     def test_isin_sorted_matches_isin(self):
         from gedih3.utils import _isin_sorted
 
