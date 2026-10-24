@@ -1,17 +1,17 @@
 # NOW
-from: claude-code/opus-5.5 · 2026-10-22T22:09:31-04:00 · branch main · main at 4b45263c (0.21.3)
+from: claude-code/opus-5.5 · 2026-10-24T12:15:00-04:00 · branch main · main at 4b45263c (0.21.3)
 ## Open questions
 - Owner: run `/ship` to release 0.21.3 (last tag is v0.18.1; nothing since is published).
 - Owner: open an issue for the mixed column-set drift in [[gotchas/replace-granules-silent-paths]] (status line)?
-- Owner: delete scratch under `.work/` (`review_6{7a,8a}`, `review_7{1,2,3,3b}`, `qf_scratch`, `replace_test/` incl. `db_F68`,
-  `db_A67*`, `hold68`, `tmp`, `logs`); `rm -rf` is denied to agents.
+- Owner: delete leftover scratch (`rm -rf` is denied to agents): `.work/replace_test/{tmp_*,dask_tmp}`, `.work/h3v3_l4c/prof`,
+  `/gpfs/data1/vclgp/decontot/temp/dask-local-h3v3`.
 ## Next steps
-0. Owner is replacing h3_v3's re-released L4C granules per year (`.work/h3v3_l4c/replace_l4c_keys_<year>.txt`,
-   `--exclude '*_SGS.h5'`, gsapp_dask_cluster). Do not change the main checkout while it runs: gh3_dev imports it (editable).
+0. h3_v3 L4C replacement DONE 2026-10-24 (exit 0, verified). Owner: rebuild DuckLake; triage
+   `h3_v3/tmp/maintenance/2026-10-23_l4c/BACKLOG.md` (3 gedih3 PR candidates: replacement scratch peak, re-encoding untouched
+   row groups, merge ordering/progress); decide on 1,763 granules indexed from releases no longer in the SOC.
 1. Existing V3 databases: one variable add of the L4 inclusion flag for the L4 products they hold
    (`gh3_build -i <soc> -o <db> -l4a degrade_include_flag`, and/or `-l4c ...`). Never name a product the DB lacks.
-2. h3_v3 before any replacement: `gh3_build -i <soc> -o <db> --exclude '*_SGS.h5'` once (stores the pattern), then
-   `--replace-granules auto` works (releases are read from rows on the first run), then rebuild DuckLake.
+2. h3_v3 now stores `exclude: ['*_SGS.h5']` and every granule's releases, so later `--replace-granules auto` runs need no extra step.
 3. Open issues #69 (old gedih3 on newer DBs) and #70 (var-add memory on dense cells) await the owner.
 ## Files touched
 - `.agents/memory/{NOW,LOG}.md`, `gotchas/replace-granules-silent-paths.md`
