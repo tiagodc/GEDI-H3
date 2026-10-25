@@ -1437,7 +1437,9 @@ input has a <code class="docutils literal notranslate"><span class="pre">geometr
 it directly from the H3 partition geometry (no data scan).</p></li>
 <li><p>Row-group accumulator flushes BEFORE appending a batch that would
 overflow <code class="docutils literal notranslate"><span class="pre">rows_per_group</span></code>.</p></li>
-<li><p>Shot-dedup activates only when <code class="docutils literal notranslate"><span class="pre">check_shots=True</span></code>.</p></li>
+<li><p>Shot-dedup activates only when <code class="docutils literal notranslate"><span class="pre">check_shots=True</span></code>: each shot keeps
+its first row, by input order then row order, so the existing
+destination’s rows win.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">replace_granules</span></code> drops rows of <code class="docutils literal notranslate"><span class="pre">replace_in</span></code> (the existing
 destination) before the dedup, so the other inputs’ rows of the same
 granules take their place: the re-indexing of re-released granules

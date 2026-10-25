@@ -2848,6 +2848,24 @@ window.runMermaid = runMermaid;</script>
     <span class="k">return</span> <span class="n">out</span>
 
 
+<span class="c1"># Recent shots kept apart from the sorted bulk before a fold (parquet_merge_files).</span>
+<span class="n">_DEDUP_FOLD_MIN</span> <span class="o">=</span> <span class="mi">100_000</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_isin_sorted</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">sorted_unique</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Boolean mask of ``values`` found in ``sorted_unique`` (sorted, no repeats).</span>
+
+<span class="sd">    A binary search per value, O(len(values) log len(sorted_unique)),</span>
+<span class="sd">    with no sort of the lookup array as ``np.isin`` does on every call.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">sorted_unique</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">sorted_unique</span><span class="p">,</span> <span class="n">values</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">sorted_unique</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sorted_unique</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">values</span>
+
+
 <div class="viewcode-block" id="parquet_merge_files">
 <a class="viewcode-back" href="../../autoapi/gedih3/utils/index.html#gedih3.utils.parquet_merge_files">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">parquet_merge_files</span><span class="p">(</span><span class="n">ofile</span><span class="p">,</span> <span class="n">flist</span><span class="p">,</span> <span class="n">check_shots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rm_src</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
@@ -2877,7 +2895,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">      it directly from the H3 partition geometry (no data scan).</span>
 <span class="sd">    - Row-group accumulator flushes BEFORE appending a batch that would</span>
 <span class="sd">      overflow ``rows_per_group``.</span>
-<span class="sd">    - Shot-dedup activates only when ``check_shots=True``.</span>
+<span class="sd">    - Shot-dedup activates only when ``check_shots=True``: each shot keeps</span>
+<span class="sd">      its first row, by input order then row order, so the existing</span>
+<span class="sd">      destination's rows win.</span>
 <span class="sd">    - ``replace_granules`` drops rows of ``replace_in`` (the existing</span>
 <span class="sd">      destination) before the dedup, so the other inputs' rows of the same</span>
 <span class="sd">      granules take their place: the re-indexing of re-released granules</span>
@@ -3001,9 +3021,12 @@ window.runMermaid = runMermaid;</script>
             <span class="c1"># Footer-only dtype comparison (already parsed by the open above):</span>
             <span class="c1"># cast only the files that need it, one decision per file.</span>
             <span class="n">file_schema</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">schema_arrow</span>
+            <span class="c1"># A set: `Schema.names` builds a new list on every access, which</span>
+            <span class="c1"># made this test O(columns^2) per input (~110 ms at 1,450 columns).</span>
+            <span class="n">file_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">file_schema</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
             <span class="n">drift</span> <span class="o">=</span> <span class="p">{</span>
                 <span class="n">n</span><span class="p">:</span> <span class="p">(</span><span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">target_names</span>
-                <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">names</span> <span class="ow">and</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">file_names</span> <span class="ow">and</span> <span class="n">file_schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="n">schema</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">type</span>
             <span class="p">}</span>
             <span class="n">drop_stale</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">replace_granules</span><span class="p">)</span> <span class="ow">and</span> <span class="n">replace_in</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">f</span> <span class="o">==</span> <span class="n">replace_in</span>
             <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">_iter_batches_with_path</span><span class="p">(</span><span class="n">batch_iter</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
@@ -3022,14 +3045,26 @@ window.runMermaid = runMermaid;</script>
                             <span class="k">continue</span>
                 <span class="k">if</span> <span class="n">check_shots</span> <span class="ow">and</span> <span class="n">has_shot_number</span><span class="p">:</span>
                     <span class="n">arr</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="s2">"shot_number"</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+                    <span class="c1"># A shot repeated within the batch keeps its first copy.</span>
+                    <span class="n">uniq</span><span class="p">,</span> <span class="n">first</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+                    <span class="n">keep</span><span class="p">[</span><span class="n">first</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="c1"># The kept shots: a large sorted array plus a small one</span>
+                    <span class="c1"># of recent additions, folded in once it outgrows an</span>
+                    <span class="c1"># eighth of the large one. Re-sorting every kept shot</span>
+                    <span class="c1"># per batch cost O(N) per fragment: half the merge time</span>
+                    <span class="c1"># of a 6M-row file taking 600 fragments.</span>
                     <span class="k">if</span> <span class="n">shots</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                        <span class="n">shots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+                        <span class="n">shots</span><span class="p">,</span> <span class="n">fresh</span> <span class="o">=</span> <span class="n">uniq</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">keep</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">shots</span><span class="p">,</span> <span class="n">assume_unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                        <span class="n">keep</span> <span class="o">&amp;=</span> <span class="o">~</span><span class="p">(</span><span class="n">_isin_sorted</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">shots</span><span class="p">)</span> <span class="o">|</span> <span class="n">_isin_sorted</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">fresh</span><span class="p">))</span>
                         <span class="k">if</span> <span class="ow">not</span> <span class="n">keep</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
                             <span class="k">continue</span>
+                        <span class="n">fresh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">union1d</span><span class="p">(</span><span class="n">fresh</span><span class="p">,</span> <span class="n">arr</span><span class="p">[</span><span class="n">keep</span><span class="p">])</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">fresh</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">_DEDUP_FOLD_MIN</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">shots</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">:</span>
+                            <span class="n">shots</span><span class="p">,</span> <span class="n">fresh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">union1d</span><span class="p">(</span><span class="n">shots</span><span class="p">,</span> <span class="n">fresh</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">keep</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
                         <span class="n">batch</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">keep</span><span class="p">))</span>
-                        <span class="n">shots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">shots</span><span class="p">,</span> <span class="n">arr</span><span class="p">[</span><span class="n">keep</span><span class="p">]]))</span>
 
                 <span class="c1"># Flush BEFORE appending if this batch would overflow the cap,</span>
                 <span class="c1"># so acc never holds more than rows_per_group rows at a time.</span>

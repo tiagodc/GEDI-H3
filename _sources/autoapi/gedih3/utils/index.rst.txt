@@ -1248,7 +1248,9 @@ Module Contents
      it directly from the H3 partition geometry (no data scan).
    - Row-group accumulator flushes BEFORE appending a batch that would
      overflow ``rows_per_group``.
-   - Shot-dedup activates only when ``check_shots=True``.
+   - Shot-dedup activates only when ``check_shots=True``: each shot keeps
+     its first row, by input order then row order, so the existing
+     destination's rows win.
    - ``replace_granules`` drops rows of ``replace_in`` (the existing
      destination) before the dedup, so the other inputs' rows of the same
      granules take their place: the re-indexing of re-released granules
