@@ -1,11 +1,12 @@
 # NOW
-from: claude-code/opus-5.5 · 2026-10-24T20:26:58-04:00 · branch main · main at ef3ca9b1 (0.21.4)
+from: claude-code/opus-5.5 · 2026-10-25T06:02:55-04:00 · branch main · main at 7d5b764d+ (0.21.4 shipped)
 ## Open questions
-- Owner: run `/ship` to release 0.21.4 (last tag is v0.18.1; nothing since is published).
 - Owner: open an issue for the mixed column-set drift in [[gotchas/replace-granules-silent-paths]] (status line)?
 - Owner: delete leftover scratch (`rm -rf` is denied to agents): `.work/replace_test/{tmp_*,dask_tmp}`, `.work/h3v3_l4c/prof`,
   `.work/pr_eval/{tb,tbb,frag_out}` (16 GB), `.work/review_74`, `/gpfs/data1/vclgp/decontot/temp/dask-local-h3v3`.
 ## Next steps
+- 0.21.4 SHIPPED 2026-10-25: tag v0.21.4, PyPI, conda-forge (feedstock #10, fef3bb54; autotick needed the
+  `@conda-forge-admin, please update version` issue #9 after 8 h of silence).
 0. h3_v3 L4C replacement DONE 2026-10-24 (exit 0, verified). Owner: rebuild DuckLake; decide on 1,763 granules indexed
    from releases no longer in the SOC.
 1. h3_v3 backlog PR candidates validated locally 2026-10-24 (see LOG). Done: #74 (merge drift check + shot dedup, ~2x on
@@ -19,4 +20,4 @@ from: claude-code/opus-5.5 · 2026-10-24T20:26:58-04:00 · branch main · main a
 ## Files touched
 - `.agents/memory/{NOW,LOG}.md`
 ## State
-No PR open, no worktree, no job running. #64-#66, #71-#74 merged with blind reviews and green CI.
+No PR open, no worktree, no job running. Release cycle closed. #64-#66, #71-#74 merged with blind reviews and green CI.
