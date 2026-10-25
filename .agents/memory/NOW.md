@@ -7,7 +7,7 @@ from: claude-code/opus-5.5 · 2026-10-25T06:02:55-04:00 · branch main · main a
 ## Next steps
 - 0.21.4 SHIPPED 2026-10-25: tag v0.21.4, PyPI, conda-forge (feedstock #10, fef3bb54; autotick needed the
   `@conda-forge-admin, please update version` issue #9 after 8 h of silence).
-0. h3_v3 L4C replacement DONE 2026-10-24 (exit 0, verified). Owner: rebuild DuckLake; decide on 1,763 granules indexed
+0. h3_v3 L4C replacement DONE 2026-10-24 (exit 0, verified). DuckLake rebuild handed to someone else (2026-10-25; catalog still the Oct 2 one). Owner: decide on 1,763 granules indexed
    from releases no longer in the SOC.
 1. h3_v3 backlog PR candidates validated locally 2026-10-24 (see LOG). Done: #74 (merge drift check + shot dedup, ~2x on
    large replacement merges). Optional: byte-weighted merge progress + largest-first order for replacements (small, ~0.7%
