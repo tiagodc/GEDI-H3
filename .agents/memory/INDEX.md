@@ -1,5 +1,5 @@
 # Project index
-<!-- protocol-version: 4 · mode: shared · rules: .agents/memory/PROTOCOL.md -->
+<!-- protocol-version: 5 · mode: shared · rules: .agents/memory/PROTOCOL.md -->
 
 ## Summary
 gedih3: Python library + CLI turning NASA GEDI lidar HDF5 granules into H3/EGI-indexed parquet databases, queryable and rasterizable.

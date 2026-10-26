@@ -25,3 +25,4 @@
 2026-10-25T08:47:04-04:00 · claude-code/opus-5.5 · started then stopped (owner: someone else will do it) a production gh3_build_ducklake rebuild after a few minutes; serial add_data_files ran ~1-2 files/s, so a large DB takes most of a day
 2026-10-26T11:12:48-04:00 · agent · memory refreshed: protocol v3→v4 (LOG.md → log/2026-10/main.md, union merges), stale citations fixed in 5 pages, INDEX reindexed
 2026-10-26T11:20:23-04:00 · agent · memory made public-safe: host, cluster, path and production-DB specifics generalized (originals in a gitignored .work/host-notes.md); machine-path guard now covers .agents/memory
+2026-10-26T11:43:30-04:00 · agent · memory refresh: protocol v4→v5; dropped the stale PROTOCOL override in AGENTS.md; fixed a gone worktree citation

@@ -96,8 +96,7 @@ def _tracked_agent_files():
 def _memory_files():
     """Every markdown file under .agents/memory/: shared project memory, public like the rest.
 
-    PROTOCOL.md is exempt: the project-memory skill rewrites it on upgrade, and its handoff
-    template names a `<host>` placeholder that AGENTS.md overrides.
+    PROTOCOL.md is exempt: the project-memory skill rewrites it on upgrade.
     """
     files = glob.glob(os.path.join(REPO_ROOT, '.agents', 'memory', '**', '*.md'), recursive=True)
     return sorted(f for f in files if os.path.basename(f) != 'PROTOCOL.md')

@@ -1,9 +1,7 @@
 # NOW
-from: claude-code/opus-5.5 · 2026-10-26T11:20:32-04:00 · branch main · main at c998d148+ (0.21.4 shipped)
+from: claude-code/opus-5.5 · 2026-10-26T11:43:30-04:00 · branch main · main at d82bfb30+ (0.21.4 shipped)
 ## Open questions
 - Owner: open an issue for the mixed column-set drift in [[gotchas/replace-granules-silent-paths]] (status line)?
-- Host-specific state (production databases, scratch to clean up, cluster setup) lives in a git-ignored
-  `.work/host-notes.md` on the machine that has it, never in this public memory.
 ## Next steps
 - 0.21.4 SHIPPED 2026-10-25: tag v0.21.4, PyPI, conda-forge (feedstock #10; autotick needed the
   `@conda-forge-admin, please update version` issue #9 after 8 h of silence).
@@ -15,6 +13,6 @@ from: claude-code/opus-5.5 · 2026-10-26T11:20:32-04:00 · branch main · main a
 3. A DB that stores `exclude` and every granule's releases needs no extra step for later `--replace-granules auto` runs.
 4. Open issues #69 (old gedih3 on newer DBs) and #70 (var-add memory on dense cells) await the owner.
 ## Files touched
-- `.agents/memory/`, `AGENTS.md`, `tests/test_agent_docs.py`, `scripts/gh3_resume_recovery.py`
+- None uncommitted. Host-specific state, if any: see `.work/host-notes.md` on the machine that ran it.
 ## State
 No PR open, no worktree, no job running.

@@ -1,6 +1,6 @@
 # Real-data test of --replace-granules against an oracle
 > battle-test granule replacement on a small real-data DB: oracle compare, SIGKILL at every phase, resume
-updated: 2026-10-26T11:12:31-04:00
+updated: 2026-10-26T11:43:10-04:00
 
 The harness lives in `.work/replace_test/` (git-ignored; exists only on the GEDI data host that holds a V003 SOC tree, not in other clones).
 
@@ -9,7 +9,8 @@ The harness lives in `.work/replace_test/` (git-ignored; exists only on the GEDI
    Symlinks do not work, because the SOC walker does not follow them. `make_soc.py release <soc>` adds "re-releases":
    copies with a bumped generation, modified in place. Covered: L2A revalued and 2 beams moved 0.4 deg, L2B only,
    all products with the granule leaving the region (it becomes NO_DATA), L4A only, and an older-release decoy.
-2. Build the base with the version under test (`gh3.sh <src|head> <soc> <db> <tmp> ...`, worktree `.work/wt_0190` = 0.19.0).
+2. Build the base with the version under test (`gh3.sh <src|head> <soc> <db> <tmp> ...`; for an old release, a
+   worktree at its tag or bump commit, e.g. `git worktree add <dir> 5cbed9ac` (0.19.0 has no tag)).
 3. Oracle = a fresh HEAD build from the post-release SOC with the same arguments. `compare.py <db> <oracle>` checks, exactly:
    the file set, the rows sorted by shot and every column by name, the metadata (shot_count/range, date_range, granules),
    the log statuses, `h3_partition_ids` and the manifest.

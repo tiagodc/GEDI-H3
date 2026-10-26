@@ -125,10 +125,9 @@ file they cover — so subsystem detail costs nothing until it is relevant.
   risk. Follow the existing pattern before introducing a new abstraction.
 - `--help` output stays ASCII — non-ASCII breaks a Windows console.
 - This repo is public, `.agents/memory/` included: no host or cluster names, filesystem paths, credentials or
-  production-database inventories (sizes, counts, release tallies). Keep those in a gitignored note under `.work/`.
-  This overrides `.agents/memory/PROTOCOL.md` where it asks for `@ <host>`, PIDs or machine-specific procedures.
+  production-database inventories (sizes, counts, release tallies). Keep those in the gitignored `.work/host-notes.md`.
 
-<!-- project-memory:start v3 -->
+<!-- project-memory:start v4 -->
 ## Project memory: `.agents/memory/` (on)
 - Start: `git pull --ff-only`, then read the handoff (`.agents/memory/NOW.md` on the default branch, `.agents/memory/now/<branch>.md`
   on any other, `/` → `-`), `.agents/memory/INDEX.md` and `ls .agents/memory/inbox/`. Open only what an INDEX Route points to;
@@ -137,4 +136,6 @@ file they cover — so subsystem detail costs nothing until it is relevant.
   `.agents/memory/log/<YYYY-MM>/<branch>.md` (time from `date -Iseconds`; `pmem log` does it).
 - Before ending, clearing or switching agents: overwrite this branch's handoff and commit `.agents/memory/` alone; ask before pushing.
 - Project facts belong here, never in harness-local memory. Read `.agents/memory/PROTOCOL.md` before writing.
+- Memory may be public: no hostnames, usernames, absolute paths, PIDs or machine sizes in it. Those go in the git-ignored
+  `.work/host-notes.md`.
 <!-- project-memory:end -->
