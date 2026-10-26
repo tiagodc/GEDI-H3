@@ -18,6 +18,6 @@ from: claude-code/opus-5.5 · 2026-10-25T06:02:55-04:00 · branch main · main a
 3. h3_v3 now stores `exclude: ['*_SGS.h5']` and every granule's releases, so later `--replace-granules auto` runs need no extra step.
 4. Open issues #69 (old gedih3 on newer DBs) and #70 (var-add memory on dense cells) await the owner.
 ## Files touched
-- `.agents/memory/{NOW,LOG}.md`
+- `.agents/memory/NOW.md`, `.agents/memory/log/`
 ## State
 No PR open, no worktree, no job running. Release cycle closed. #64-#66, #71-#74 merged with blind reviews and green CI.

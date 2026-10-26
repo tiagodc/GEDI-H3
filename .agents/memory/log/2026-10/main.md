@@ -1,5 +1,3 @@
-# LOG
-<!-- one line per meaningful event: "<date -Iseconds> · <harness/model> · <event with numbers/paths>". Append only. Older months: log/YYYY-MM.md -->
 2026-10-20T11:45:23-04:00 · claude-code/opus-5.5 · memory initialized from repo screen; imported 3 pages from Claude harness memory
 2026-10-20T11:48:47-04:00 · claude-code/opus-5.5 · opened PR #48 (agents/project-memory) adding shared project memory
 2026-10-20T12:43:10-04:00 · claude-code/opus-5.5 · audited #42/#46/#47 on 13e820a4; posted verification comments; #46 reproduced (scratch test), #42 case 2 reproduced at logger level
@@ -25,3 +23,4 @@
 2026-10-25T05:55:32-04:00 · claude-code/opus-5.5 · 0.21.4 on PyPI (sdist f92519fe...a85d); autotick opened no feedstock PR in 8 h, so opened conda-forge/gedih3-feedstock#9 (bot update-version command); feedstock cycle resumed under a monitor.
 2026-10-25T06:02:55-04:00 · claude-code/opus-5.5 · conda-forge 0.21.4 live: bot PR #10 (hash f92519fe...a85d matched, entry points untouched, lint+linux_64 green) squash-merged fef3bb54; anaconda.org latest_version 0.21.4; issue #9 auto-closed. Release cycle done.
 2026-10-25T08:47:04-04:00 · claude-code/opus-5.5 · started then stopped (owner: someone else will do it) an h3_v3 gh3_build_ducklake run after ~3.5 min / 270 of 86,557 files; serial add_data_files ran ~1-2 files/s (~15-20 h ETA). Live gedi.ducklake untouched (Oct 2); partial run + backup in .work/ducklake_rebuild/
+2026-10-26T11:12:48-04:00 · agent · memory refreshed: protocol v3→v4 (LOG.md → log/2026-10/main.md, union merges), stale citations fixed in 5 pages, INDEX reindexed

@@ -1,0 +1,4 @@
+# project-memory (protocol v4): merge the append-only logs and INDEX line-wise, so local merges and rebases keep both sides.
+# GitHub's merge button ignores this file; a conflict in INDEX there is resolved with `pmem index` after merging locally.
+log/** merge=union
+INDEX.md merge=union

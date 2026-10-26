@@ -1,8 +1,8 @@
 # Real-data test of --replace-granules against an oracle
 > battle-test granule replacement on a small real-data DB: oracle compare, SIGKILL at every phase, resume
-updated: 2026-10-22T08:41:07-04:00
+updated: 2026-10-26T11:12:31-04:00
 
-The harness lives in `.work/replace_test/` (git-ignored, local to the host that holds a GEDI V003 SOC tree).
+The harness lives in `.work/replace_test/` (git-ignored; exists only on the GEDI data host that holds a V003 SOC tree, not in other clones).
 
 1. `make_soc.py`: 9 real V003 granules (2019, 2020, 2022; L2A, L2B, L4A, L4C) copied into a year/doy tree, plus 0-byte
    decoys for each production sibling (V002, `_10algs`, `_SGS`): a decoy that gets read fails loudly.

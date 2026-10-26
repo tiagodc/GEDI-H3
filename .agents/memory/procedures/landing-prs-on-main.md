@@ -1,16 +1,16 @@
 # Landing PRs on main
 > main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
-updated: 2026-10-22T08:41:07-04:00
+updated: 2026-10-26T11:12:31-04:00
 
-Repo `tiagodc/GEDI-H3`. `main` requires one approving code-owner review; the owner can't approve their own PRs,
+Repo tiagodc/GEDI-H3 on GitHub. `main` requires one approving code-owner review; the owner can't approve their own PRs,
 so PRs land via `gh pr merge N --squash --admin --subject "<PR title> (#N)"`. `enforce_admins` is off, so the
 owner's bump commits are pushed straight to main (`git push origin HEAD:main`).
 
 Agent policy (owner's instruction): branch-level git/gh work on PR branches is fine (commit, push, `gh pr create/edit`,
 forward-merge stacked branches). Merge or push to main only on an explicit request in that session.
 
-1. Branch off `origin/main`; one focused change per PR; Conventional Commit subject; a `## [Unreleased]` CHANGELOG entry.
-2. Before merging: sync the branch with `origin/main`, run the fast suite, push, wait for every CI check.
+1. Branch off origin/main; one focused change per PR; Conventional Commit subject; a `## [Unreleased]` CHANGELOG entry.
+2. Before merging: sync the branch with origin/main, run the fast suite, push, wait for every CI check.
 3. Merge, then bump on a main worktree with the bump-version skill (micro for fixes and warnings, minor for features
    or new flags/API; owner policy: never major while in 0.x), commit exactly `bump version to X.Y.Z`, push to main. One bump per PR.
 4. **CHANGELOG after a bump:** syncing a branch whose `[Unreleased]` shares lines with the section the bump renamed

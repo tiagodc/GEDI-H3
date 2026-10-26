@@ -1,6 +1,6 @@
 # --replace-granules: the paths that silently do nothing or the wrong thing
 > replace-granules gaps found on real data: pre-0.20.10 logs, products added later, --exclude not persisted
-updated: 2026-10-22T22:09:31-04:00
+updated: 2026-10-26T11:12:31-04:00
 
 **Status:** all fixed in 0.21.1-0.21.2: 1 by #72 (#67), 2 by #71 (#68), 3 by #64. Open, reported by #73's author and not
 independently verified: an update of a DB whose product lacks `root_file_<p>` writes `root_file_<p>`/`root_beam_<p>` into
@@ -31,7 +31,7 @@ A database built earlier (`h3_v3`) has none until one run passes `--exclude '*_S
 2: #71 writes `root_file_<p>`/`root_beam_<p>` for a product a variable add brings in; replacement refuses a product added without them.
 
 ## Evidence
-Real-data runs under `.work/replace_test/` (git-ignored): logs `A4_auto.log`, `F3_auto.log`, `F4_explicit.log`, `E2_auto.log`,
+Real-data runs under `.work/replace_test/` (git-ignored, GEDI data host only): logs `A4_auto.log`, `F3_auto.log`, `F4_explicit.log`, `E2_auto.log`,
 `D1_varadd.log`; for #64 `X1`..`X4` (stored exclude, then auto without the flag over `_SGS` decoys: IDENTICAL). Production
 h3_v3 (0.19.0 build, all four `root_file_*` columns, built with `--exclude '*_SGS.h5'`, 33,764 L2A granules with an `_SGS`
 sibling) is exposed to 1 and 3, not to 2.

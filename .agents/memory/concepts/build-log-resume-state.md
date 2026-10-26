@@ -1,6 +1,6 @@
 # Build-log resume state
 > how gh3_build resumes an interrupted update: _pending_update, _pending_variable_update, update_ran
-updated: 2026-10-20T22:59:21-04:00
+updated: 2026-10-26T11:12:31-04:00
 
 The first `save_log` of a `gh3_build` run that goes on to extract (status `PARTITIONING`) already stores the *merged* request: the union region,
 the union dates, and the new products/variables (`to_dict` also writes them into `log_data['products']` in place). A
@@ -10,7 +10,7 @@ resume that only read those fields would see no update at all. Three markers kee
   added dates and new product variables. Restored into `new_spatial` / `new_temporal` / `new_product_vars`, so every
   getter (`get_spatial`, `get_finished_granules`, `stage1_full_scope`, `is_up_to_date`) and the Stage 1 scope
   fingerprint answer as in the interrupted run. Written on every save until `COMPLETED`, `update_ran`, or Stage 2 start.
-- `_pending_variable_update` (set by `cli/gh3_build.py` when Stage 2 starts): the variables Stage 2 must still add.
+- `_pending_variable_update` (set by `src/gedih3/cli/gh3_build.py` when Stage 2 starts): the variables Stage 2 must still add.
   While present the marker above is not written, and the resume skips Stage 1. `gh3_doctor` treats it as stuck
   (and clears it) only beside a `COMPLETED` log; otherwise it is an INFO finding pointing at `gh3_build` (#56).
 - `update_ran` (set by the CLI before its final saves): a final `MERGING` save after failed merges drops the marker,

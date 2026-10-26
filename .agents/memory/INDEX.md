@@ -1,5 +1,5 @@
 # Project index
-<!-- protocol-version: 3 · mode: shared · rules: .agents/memory/PROTOCOL.md -->
+<!-- protocol-version: 4 · mode: shared · rules: .agents/memory/PROTOCOL.md -->
 
 ## Summary
 gedih3: Python library + CLI turning NASA GEDI lidar HDF5 granules into H3/EGI-indexed parquet databases, queryable and rasterizable.
@@ -24,9 +24,9 @@ Invariants, architecture and design priorities live in `AGENTS.md`; this memory 
 
 ## Memory
 - [[concepts/build-log-resume-state]] — how gh3_build resumes an interrupted update: _pending_update, _pending_variable_update, update_ran
-- [[decisions/0001-granule-release-replacement]] — #47 owner calls: PPDS>PGE>GEN ranking, no downgrade, opt-in --replace-granules, basename identity
-- [[gotchas/replace-granules-silent-paths]] — replace-granules gaps found on real data: pre-0.20.10 logs, products added later, --exclude not persisted
+- [[decisions/0001-granule-release-replacement]] — owner calls for #47: release ranking, opt-in replacement, identity in S3 mode
 - [[gotchas/claude-review-check-noop]] — claude-review CI check passed without reviewing until #43; how to test workflow changes
+- [[gotchas/replace-granules-silent-paths]] — replace-granules gaps found on real data: pre-0.20.10 logs, products added later, --exclude not persisted
 - [[procedures/landing-prs-on-main]] — main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
 - [[procedures/replace-granules-real-data-test]] — battle-test granule replacement on a small real-data DB: oracle compare, SIGKILL at every phase, resume
 - [[procedures/testing-a-worktree]] — run the suite against a worktree: PYTHONPATH=src, env bin on PATH, known order-dependent test

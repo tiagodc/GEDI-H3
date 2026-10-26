@@ -1,6 +1,6 @@
 # claude-review CI check was a no-op
 > claude-review CI check passed without reviewing until #43; how to test workflow changes
-updated: 2026-10-20T11:45:23-04:00
+updated: 2026-10-26T11:12:31-04:00
 
 ## Symptom
 Until PR #43 (4841d790) every `Claude Code Review` run ended after ~3–6 s, posted nothing, and went green.

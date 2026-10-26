@@ -1,6 +1,6 @@
 # Testing a worktree
 > run the suite against a worktree: PYTHONPATH=src, env bin on PATH, known order-dependent test
-updated: 2026-10-20T14:56:19-04:00
+updated: 2026-10-26T11:12:31-04:00
 
 PR branches are often checked out as sibling git worktrees. To test one without reinstalling the package:
 
@@ -13,11 +13,11 @@ PR branches are often checked out as sibling git worktrees. To test one without 
 5. Lint: `ruff check src/` (120 cols).
 
 6. End-to-end `gh3_build` tests need no network: tests write synthetic GEDI HDF5 granules and run the CLI as a
-   subprocess (`tests/test_phased_product_updates.py::test_phased_updates_through_the_cli`). Pass a region that starts
+   subprocess (`tests/test_phased_product_updates.py`, `test_phased_updates_through_the_cli`). Pass a region that starts
    with `-` as `--region=-55,0,-50,1`, or argparse reads it as a flag. A "kill" is simulated by saving the build log
    with `H3BuildLogger(...).save_log('<STATUS>')` before the next CLI run.
 
 ## Verify
-- `tests/test_merge_resume.py::test_empty_year_dir_is_skipped` fails when run alone (also on main) but passes in the full
+- `tests/test_merge_resume.py` `test_empty_year_dir_is_skipped` fails when run alone (also on main) but passes in the full
   fast suite and in CI: order-dependent, not a regression.
 - `gh` may not be on PATH on shared hosts; check the dev env's `bin/`. Auth via `GITHUB_TOKEN`.
