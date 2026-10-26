@@ -4,7 +4,7 @@ updated: 2026-10-26T11:12:31-04:00
 
 **Status:** all fixed in 0.21.1-0.21.2: 1 by #72 (#67), 2 by #71 (#68), 3 by #64. Open, reported by #73's author and not
 independently verified: an update of a DB whose product lacks `root_file_<p>` writes `root_file_<p>`/`root_beam_<p>` into
-new cells only (mixed column sets). h3_v3 has all four columns, so it is not exposed.
+new cells only (mixed column sets). A DB built with all four products from the start has every column, so it is not exposed.
 The core replace path itself passed every real-data test, see [[procedures/replace-granules-real-data-test]].
 
 ## Symptom
@@ -26,12 +26,11 @@ The core replace path itself passed every real-data test, see [[procedures/repla
 ## Fix
 3: #64 keeps the patterns in the log (`H3BuildLogger.exclude`, union with each run's `--exclude`, saved even by an
 up-to-date run or a replacement with nothing to do) and applies them in `build_h3db`, variable adds and the doctor.
-A database built earlier (`h3_v3`) has none until one run passes `--exclude '*_SGS.h5'`; an older gedih3 drops them.
+A database built earlier has none until one run passes `--exclude '*_SGS.h5'`; an older gedih3 drops them.
 1: #72 reads `releases` once from the rows' `root_file_*` columns (`releases_from_rows`), matching by granule key within the version.
 2: #71 writes `root_file_<p>`/`root_beam_<p>` for a product a variable add brings in; replacement refuses a product added without them.
 
 ## Evidence
-Real-data runs under `.work/replace_test/` (git-ignored, GEDI data host only): logs `A4_auto.log`, `F3_auto.log`, `F4_explicit.log`, `E2_auto.log`,
-`D1_varadd.log`; for #64 `X1`..`X4` (stored exclude, then auto without the flag over `_SGS` decoys: IDENTICAL). Production
-h3_v3 (0.19.0 build, all four `root_file_*` columns, built with `--exclude '*_SGS.h5'`, 33,764 L2A granules with an `_SGS`
-sibling) is exposed to 1 and 3, not to 2.
+Real-data runs on a small test DB (harness in [[procedures/replace-granules-real-data-test]]): scenarios A4, F3, F4, E2,
+D1; for #64 X1..X4 (stored exclude, then auto without the flag over `_SGS` decoys: IDENTICAL). A production DB built
+before 0.20.10 with `--exclude '*_SGS.h5'` and all four `root_file_*` columns is exposed to 1 and 3, not to 2.
