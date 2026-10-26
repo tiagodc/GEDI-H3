@@ -126,6 +126,7 @@ file they cover — so subsystem detail costs nothing until it is relevant.
 - `--help` output stays ASCII — non-ASCII breaks a Windows console.
 - This repo is public, `.agents/memory/` included: no host or cluster names, filesystem paths, credentials or
   production-database inventories (sizes, counts, release tallies). Keep those in a gitignored note under `.work/`.
+  This overrides `.agents/memory/PROTOCOL.md` where it asks for `@ <host>`, PIDs or machine-specific procedures.
 
 <!-- project-memory:start v3 -->
 ## Project memory: `.agents/memory/` (on)

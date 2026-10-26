@@ -60,6 +60,8 @@ FORBIDDEN_PATTERNS = [
     (r'C:\\\\ProgramData', 'a Windows machine-local path'),
     (r'/c/ProgramData', 'a Windows machine-local path'),
     (r'/home/[a-z][a-z0-9_-]*/', "a specific user's home directory"),
+    (r'/Users/[A-Za-z][A-Za-z0-9_-]*/', "a specific user's home directory"),
+    (r'(?m)^from: [^\n]* @ ', 'a host name in a memory handoff header'),
 ]
 
 # Hand-maintained counts. Every one of these that has ever appeared in this
@@ -92,8 +94,13 @@ def _tracked_agent_files():
 
 
 def _memory_files():
-    """Every markdown file under .agents/memory/: shared project memory, public like the rest."""
-    return sorted(glob.glob(os.path.join(REPO_ROOT, '.agents', 'memory', '**', '*.md'), recursive=True))
+    """Every markdown file under .agents/memory/: shared project memory, public like the rest.
+
+    PROTOCOL.md is exempt: the project-memory skill rewrites it on upgrade, and its handoff
+    template names a `<host>` placeholder that AGENTS.md overrides.
+    """
+    files = glob.glob(os.path.join(REPO_ROOT, '.agents', 'memory', '**', '*.md'), recursive=True)
+    return sorted(f for f in files if os.path.basename(f) != 'PROTOCOL.md')
 
 
 def _frontmatter(text):
