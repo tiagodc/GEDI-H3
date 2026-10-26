@@ -91,6 +91,11 @@ def _tracked_agent_files():
     return [f for f in files if os.path.exists(f)]
 
 
+def _memory_files():
+    """Every markdown file under .agents/memory/: shared project memory, public like the rest."""
+    return sorted(glob.glob(os.path.join(REPO_ROOT, '.agents', 'memory', '**', '*.md'), recursive=True))
+
+
 def _frontmatter(text):
     """Return the raw YAML frontmatter block, or None."""
     match = re.match(r'^---\n(.*?)\n---\n', text, re.S)
@@ -279,7 +284,7 @@ class TestNoDriftProneContent:
             'Every count this repository has written into an agent file went stale.'
         )
 
-    @pytest.mark.parametrize('path', _tracked_agent_files(),
+    @pytest.mark.parametrize('path', _tracked_agent_files() + _memory_files(),
                              ids=lambda p: os.path.relpath(p, REPO_ROOT))
     def test_no_machine_local_paths(self, path):
         text = _read(path)
@@ -291,8 +296,8 @@ class TestNoDriftProneContent:
         assert not found, (
             f'{os.path.relpath(path, REPO_ROOT)} is tracked and public but contains '
             f'machine-local references:\n  ' + '\n  '.join(found)
-            + '\nPut these in .claude/settings.local.json or CLAUDE.local.md, '
-            'both gitignored.'
+            + '\nPut these in .claude/settings.local.json, CLAUDE.local.md or a note under '
+            '.work/, all gitignored.'
         )
 
 

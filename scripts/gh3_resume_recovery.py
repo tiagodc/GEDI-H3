@@ -19,7 +19,7 @@ Reconciles ``gedih3_build_log.json`` against on-disk state so the next
 Idempotent. Run with ``--dry-run`` first to inspect.
 
 Usage:
-  python scripts/gh3_resume_recovery.py --indir /gpfs/.../iss_gedi/h3_v3
+  python scripts/gh3_resume_recovery.py --indir /path/to/h3_db
   python scripts/gh3_resume_recovery.py --indir <path> --dry-run
 """
 import argparse

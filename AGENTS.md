@@ -124,6 +124,8 @@ file they cover — so subsystem detail costs nothing until it is relevant.
 - Smallest change that works. Don't refactor adjacent code unless it meaningfully reduces
   risk. Follow the existing pattern before introducing a new abstraction.
 - `--help` output stays ASCII — non-ASCII breaks a Windows console.
+- This repo is public, `.agents/memory/` included: no host or cluster names, filesystem paths, credentials or
+  production-database inventories (sizes, counts, release tallies). Keep those in a gitignored note under `.work/`.
 
 <!-- project-memory:start v3 -->
 ## Project memory: `.agents/memory/` (on)
