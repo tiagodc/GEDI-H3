@@ -911,57 +911,41 @@ def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
 
 @pytest.mark.parametrize('remote', [False, True])
 def test_gedifile_search_file_version_and_ppds(tmp_path, remote):
+    """search_file returns the requested version only (the root's by default) and any
+    PPDS unless one is named, the same for a SOC directory and a supplied listing (#75)."""
+    import itertools
     from fnmatch import fnmatchcase
     from gedih3.gedidriver import GEDIFile
 
-    soc = tmp_path / '2019' / '108'
-    soc.mkdir(parents=True)
-    root = GEDIFile(str(soc / f'{_BASE}_02_003_01_V003.h5'))
-    target = _BASE.replace('GEDI02_A', 'GEDI01_B')
-    names = [
-        target + '_02_005_01_V002.h5',
-        target + '_02_005_01_V0030.h5',
-        target + '_02_005_01_V003.h5',
-        target + '_03_001_01_V003_SGS.h5',
-    ]
-    paths = [str(soc / name) for name in names]
-    if remote:
-        paths = ['s3://bucket/2019/108/' + name for name in names]
-    else:
-        for path in paths:
-            open(path, 'w').close()
+    root = GEDIFile(str(tmp_path / '2019' / '108' / f'{_BASE}_02_003_01_V003.h5'))
+    l1b = _BASE.replace('GEDI02_A', 'GEDI01_B')
+    v2, v30, v3, v3_ppds3 = (l1b + s for s in ('_02_005_01_V002.h5', '_02_005_01_V0030.h5',
+                                               '_02_005_01_V003.h5', '_03_001_01_V003_SGS.h5'))
+    n_soc = itertools.count()
 
-    def search(files, **kwargs):
+    def search(names, **kwargs):
         if remote:
-            return root.search_file(other_files=files, **kwargs)
-        return root.search_file(str(tmp_path), **kwargs)
+            found = root.search_file(other_files=['s3://bucket/2019/108/' + n for n in names], **kwargs)
+        else:                                       # a fresh SOC tree holding just these files
+            soc = tmp_path / f'soc{next(n_soc)}'
+            (soc / '2019' / '108').mkdir(parents=True)
+            for n in names:
+                (soc / '2019' / '108' / n).touch()
+            found = root.search_file(str(soc), **kwargs)
+        return found and os.path.basename(found)
 
-    # A single mismatched version, multiple mismatches, and a version prefix
-    # must all behave identically for local and supplied paths.
-    for path in paths[:2]:
-        if not remote:
-            os.remove(path)
-    if not remote:
-        for path in paths[2:]:
-            os.remove(path)
-        open(paths[0], 'w').close()
-    assert search(paths[:1]) is None
-    if not remote:
-        open(paths[1], 'w').close()
-    assert search(paths[:2]) is None
-    if not remote:
-        for path in paths[2:]:
-            open(path, 'w').close()
-
-    assert search(paths) == paths[3]
-    assert search(paths, ppds=2) == paths[2]
-    assert search(paths, ppds=3) == paths[3]
-    assert search(paths, ppds=1) is None
-    assert search(paths, version=2) == paths[0]
-    assert search(paths, version=1) is None
-    assert fnmatchcase(names[3], root.get_glob_pattern())
-    assert not fnmatchcase(names[0], root.get_glob_pattern())
-    assert fnmatchcase(names[0], root.get_glob_pattern(version=2, ppds=2))
+    assert search([v2]) is None                     # only another version: none, not V002 (#75)
+    assert search([v2, v30]) is None                # V0030 is not V003
+    every = [v2, v30, v3, v3_ppds3]
+    assert search(every) == v3_ppds3                # any PPDS; the highest-ranked release
+    assert search(every, ppds=2) == v3
+    assert search(every, ppds=3) == v3_ppds3
+    assert search(every, ppds=1) is None
+    assert search(every, version=2) == v2           # another version only when asked for
+    assert search(every, version=1) is None
+    assert fnmatchcase(v3_ppds3, root.get_glob_pattern())
+    assert not fnmatchcase(v2, root.get_glob_pattern())
+    assert fnmatchcase(v2, root.get_glob_pattern(version=2, ppds=2))
 
 
 def test_gedi_release_tag_round_trips_the_ranking():
