@@ -1,0 +1,1 @@
+2026-11-11T16:42:51-05:00 · claude-code/opus-5.5 · #77 opened: variable add reads only the added variables (merge_product_vars returns added names). Fast suite green; real-data subset identical to main and to a fresh build, ~0.5x wall, ~1/6 peak scratch; 3/3 SIGKILL resumes identical. Reviewed #76 (search_file version match, #75): added CHANGELOG + clearer test, CI run.
