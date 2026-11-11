@@ -903,10 +903,65 @@ def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
     l2a.touch()
     found = GEDIFile(str(l2a)).search_file(str(tmp_path), product=2, level='B')
     assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
-    # No file of the same GEDI version: the latest version, then its latest release.
+    # No file of the same GEDI version must not fall back to another version.
     v3 = GEDIFile(str(l2a).replace('_V002', '_V003'))
     found = v3.search_file(str(tmp_path), product=2, level='B')
-    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
+    assert found is None
+
+
+@pytest.mark.parametrize('remote', [False, True])
+def test_gedifile_search_file_version_and_ppds(tmp_path, remote):
+    from fnmatch import fnmatchcase
+    from gedih3.gedidriver import GEDIFile
+
+    soc = tmp_path / '2019' / '108'
+    soc.mkdir(parents=True)
+    root = GEDIFile(str(soc / f'{_BASE}_02_003_01_V003.h5'))
+    target = _BASE.replace('GEDI02_A', 'GEDI01_B')
+    names = [
+        target + '_02_005_01_V002.h5',
+        target + '_02_005_01_V0030.h5',
+        target + '_02_005_01_V003.h5',
+        target + '_03_001_01_V003_SGS.h5',
+    ]
+    paths = [str(soc / name) for name in names]
+    if remote:
+        paths = ['s3://bucket/2019/108/' + name for name in names]
+    else:
+        for path in paths:
+            open(path, 'w').close()
+
+    def search(files, **kwargs):
+        if remote:
+            return root.search_file(other_files=files, **kwargs)
+        return root.search_file(str(tmp_path), **kwargs)
+
+    # A single mismatched version, multiple mismatches, and a version prefix
+    # must all behave identically for local and supplied paths.
+    for path in paths[:2]:
+        if not remote:
+            os.remove(path)
+    if not remote:
+        for path in paths[2:]:
+            os.remove(path)
+        open(paths[0], 'w').close()
+    assert search(paths[:1]) is None
+    if not remote:
+        open(paths[1], 'w').close()
+    assert search(paths[:2]) is None
+    if not remote:
+        for path in paths[2:]:
+            open(path, 'w').close()
+
+    assert search(paths) == paths[3]
+    assert search(paths, ppds=2) == paths[2]
+    assert search(paths, ppds=3) == paths[3]
+    assert search(paths, ppds=1) is None
+    assert search(paths, version=2) == paths[0]
+    assert search(paths, version=1) is None
+    assert fnmatchcase(names[3], root.get_glob_pattern())
+    assert not fnmatchcase(names[0], root.get_glob_pattern())
+    assert fnmatchcase(names[0], root.get_glob_pattern(version=2, ppds=2))
 
 
 def test_gedi_release_tag_round_trips_the_ranking():
