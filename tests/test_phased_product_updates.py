@@ -354,6 +354,51 @@ def test_stale_fill_state_of_another_target_set_is_discarded(tmp_dir, _client):
         [_gedi_name('02_A', '2020200', *b)]))['agbd_l4a'].null_count == 0
 
 
+def test_variable_add_reads_only_the_new_variables(tmp_dir, _client, monkeypatch):
+    """Adding a variable to a product the database holds reads just that variable
+    from each granule (not the product's whole stored list), leaves the stored
+    columns untouched, and ends equal to a fresh build with both variables."""
+    import gedih3.gh3builder as gb
+    from gedih3.logger import H3BuildLogger
+
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    kw = dict(res=12, part=3, soc_source=soc_dir, version=2, tmp_dir=tmp)
+    _write_granule(soc_dir, (101, 1, 201), '2019100', 4.0e7)
+    _write_granule(soc_dir, (102, 1, 202), '2020200', 8.0e7, lon0=-40.5)
+    gb.build_h3db(product_vars=PRODUCT_VARS, h3_dir=h3_dir, **kw)
+    log = H3BuildLogger(product_vars=PRODUCT_VARS, dir=h3_dir, res=12, part=3, version=2)
+    log.set_post_build_info()
+    log.save_log('COMPLETED')
+    before = _db_table(h3_dir).select(['shot_number', 'agbd_l4a', 'rh_098_l2a']).sort_by('shot_number')
+
+    # gh3_build -l4a agbd agbd_se: the stored name again plus one new one.
+    log = H3BuildLogger(product_vars={'L4A': ['agbd', 'agbd_se']}, dir=h3_dir, res=12, part=3, version=2)
+    assert log.new_product_vars == {'L4A': ['agbd_se']}
+
+    reads = []
+    real_load_h5 = gb.load_h5
+
+    def spy(h5_path, *args, columns=None, **kwargs):
+        reads.append((os.path.basename(h5_path)[:8], sorted(columns or [])))
+        return real_load_h5(h5_path, *args, columns=columns, **kwargs)
+    monkeypatch.setattr(gb, 'load_h5', spy)      # threads-only cluster: workers see the patch
+    gb.build_h3db(product_vars=dict(log.new_product_vars), variable_only_update=True, h3_dir=h3_dir, **kw)
+
+    assert reads and set(map(tuple, ((p, tuple(c)) for p, c in reads))) == {('GEDI04_A', ('agbd_se', 'shot_number'))}
+    after = _db_table(h3_dir)
+    assert after['agbd_se_l4a'].null_count == 0
+    assert after.select(before.schema.names).sort_by('shot_number').equals(before)
+
+    monkeypatch.setattr(gb, 'load_h5', real_load_h5)
+    ref_dir = os.path.join(tmp_dir, 'ref_db')
+    gb.build_h3db(product_vars={'L2A': ['rh_098'], 'L4A': ['agbd', 'agbd_se']}, h3_dir=ref_dir,
+                  **{**kw, 'tmp_dir': os.path.join(tmp_dir, 'ref_tmp')})
+    ref = _db_table(ref_dir)
+    assert sorted(after.schema.names) == sorted(ref.schema.names)
+    order = lambda t: t.select(sorted(ref.schema.names)).sort_by('shot_number')  # noqa: E731
+    assert order(after).equals(order(ref))
+
+
 def test_phased_updates_through_the_cli(tmp_dir):
     """gh3_build end to end: a phased run records MISSING_SOURCE and remembers
     the mode; a plain later run notices the product file and fills it."""

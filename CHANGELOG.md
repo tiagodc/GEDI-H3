@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **A variable add reads only the variables it adds.** Adding variables to a product the database already holds (e.g. `gh3_build -l4a lat_lowestmode` on a database with L4A) read every stored variable of that product from every granule, staged them all as fragments, and dropped the ones the files already had only at the merge. Now it reads and stages just the new ones. The result is the same; the run's HDF5 reads, scratch space and merge memory scale with what it adds, not with the whole product. `merge_product_vars` returns only the added names, so the HDF5 pre-flight check and the crash-resume record (`_pending_variable_update`) cover just those too.
+
 ## [0.21.4] - 2026-10-24
 
 ### Changed
