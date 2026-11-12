@@ -163,11 +163,14 @@ L2A alone provides over 300 variables per beam. Knowing which variables are rele
 ::::{grid} 1 1 2 2
 :gutter: 3
 
-:::{grid-item-card} Raw GEDI (HDF5)
+:::{grid-item-card}
 :shadow: md
 :class-header: sd-bg-danger sd-bg-text-danger
 :class-card: sd-border-danger comparison-card
-^^^
+
+```{card-header}
+**Raw GEDI (HDF5)**
+```
 
 **Files** — Hundreds of orbit files (~1–3 GB each) must be parsed even for a small study site
 
@@ -182,11 +185,14 @@ L2A alone provides over 300 variables per beam. Knowing which variables are rele
 **Tools** — Limited to Python `h5py`, R `rhdf5`, or specialized GEDI tools
 :::
 
-:::{grid-item-card} gedih3 H3 Database (GeoParquet)
+:::{grid-item-card}
 :shadow: md
 :class-header: sd-bg-success sd-bg-text-success
 :class-card: sd-border-success comparison-card
-^^^
+
+```{card-header}
+**gedih3 H3 Database (GeoParquet)**
+```
 
 **Files** — ~4 spatial tiles for a 1°×1° region; queries read only tiles that intersect your area
 

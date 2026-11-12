@@ -105,7 +105,7 @@ docs = [
     "numpydoc >= 1.8",
     "myst-parser >= 4.0",
     "sphinx-autoapi >= 3.4",
-    "sphinx-design >= 0.6",
+    "sphinx-design >= 0.8",
     "sphinxcontrib-mermaid >= 1.0",
 ]
 # NOT pip-installable as written, and deliberately left that way.
