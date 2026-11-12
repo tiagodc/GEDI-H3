@@ -1083,9 +1083,14 @@ def main():
                         sys.exit(2)
 
                 if args.download:
-                    # --download enabled: embed gh3_download as pre-step
+                    # --download enabled: embed gh3_download as pre-step.
+                    # A file fetched here is subset to the variables
+                    # requested, and both loggers' deltas hold only the names
+                    # an update adds. Request each product's full stored list
+                    # instead, so a newly fetched file also holds the columns a
+                    # later Stage 1 or backfill reads from it.
                     soc_logger = SOCDownloadLogger(
-                        product_vars=h3_logger.get_product_vars(),
+                        product_vars={p: h3_logger.product_vars.get(p) for p in h3_logger.get_product_vars()},
                         spatial=h3_logger.get_spatial(),
                         temporal=h3_logger.get_temporal(),
                         version=h3_logger.gedi_version,
@@ -1151,7 +1156,7 @@ def main():
                             soc_logger.save_log('DOWNLOADING')
 
                         download_soc(
-                            product_vars=soc_logger.get_product_vars(),
+                            product_vars={p: soc_logger.product_vars.get(p) for p in soc_logger.get_product_vars()},
                             spatial=soc_logger.get_spatial(),
                             temporal=soc_logger.get_temporal(),
                             direct_access=False,

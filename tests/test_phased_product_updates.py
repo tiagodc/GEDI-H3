@@ -911,3 +911,44 @@ def test_superseded_releases_compares_the_latest_of_files_listed_one_by_one(tmp_
     log.gedi_version = None
     assert log.superseded_releases(_soc_files_by_product([f(1, '02_004_01', 'V003')])) == \
         {'newer': {}, 'older': {}}
+
+
+@pytest.mark.parametrize('soc_log', [False, True], ids=['no-download-log', 'download-log'])
+def test_download_during_a_variable_add_requests_the_stored_variables(tmp_dir, monkeypatch, soc_log):
+    """``gh3_build --download`` subsets each newly fetched file to the variables it
+    requests. A variable add must request the product's stored variables as well as
+    the added ones, with or without a download log in the SOC tree: a file fetched
+    with only the added names would fail a later Stage 1 or backfill of the others."""
+    import sys
+
+    from test_granule_replacement import OLD, _gh3_build, _write_release
+
+    from gedih3.cli import gh3_build
+    from gedih3.logger import SOCDownloadLogger
+
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    _write_release(soc_dir, (101, 1, 201), OLD, lon0=-50.5, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp)  # -l2a rh_098 -l4a agbd
+    if soc_log:
+        SOCDownloadLogger(product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']}, version=2,
+                          dir=soc_dir).save_log('COMPLETED')
+
+    class _Stop(Exception):
+        pass
+
+    requests = []
+
+    def fake_download_soc(**kwargs):
+        requests.append(kwargs['product_vars'])
+        raise _Stop
+
+    monkeypatch.setattr('gedih3.gh3builder.download_soc', fake_download_soc)
+    monkeypatch.setattr(sys, 'argv', [
+        'gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp, '--gedi-version', '2', '-N', '1', '-T', '1',
+        '-M', '2', '-P', '0', '--no-bbox-index', '--download', '-l4a', 'agbd_se'])
+    with pytest.raises((_Stop, SystemExit)):
+        gh3_build.main()
+
+    assert len(requests) == 1
+    assert set(requests[0]) == {'L4A'}
+    assert {'agbd', 'agbd_se'} <= set(requests[0]['L4A'])
