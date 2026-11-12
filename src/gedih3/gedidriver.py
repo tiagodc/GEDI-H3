@@ -12,6 +12,7 @@ including parsing filenames, extracting data, and building Dask DataFrames.
 import os
 import re
 import glob
+import fnmatch
 import itertools
 from typing import Dict, List, Optional, Union
 from pathlib import Path
@@ -720,37 +721,71 @@ class GEDIFile:
         self.mission_week = (self.date - GEDI_MISSION_START).days // 7 + 1
         self.suffix = '_'.join(fl[10:]) if len(fl) > 10 else None
     
-    def get_glob_pattern(self, product:int=1, level:str='B', ppds:int=2):
-        return gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds)
+    def get_glob_pattern(self, product:int=1, level:str='B', ppds:int=None, version:int=None):
+        """Return a glob for this granule and the requested product.
+
+        Parameters
+        ----------
+        product : int, optional
+            GEDI product number.
+        level : str, optional
+            Product level.
+        ppds : int, optional
+            Positioning and pointing data solution; ``None`` matches any PPDS.
+        version : int, optional
+            Product version; defaults to this file's version.
+
+        Returns
+        -------
+        str
+            Filename glob, including any suffix after the version.
+        """
+        version = self.version if version is None else version
+        return gedi_file_glob(self.orbit, self.orbit_granule, self.track, product, level, ppds, version=version)
     
     @classmethod
     def from_filename(cls, file_path):
         return cls(file_path)
 
-    def search_file(self, soc_dir: str = None, product:int=1, level:str='B', other_files=None): # other_files = e.g. http paths from direct s3
-        pattern = self.get_glob_pattern(product, level)
+    def search_file(self, soc_dir: str = None, product:int=1, level:str='B', other_files=None,
+                    version:int=None, ppds:int=None):
+        """Find the latest release of a matching product for this granule.
+
+        Parameters
+        ----------
+        soc_dir : str, optional
+            SOC directory to search recursively; defaults to this file's SOC root.
+        product : int, optional
+            GEDI product number.
+        level : str, optional
+            Product level.
+        other_files : iterable of str, optional
+            Paths to search instead of the SOC directory, e.g. S3 paths.
+        version : int, optional
+            Required product version; defaults to this file's version.
+        ppds : int, optional
+            Required PPDS; ``None`` matches any PPDS.
+
+        Returns
+        -------
+        str or None
+            Highest-ranked matching release, or ``None`` when none exists.
+        """
+        version = self.version if version is None else version
+        pattern = self.get_glob_pattern(product, level, ppds, version)
         
         if other_files is None:
             if soc_dir is None:
                 soc_dir = soc_from_file(self.file_path)
             files = glob.glob(os.path.join(soc_dir, '**', pattern), recursive=True)
         else:
-            files = [f for f in other_files if re.match(pattern.replace('*','.*'), os.path.basename(f))]
-        
-        if not files:
-            return None
-        
-        if len(files) == 1:
-            return files[0]
+            files = [f for f in other_files if fnmatch.fnmatchcase(os.path.basename(f), pattern)]
 
         parsed_files = [GEDIFile.from_filename(f) for f in files]
-        version_matches = [f for f in parsed_files if f.version == self.version]
-        if version_matches:
-            version_matches.sort(key=lambda x: gedi_release_rank(x.file_path), reverse=True)
-            return version_matches[0].file_path
-
-        parsed_files.sort(key=lambda x: (x.version, *gedi_release_rank(x.file_path)), reverse=True)
-        return parsed_files[0].file_path
+        version_matches = [f for f in parsed_files if f.version == version]
+        if not version_matches:
+            return None
+        return max(version_matches, key=lambda x: gedi_release_rank(x.file_path)).file_path
 
 class GEDIShot(GEDIFile):
     """
