@@ -903,10 +903,49 @@ def test_gedifile_search_file_ranks_pge_over_generation(tmp_path):
     l2a.touch()
     found = GEDIFile(str(l2a)).search_file(str(tmp_path), product=2, level='B')
     assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
-    # No file of the same GEDI version: the latest version, then its latest release.
+    # No file of the same GEDI version must not fall back to another version.
     v3 = GEDIFile(str(l2a).replace('_V002', '_V003'))
     found = v3.search_file(str(tmp_path), product=2, level='B')
-    assert os.path.basename(found) == _BASE.replace('GEDI02_A', 'GEDI02_B') + '_02_004_01_V002_SGS.h5'
+    assert found is None
+
+
+@pytest.mark.parametrize('remote', [False, True])
+def test_gedifile_search_file_version_and_ppds(tmp_path, remote):
+    """search_file returns the requested version only (the root's by default) and any
+    PPDS unless one is named, the same for a SOC directory and a supplied listing (#75)."""
+    import itertools
+    from fnmatch import fnmatchcase
+    from gedih3.gedidriver import GEDIFile
+
+    root = GEDIFile(str(tmp_path / '2019' / '108' / f'{_BASE}_02_003_01_V003.h5'))
+    l1b = _BASE.replace('GEDI02_A', 'GEDI01_B')
+    v2, v30, v3, v3_ppds3 = (l1b + s for s in ('_02_005_01_V002.h5', '_02_005_01_V0030.h5',
+                                               '_02_005_01_V003.h5', '_03_001_01_V003_SGS.h5'))
+    n_soc = itertools.count()
+
+    def search(names, **kwargs):
+        if remote:
+            found = root.search_file(other_files=['s3://bucket/2019/108/' + n for n in names], **kwargs)
+        else:                                       # a fresh SOC tree holding just these files
+            soc = tmp_path / f'soc{next(n_soc)}'
+            (soc / '2019' / '108').mkdir(parents=True)
+            for n in names:
+                (soc / '2019' / '108' / n).touch()
+            found = root.search_file(str(soc), **kwargs)
+        return found and os.path.basename(found)
+
+    assert search([v2]) is None                     # only another version: none, not V002 (#75)
+    assert search([v2, v30]) is None                # V0030 is not V003
+    every = [v2, v30, v3, v3_ppds3]
+    assert search(every) == v3_ppds3                # any PPDS; the highest-ranked release
+    assert search(every, ppds=2) == v3
+    assert search(every, ppds=3) == v3_ppds3
+    assert search(every, ppds=1) is None
+    assert search(every, version=2) == v2           # another version only when asked for
+    assert search(every, version=1) is None
+    assert fnmatchcase(v3_ppds3, root.get_glob_pattern())
+    assert not fnmatchcase(v2, root.get_glob_pattern())
+    assert fnmatchcase(v2, root.get_glob_pattern(version=2, ppds=2))
 
 
 def test_gedi_release_tag_round_trips_the_ranking():

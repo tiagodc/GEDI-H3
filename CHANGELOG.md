@@ -7,7 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
-- **A variable add reads only the variables it adds.** Adding variables to a product the database already holds (e.g. `gh3_build -l4a lat_lowestmode` on a database with L4A) read every stored variable of that product from every granule, staged them all as fragments, and dropped the ones the files already had only at the merge. Now it reads and stages just the new ones. The result is the same; the run's HDF5 reads, scratch space and merge memory scale with what it adds, not with the whole product. `merge_product_vars` returns only the added names, so the HDF5 pre-flight check and the crash-resume record (`_pending_variable_update`) cover just those too.
+- **A variable add reads only the variables it adds.** Adding variables to a product the database already holds (e.g. `gh3_build -l4a lat_lowestmode` on a database with L4A) read every stored variable of that product from every granule, staged them all as fragments, and dropped the ones the files already had only at the merge. Now it reads and stages just the new ones. The result is the same; the run's HDF5 reads, scratch space and merge memory scale with what it adds, not with the whole product. `merge_product_vars` returns only the added names, so the HDF5 pre-flight check and the crash-resume record (`_pending_variable_update`) cover just those too. `gh3_build --download` still requests each product's full stored list, since it subsets every file it fetches to that list.
+
+### Fixed
+- **`GEDIFile.search_file` no longer returns another GEDI version's file.** It looks for the root file's version by default (`version=` asks for another one) and returns `None` when no file of that version exists. Before, when the matching version was missing (a partial archive, a release still being ingested, an `other_files` listing), it returned a file of another version without a warning: a V003 L2A could be paired with a V002 L1B. It now also finds PPDS-03 files: `ppds=None`, now the default of `search_file` and `GEDIFile.get_glob_pattern`, matches any PPDS, and `ppds=` asks for one. `get_glob_pattern` used to fix the PPDS at 02, and now defaults to the file's own version too. Supplied paths are matched as a filename glob, as local ones are. (#75)
 
 ## [0.21.4] - 2026-10-24
 
