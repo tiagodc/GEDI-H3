@@ -1,6 +1,6 @@
 # Variable adds: what one run covers and what it reads
 > a var add with no -r/-t skips Stage 1; it used to read a product's whole stored var list (fixed by #77)
-updated: 2026-11-11T16:42:51-05:00
+updated: 2026-11-12T14:04:54-05:00
 
 **Status:** 2 fixed by #77 (fix/variable-add-new-vars-only); 1 is by design.
 
@@ -21,8 +21,13 @@ updated: 2026-11-11T16:42:51-05:00
    them for the new granules too. Bare product flags (`-l2a`) mean "all variables": on a database storing a subset,
    that is a database-wide variable add.
 2. #77: `merge_product_vars` returns only the added names (whole list for a new product, `None` for "all").
+   Trap: the delta is not a download request. `download_granule` (`daac.py`) subsets each fetched file to
+   `subset_vars`, so `gh3_build --download` widens both loggers' deltas back to each in-scope product's full stored
+   list; a file fetched with the delta alone lacks the older columns, and a later Stage 1 or backfill fails on it.
 
 ## Evidence
 #77: unit + `test_variable_add_reads_only_the_new_variables` (spy on `load_h5`) fail on main, pass on the branch.
+`test_download_during_a_variable_add_requests_the_stored_variables` pins the download request (with and without a
+SOC download log).
 Real data (4 V003 granules, 3 L4A vars added): identical to main and to a fresh build; about half the wall time and
 about a sixth of the peak scratch of main; SIGKILL at fan-out, merge and metadata merge resumes identical.
