@@ -95,6 +95,8 @@ dependencies:
   - numpydoc[version='>=1.8']
   - myst-parser[version='>=4.0']
   - sphinx-autoapi[version='>=3.4']
+  - sphinx-design[version='>=0.8']
+  - sphinxcontrib-mermaid[version='>=1.0']
 
   # Install gedih3 in editable mode via pip
   - pip:
