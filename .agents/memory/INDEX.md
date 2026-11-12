@@ -27,6 +27,7 @@ Invariants, architecture and design priorities live in `AGENTS.md`; this memory 
 - [[decisions/0001-granule-release-replacement]] — owner calls for #47: release ranking, opt-in replacement, identity in S3 mode
 - [[gotchas/claude-review-check-noop]] — claude-review CI check passed without reviewing until #43; how to test workflow changes
 - [[gotchas/replace-granules-silent-paths]] — replace-granules gaps found on real data: pre-0.20.10 logs, products added later, --exclude not persisted
+- [[gotchas/variable-add-scope]] — a var add with no -r/-t skips Stage 1; it used to read a product's whole stored var list (fixed by #77)
 - [[procedures/landing-prs-on-main]] — main is review-protected: owner admin-squash-merges; agents open PRs, never merge unasked
 - [[procedures/replace-granules-real-data-test]] — battle-test granule replacement on a small real-data DB: oracle compare, SIGKILL at every phase, resume
 - [[procedures/testing-a-worktree]] — run the suite against a worktree: PYTHONPATH=src, env bin on PATH, known order-dependent test

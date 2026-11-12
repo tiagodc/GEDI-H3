@@ -354,6 +354,51 @@ def test_stale_fill_state_of_another_target_set_is_discarded(tmp_dir, _client):
         [_gedi_name('02_A', '2020200', *b)]))['agbd_l4a'].null_count == 0
 
 
+def test_variable_add_reads_only_the_new_variables(tmp_dir, _client, monkeypatch):
+    """Adding a variable to a product the database holds reads just that variable
+    from each granule (not the product's whole stored list), leaves the stored
+    columns untouched, and ends equal to a fresh build with both variables."""
+    import gedih3.gh3builder as gb
+    from gedih3.logger import H3BuildLogger
+
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    kw = dict(res=12, part=3, soc_source=soc_dir, version=2, tmp_dir=tmp)
+    _write_granule(soc_dir, (101, 1, 201), '2019100', 4.0e7)
+    _write_granule(soc_dir, (102, 1, 202), '2020200', 8.0e7, lon0=-40.5)
+    gb.build_h3db(product_vars=PRODUCT_VARS, h3_dir=h3_dir, **kw)
+    log = H3BuildLogger(product_vars=PRODUCT_VARS, dir=h3_dir, res=12, part=3, version=2)
+    log.set_post_build_info()
+    log.save_log('COMPLETED')
+    before = _db_table(h3_dir).select(['shot_number', 'agbd_l4a', 'rh_098_l2a']).sort_by('shot_number')
+
+    # gh3_build -l4a agbd agbd_se: the stored name again plus one new one.
+    log = H3BuildLogger(product_vars={'L4A': ['agbd', 'agbd_se']}, dir=h3_dir, res=12, part=3, version=2)
+    assert log.new_product_vars == {'L4A': ['agbd_se']}
+
+    reads = []
+    real_load_h5 = gb.load_h5
+
+    def spy(h5_path, *args, columns=None, **kwargs):
+        reads.append((os.path.basename(h5_path)[:8], sorted(columns or [])))
+        return real_load_h5(h5_path, *args, columns=columns, **kwargs)
+    monkeypatch.setattr(gb, 'load_h5', spy)      # threads-only cluster: workers see the patch
+    gb.build_h3db(product_vars=dict(log.new_product_vars), variable_only_update=True, h3_dir=h3_dir, **kw)
+
+    assert reads and set(map(tuple, ((p, tuple(c)) for p, c in reads))) == {('GEDI04_A', ('agbd_se', 'shot_number'))}
+    after = _db_table(h3_dir)
+    assert after['agbd_se_l4a'].null_count == 0
+    assert after.select(before.schema.names).sort_by('shot_number').equals(before)
+
+    monkeypatch.setattr(gb, 'load_h5', real_load_h5)
+    ref_dir = os.path.join(tmp_dir, 'ref_db')
+    gb.build_h3db(product_vars={'L2A': ['rh_098'], 'L4A': ['agbd', 'agbd_se']}, h3_dir=ref_dir,
+                  **{**kw, 'tmp_dir': os.path.join(tmp_dir, 'ref_tmp')})
+    ref = _db_table(ref_dir)
+    assert sorted(after.schema.names) == sorted(ref.schema.names)
+    order = lambda t: t.select(sorted(ref.schema.names)).sort_by('shot_number')  # noqa: E731
+    assert order(after).equals(order(ref))
+
+
 def test_phased_updates_through_the_cli(tmp_dir):
     """gh3_build end to end: a phased run records MISSING_SOURCE and remembers
     the mode; a plain later run notices the product file and fills it."""
@@ -866,3 +911,44 @@ def test_superseded_releases_compares_the_latest_of_files_listed_one_by_one(tmp_
     log.gedi_version = None
     assert log.superseded_releases(_soc_files_by_product([f(1, '02_004_01', 'V003')])) == \
         {'newer': {}, 'older': {}}
+
+
+@pytest.mark.parametrize('soc_log', [False, True], ids=['no-download-log', 'download-log'])
+def test_download_during_a_variable_add_requests_the_stored_variables(tmp_dir, monkeypatch, soc_log):
+    """``gh3_build --download`` subsets each newly fetched file to the variables it
+    requests. A variable add must request the product's stored variables as well as
+    the added ones, with or without a download log in the SOC tree: a file fetched
+    with only the added names would fail a later Stage 1 or backfill of the others."""
+    import sys
+
+    from test_granule_replacement import OLD, _gh3_build, _write_release
+
+    from gedih3.cli import gh3_build
+    from gedih3.logger import SOCDownloadLogger
+
+    soc_dir, h3_dir, tmp = (os.path.join(tmp_dir, n) for n in ('soc', 'db', 'tmp'))
+    _write_release(soc_dir, (101, 1, 201), OLD, lon0=-50.5, seed=1)
+    _gh3_build(soc_dir, h3_dir, tmp)  # -l2a rh_098 -l4a agbd
+    if soc_log:
+        SOCDownloadLogger(product_vars={'L2A': ['rh_098'], 'L4A': ['agbd']}, version=2,
+                          dir=soc_dir).save_log('COMPLETED')
+
+    class _Stop(Exception):
+        pass
+
+    requests = []
+
+    def fake_download_soc(**kwargs):
+        requests.append(kwargs['product_vars'])
+        raise _Stop
+
+    monkeypatch.setattr('gedih3.gh3builder.download_soc', fake_download_soc)
+    monkeypatch.setattr(sys, 'argv', [
+        'gh3_build', '-i', soc_dir, '-o', h3_dir, '-t', tmp, '--gedi-version', '2', '-N', '1', '-T', '1',
+        '-M', '2', '-P', '0', '--no-bbox-index', '--download', '-l4a', 'agbd_se'])
+    with pytest.raises((_Stop, SystemExit)):
+        gh3_build.main()
+
+    assert len(requests) == 1
+    assert set(requests[0]) == {'L4A'}
+    assert {'agbd', 'agbd_se'} <= set(requests[0]['L4A'])

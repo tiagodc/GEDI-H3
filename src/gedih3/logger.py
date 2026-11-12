@@ -177,33 +177,48 @@ def merge_temporal(existing, new):
     return t_full, t_diff
 
 def merge_product_vars(existing_product_vars, new_product_vars=None):
+    """Merge requested product variables into the stored ones.
+
+    Parameters
+    ----------
+    existing_product_vars : dict
+        Product code → variable list stored in the log (``None`` = every variable).
+    new_product_vars : dict, optional
+        Product code → requested variable list (``None`` = every variable).
+
+    Returns
+    -------
+    merged : dict
+        The union: what the database holds once the request is applied.
+    added : dict or None
+        Per product, only what the request adds: the full list for a product
+        new to the database, ``None`` for a product now requested in full, and
+        just the new names for a product it already holds. Stage 2 reads exactly
+        these from every granule, so adding a few variables to a product does not
+        re-read (and stage) all of it. ``None`` when the request adds nothing.
+    """
     if not new_product_vars:
         return existing_product_vars, None
 
     merged_product_vars = existing_product_vars.copy()
 
-    update_prods = set()
+    added = {}
     for prod, vars_list in new_product_vars.items():
         if prod not in merged_product_vars:
             merged_product_vars[prod] = vars_list
-            update_prods.add(prod)
+            added[prod] = vars_list
         elif merged_product_vars[prod] is None or vars_list is None:
             merged_product_vars[prod] = None
             if vars_list is None and existing_product_vars[prod] is not None:
-                update_prods.add(prod)
+                added[prod] = None
         else:
             existing_set = set(merged_product_vars[prod])
-            new_set = set(vars_list)
-            merged_set = existing_set | new_set
-            merged_product_vars[prod] = list(merged_set)
-            if merged_set != existing_set:
-                update_prods.add(prod)
+            new_vars = list(dict.fromkeys(v for v in vars_list if v not in existing_set))
+            merged_product_vars[prod] = list(existing_set | set(new_vars))
+            if new_vars:
+                added[prod] = new_vars
 
-    new_product_vars = None
-    if len(update_prods) > 0:
-        new_product_vars = {k:val for k, val in merged_product_vars.items() if k in update_prods}
-
-    return merged_product_vars, new_product_vars
+    return merged_product_vars, (added or None)
 
 def resolve_soc_version(soc_dir):
     """Return the GEDI data version a local SOC tree was populated with, or None.

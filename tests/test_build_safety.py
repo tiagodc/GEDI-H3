@@ -457,8 +457,26 @@ class TestMergeProductVars:
         merged, update = merge_product_vars(existing, new)
 
         assert set(merged['L2A']) == {'rh_098', 'rh_050'}
-        assert update is not None
-        assert 'L2A' in update
+        # Only what the request adds: Stage 2 reads exactly this from every granule.
+        assert update == {'L2A': ['rh_050']}
+
+    def test_added_vars_only_across_products(self):
+        """A re-requested product list adds only its new names; a product new to
+        the database comes whole; a request for every variable stays None."""
+        from gedih3.logger import merge_product_vars
+
+        existing = {'L2A': ['rh_098', 'rh_050'], 'L4A': ['agbd', 'agbd_se'], 'L2B': ['cover']}
+        new = {'L4A': ['agbd', 'lat_lowestmode', 'agbd_se', 'lon_lowestmode', 'lat_lowestmode'],
+               'L4C': ['wsci', 'wsci_pi_lower'], 'L2B': None, 'L2A': ['rh_098']}
+
+        merged, update = merge_product_vars(existing, new)
+
+        assert update == {'L4A': ['lat_lowestmode', 'lon_lowestmode'],   # request order, no repeats
+                          'L4C': ['wsci', 'wsci_pi_lower'],
+                          'L2B': None}
+        assert set(merged['L4A']) == {'agbd', 'agbd_se', 'lat_lowestmode', 'lon_lowestmode'}
+        assert merged['L2B'] is None and set(merged['L2A']) == {'rh_098', 'rh_050'}
+        assert existing['L4A'] == ['agbd', 'agbd_se']                      # inputs not edited
 
     def test_identical_vars_no_update(self):
         """Same variables — no update needed."""
