@@ -1,0 +1,1 @@
+2026-11-12T16:18:11-05:00 · claude-code/opus-5.5 · #76 and #77 merged (Copilot's download finding on #77 fixed first); 0.21.5 bumped and pushed to main, not shipped. Worktrees removed; folded now/fix-variable-add-new-vars-only.md into NOW.md.
