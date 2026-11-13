@@ -1,1 +1,2 @@
 2026-11-12T16:18:11-05:00 · claude-code/opus-5.5 · #76 and #77 merged (Copilot's download finding on #77 fixed first); 0.21.5 bumped and pushed to main, not shipped. Worktrees removed; folded now/fix-variable-add-new-vars-only.md into NOW.md.
+2026-11-12T22:21:43-05:00 · claude-code/opus-5.5 · #78 merged (docs deploy broken by sphinx-design 0.8 card separator deprecation; blind review: merge). Shipped 0.21.5: tag v0.21.5 on d089e793, PyPI, conda-forge feedstock #11 (sha256 verified vs PyPI, entry points and run deps match).

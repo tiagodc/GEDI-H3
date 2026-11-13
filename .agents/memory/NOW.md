@@ -1,10 +1,13 @@
 # NOW
-from: claude-code/opus-5.5 · 2026-11-12T16:18:11-05:00 · branch main · main at b90bfd75 (0.21.5 bumped, not shipped)
+from: claude-code/opus-5.5 · 2026-11-12T22:21:43-05:00 · branch main · main at d089e793 (0.21.5 shipped)
 ## Open questions
 - Owner: open an issue for the mixed column-set drift in [[gotchas/replace-granules-silent-paths]] (status line)?
 ## Next steps
-1. Ship 0.21.5 (`/ship`, owner): #76 (search_file matches the root file's GEDI version, #75) and #77 (a variable add
-   reads only the added variables; `--download` still requests each product's full stored list).
+- 0.21.5 SHIPPED 2026-11-12: tag v0.21.5 on d089e793, PyPI, conda-forge (feedstock #11, bot PR within ~2 h).
+  Contents: #76 (search_file version match), #77 (variable add reads only added vars; --download keeps full lists),
+  #78 (docs: sphinx-design 0.8 card-header; docs extra and environment.yml require >= 0.8).
+1. Optional PR: run the docs build (no deploy) on pull_request; today it runs only on push to main, so a new
+   sphinx-design release broke every deploy unseen.
 2. Phased V3 update: add variables first (one variable-add run), then the L2A+L2B granules with
    `--allow-missing-products`, then a plain run to backfill L4A/L4C. See [[gotchas/variable-add-scope]].
 3. Existing V3 databases: one variable add of the L4 inclusion flag for the L4 products they hold
