@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 - **`GEDIFile.search_file` no longer returns another GEDI version's file.** It looks for the root file's version by default (`version=` asks for another one) and returns `None` when no file of that version exists. Before, when the matching version was missing (a partial archive, a release still being ingested, an `other_files` listing), it returned a file of another version without a warning: a V003 L2A could be paired with a V002 L1B. It now also finds PPDS-03 files: `ppds=None`, now the default of `search_file` and `GEDIFile.get_glob_pattern`, matches any PPDS, and `ppds=` asks for one. `get_glob_pattern` used to fix the PPDS at 02, and now defaults to the file's own version too. Supplied paths are matched as a filename glob, as local ones are. (#75)
+- **Docs build again with sphinx-design 0.8.** It deprecated the `^^^` card-header separator, and the docs build treats warnings as errors, so every deploy failed. The two comparison cards on the *GEDI Data* page now use the `card-header` directive, and the `docs` extra and `environment.yml` require `sphinx-design >= 0.8`.
 
 ## [0.21.4] - 2026-10-24
 
