@@ -76,6 +76,45 @@ Module Contents
 
 .. py:function:: merge_product_vars(existing_product_vars, new_product_vars=None)
 
+   
+   Merge requested product variables into the stored ones.
+
+
+   :Parameters:
+
+       **existing_product_vars** : dict
+           Product code → variable list stored in the log (``None`` = every variable).
+
+       **new_product_vars** : dict, optional
+           Product code → requested variable list (``None`` = every variable).
+
+
+
+   :Returns:
+
+       **merged** : dict
+           The union: what the database holds once the request is applied.
+
+       **added** : dict or None
+           Per product, only what the request adds: the full list for a product
+           new to the database, ``None`` for a product now requested in full, and
+           just the new names for a product it already holds. Stage 2 reads exactly
+           these from every granule, so adding a few variables to a product does not
+           re-read (and stage) all of it. ``None`` when the request adds nothing.
+
+
+
+
+
+
+
+
+
+
+
+   ..
+       !! processed by numpydoc !!
+
 .. py:function:: resolve_soc_version(soc_dir)
 
    

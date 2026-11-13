@@ -584,7 +584,45 @@ Module Contents
    .. py:method:: parse_file(f: str) -> None
 
 
-   .. py:method:: get_glob_pattern(product: int = 1, level: str = 'B', ppds: int = 2)
+   .. py:method:: get_glob_pattern(product: int = 1, level: str = 'B', ppds: int = None, version: int = None)
+
+      
+      Return a glob for this granule and the requested product.
+
+
+      :Parameters:
+
+          **product** : int, optional
+              GEDI product number.
+
+          **level** : str, optional
+              Product level.
+
+          **ppds** : int, optional
+              Positioning and pointing data solution; ``None`` matches any PPDS.
+
+          **version** : int, optional
+              Product version; defaults to this file's version.
+
+
+
+      :Returns:
+
+          str
+              Filename glob, including any suffix after the version.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
 
 
    .. py:method:: from_filename(file_path)
@@ -592,7 +630,51 @@ Module Contents
 
 
 
-   .. py:method:: search_file(soc_dir: str = None, product: int = 1, level: str = 'B', other_files=None)
+   .. py:method:: search_file(soc_dir: str = None, product: int = 1, level: str = 'B', other_files=None, version: int = None, ppds: int = None)
+
+      
+      Find the latest release of a matching product for this granule.
+
+
+      :Parameters:
+
+          **soc_dir** : str, optional
+              SOC directory to search recursively; defaults to this file's SOC root.
+
+          **product** : int, optional
+              GEDI product number.
+
+          **level** : str, optional
+              Product level.
+
+          **other_files** : iterable of str, optional
+              Paths to search instead of the SOC directory, e.g. S3 paths.
+
+          **version** : int, optional
+              Required product version; defaults to this file's version.
+
+          **ppds** : int, optional
+              Required PPDS; ``None`` matches any PPDS.
+
+
+
+      :Returns:
+
+          str or None
+              Highest-ranked matching release, or ``None`` when none exists.
+
+
+
+
+
+
+
+
+
+
+
+      ..
+          !! processed by numpydoc !!
 
 
 .. py:class:: GEDIShot(shot: Union[int, numpy.ndarray], build_glob: bool = False)
